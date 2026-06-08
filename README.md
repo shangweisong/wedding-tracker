@@ -11,6 +11,8 @@ A real-time, multi-device wedding guest tracker — check-in, table management, 
 - **Angbao tracker** — log red packets and amounts per guest, with a running total
 - **VIP & bride/groom tagging** — starred VIPs; pink/blue colour coding by side
 - **CSV import/export** — bulk import a guest list; export an attendance report afterwards
+- **JSON backup** — one-tap lossless backup of every guest record (the safety net)
+- **Undo** — check-ins, angbao changes, and deletes can be undone from the toast
 - **Real-time sync** — devices auto-sync every 5 seconds
 - **Search & filter** — by name, table, arrival, or angbao status
 
@@ -90,8 +92,15 @@ Import via **Import CSV** in the app toolbar.
 
 The app has no backend of its own, so the database is the trust boundary: RLS limits all access to signed-in helpers, and the access code is verified server-side by Supabase Auth (never shipped in the bundle). **Residual risk:** helpers share one login, so anyone with the access code has full access — fine for a small trusted group. Details in [`SECURITY.md`](SECURITY.md).
 
+## Running on the day
+
+See [`RUNBOOK.md`](RUNBOOK.md) for a printable wedding-day checklist (wake the
+database the day before, take a backup, who owns the angbao amounts, what to do
+if a screen freezes or the WiFi blips).
+
 ## Troubleshooting
 
 - **Import fails / 400 error** — check the browser console; verify your env vars and that CSV columns match the format above.
-- **Not syncing across devices** — use the live Vercel URL (not `localhost`) and confirm env vars are set in Vercel.
+- **Not syncing across devices** — use the live Vercel URL (not `localhost`) and confirm env vars are set in Vercel. Devices poll every 5 seconds; the **Refresh** button forces an immediate sync.
 - **Supabase project paused** — the free tier pauses after ~1 week idle; click **Restore project** in the dashboard (open the app a day before the wedding to be safe).
+- **"Not saved — check connection"** — a write failed (usually flaky WiFi). The optimistic change stays on screen and reconciles on the next successful sync; the JSON **Backup** button is your safety net before/during the event.

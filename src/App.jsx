@@ -1,5 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { cleanName, cleanNotes, cleanTable, cleanParty, cleanAmount } from "./lib/validation.js";
+import { parseCSV, toCSV } from "./lib/csv.js";
+import { formatTime } from "./lib/format.js";
 
 // ─── SUPABASE CONFIG ──────────────────────────────────────────────────────────
 // Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file
@@ -62,54 +65,6 @@ const DEMO_GUESTS = [
   { id: 7, name: "Siti Rahimah", table_number: 4, checked_in: false, checked_in_at: null, angbao_given: false, angbao_amount: 0, notes: "", is_vip: false },
   { id: 8, name: "David Koh", table_number: 4, checked_in: true, checked_in_at: "2024-06-15T18:50:00", angbao_given: true, angbao_amount: 300, notes: "Boss", is_vip: true },
 ];
-
-// ─── INPUT VALIDATION ─────────────────────────────────────────────────────────
-// Client-side hygiene for fast feedback; the database CHECK constraints
-// (see supabase/migrations) are the authoritative enforcement.
-const MAX_NAME = 120, MAX_NOTES = 500, MAX_TABLE = 20, MAX_ANGBAO = 10_000_000;
-const PARTIES = ["", "bride", "groom"];
-
-const cleanName = (v) => String(v ?? "").trim().slice(0, MAX_NAME);
-const cleanNotes = (v) => String(v ?? "").trim().slice(0, MAX_NOTES);
-const cleanTable = (v) => String(v ?? "").trim().slice(0, MAX_TABLE) || "1";
-const cleanParty = (v) => {
-  const p = String(v ?? "").toLowerCase().trim();
-  return PARTIES.includes(p) ? p : "";
-};
-const cleanAmount = (v) => {
-  const n = parseFloat(v);
-  return Number.isFinite(n) && n > 0 ? Math.min(n, MAX_ANGBAO) : 0;
-};
-
-// ─── CSV PARSER ───────────────────────────────────────────────────────────────
-function parseCSV(text) {
-  const lines = text.trim().split("\n");
-  const headers = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/\s+/g, "_"));
-  return lines.slice(1).map((line) => {
-    // Handle commas inside quoted fields
-    const vals = [];
-    let cur = "", inQ = false;
-    for (let c of line) {
-      if (c === '"') inQ = !inQ;
-      else if (c === "," && !inQ) { vals.push(cur.trim()); cur = ""; }
-      else cur += c;
-    }
-    vals.push(cur.trim());
-    const obj = {};
-    headers.forEach((h, i) => (obj[h] = vals[i] || ""));
-    return {
-      name: cleanName(obj.name || obj.guest_name || obj.guest),
-      table_number: cleanTable(obj.table || obj.table_number || obj.table_no),
-      checked_in: false,
-      checked_in_at: null,
-      angbao_given: false,
-      angbao_amount: 0,
-      notes: cleanNotes(obj.notes || obj.note || obj.dietary),
-      party: cleanParty(obj.party),
-      is_vip: (obj.vip || "").toLowerCase() === "true" || (obj.vip || "") === "1",
-    };
-  }).filter((g) => g.name);
-}
 
 // ─── ICONS ────────────────────────────────────────────────────────────────────
 const Icon = {
@@ -289,7 +244,7 @@ const styles = `
   .guest-card.not-arrived { border-left: 3px solid rgba(201,168,76,0.3); }
 
   .checkin-btn {
-    width: 40px; height: 40px; border-radius: 50%; border: 2px solid;
+    width: 48px; height: 48px; border-radius: 50%; border: 2px solid;
     cursor: pointer; display: flex; align-items: center; justify-content: center;
     transition: all 0.2s; flex-shrink: 0;
   }
@@ -330,9 +285,9 @@ const styles = `
 
   .guest-actions { display: flex; gap: 4px; flex-shrink: 0; }
   .icon-btn {
-    width: 32px; height: 32px; border-radius: 6px; border: none; cursor: pointer;
+    width: 40px; height: 40px; border-radius: 6px; border: none; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
-    background: transparent; color: var(--brown); opacity: 0.4;
+    background: transparent; color: var(--brown); opacity: 0.7;
     transition: all 0.15s;
   }
   .icon-btn svg { width: 14px; }
@@ -402,7 +357,7 @@ const styles = `
   }
   .table-guest-name-btn:hover { background: var(--warm-white); color: var(--gold-dark); }
   .guest-quick-popup {
-    position: absolute; left: 0; top: calc(100%% + 4px);
+    position: absolute; left: 0; top: calc(100% + 4px);
     background: white; border-radius: 12px; padding: 16px;
     box-shadow: 0 8px 32px rgba(44,36,22,0.18);
     border: 1.5px solid rgba(201,168,76,0.2);
@@ -523,7 +478,16 @@ const styles = `
     box-shadow: 0 4px 20px rgba(0,0,0,0.2);
     z-index: 2000; animation: slideToast 0.2s ease;
     border-left: 3px solid var(--gold);
+    display: flex; align-items: center; gap: 16px;
   }
+  .toast-undo {
+    background: transparent; border: 1px solid var(--gold);
+    color: var(--gold-light); cursor: pointer;
+    font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 600;
+    padding: 4px 12px; border-radius: 6px; letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .toast-undo:hover { background: var(--gold); color: #1a1a1a; }
   @keyframes slideToast { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
 
   /* RESPONSIVE */
@@ -534,8 +498,15 @@ const styles = `
     .toolbar { padding: 12px 16px; }
     .content { padding: 16px; }
     .view-tabs { padding: 0 16px; }
-    .angbao-area { flex-direction: column; align-items: flex-end; }
     .angbao-header { flex-wrap: wrap; gap: 16px; }
+    /* Stack the guest card: check-in + name on top, actions wrap below,
+       so controls never overflow a single cramped row on a phone. */
+    .guest-card { flex-wrap: wrap; gap: 12px; }
+    .guest-info { flex-basis: calc(100% - 64px); }
+    .angbao-area { width: 100%; justify-content: space-between; }
+    .amount-input { width: 100%; max-width: 120px; }
+    .guest-actions { margin-left: auto; }
+    .toast { left: 16px; right: 16px; bottom: 16px; justify-content: space-between; }
   }
 `;
 
@@ -557,6 +528,13 @@ export default function WeddingTracker() {
   const [csvText, setCsvText] = useState("");
   const [syncing, setSyncing] = useState(false);
   const [activePopup, setActivePopup] = useState(null); // guest id
+
+  // Guests with an in-flight write (or a focused amount input) must not be
+  // overwritten by the 5-second poll, or a helper's keystrokes get clobbered.
+  const pendingIds = useRef(new Set());
+  const editingId = useRef(null);
+  // Debounce timers for angbao-amount persistence, keyed by guest id.
+  const amountTimers = useRef({});
 
   // Restore an existing helper session on load (Supabase persists it).
   useEffect(() => {
@@ -587,9 +565,13 @@ export default function WeddingTracker() {
     }
   };
 
-  const showToast = (msg) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 2500);
+  const toastTimer = useRef(null);
+  // Pass an onUndo callback to render an "Undo" button; undoable toasts linger
+  // a little longer so there is time to react.
+  const showToast = (message, onUndo = null) => {
+    clearTimeout(toastTimer.current);
+    setToast({ message, onUndo });
+    toastTimer.current = setTimeout(() => setToast(null), onUndo ? 5000 : 2500);
   };
 
   // Load guests
@@ -608,7 +590,18 @@ export default function WeddingTracker() {
     }
     try {
       const data = await sb.select("guests");
-      if (Array.isArray(data)) setGuests(data);
+      if (Array.isArray(data)) {
+        // Merge, don't replace: keep the local copy of any row that has a write
+        // in flight or whose amount field is focused, so the poll never wipes
+        // an in-progress edit. All other rows take the server's value.
+        setGuests((prev) =>
+          data.map((row) =>
+            pendingIds.current.has(row.id) || editingId.current === row.id
+              ? prev.find((p) => p.id === row.id) ?? row
+              : row
+          )
+        );
+      }
     } catch {
       showToast("Failed to load guests");
     }
@@ -624,11 +617,30 @@ export default function WeddingTracker() {
     return unsub;
   }, [loadGuests]);
 
-  // On a failed write, tell the user and re-sync from the server so the
-  // optimistic UI does not drift away from the source of truth.
-  const syncFail = (msg) => { showToast(msg || "Sync failed — check connection"); loadGuests(); };
+  // On a failed write, keep the optimistic value (don't yank it back — a wifi
+  // blip mid-tap shouldn't undo what the helper just did) and warn them. The
+  // next clean poll reconciles against the server.
+  const syncFail = (msg) => { showToast(msg || "Not saved — check connection"); };
 
-  // Toggle check-in
+  // Optimistically apply `updated` to a guest, then persist `patch`. The id is
+  // held in pendingIds for the duration of the write so the poll won't clobber
+  // it (see loadGuests). Returns true on success.
+  const persist = async (id, patch, updated) => {
+    setGuests((g) => g.map((x) => (x.id === id ? updated : x)));
+    if (isDemoMode) return true;
+    pendingIds.current.add(id);
+    try {
+      await sb.update("guests", id, patch);
+      return true;
+    } catch {
+      syncFail();
+      return false;
+    } finally {
+      pendingIds.current.delete(id);
+    }
+  };
+
+  // Toggle check-in (undoable)
   const toggleCheckIn = async (guest) => {
     const now = new Date().toISOString();
     const updated = {
@@ -636,37 +648,46 @@ export default function WeddingTracker() {
       checked_in: !guest.checked_in,
       checked_in_at: !guest.checked_in ? now : null,
     };
-    setGuests((g) => g.map((x) => (x.id === guest.id ? updated : x)));
-    if (!isDemoMode) {
-      try {
-        await sb.update("guests", guest.id, { checked_in: updated.checked_in, checked_in_at: updated.checked_in_at });
-      } catch { return syncFail(); }
+    const ok = await persist(guest.id, { checked_in: updated.checked_in, checked_in_at: updated.checked_in_at }, updated);
+    if (ok) {
+      showToast(
+        updated.checked_in ? `✓ ${guest.name} checked in` : `${guest.name} unchecked`,
+        () => { setToast(null); persist(guest.id, { checked_in: guest.checked_in, checked_in_at: guest.checked_in_at }, guest); }
+      );
     }
-    showToast(updated.checked_in ? `✓ ${guest.name} checked in` : `${guest.name} unchecked`);
   };
 
-  // Toggle angbao
+  // Toggle angbao (undoable)
   const toggleAngbao = async (guest) => {
     const updated = { ...guest, angbao_given: !guest.angbao_given };
     if (!updated.angbao_given) updated.angbao_amount = 0;
-    setGuests((g) => g.map((x) => (x.id === guest.id ? updated : x)));
-    if (!isDemoMode) {
-      try {
-        await sb.update("guests", guest.id, { angbao_given: updated.angbao_given, angbao_amount: updated.angbao_amount });
-      } catch { syncFail(); }
+    const ok = await persist(guest.id, { angbao_given: updated.angbao_given, angbao_amount: updated.angbao_amount }, updated);
+    if (ok) {
+      showToast(
+        updated.angbao_given ? `🧧 ${guest.name} — angbao received` : `${guest.name} — angbao cleared`,
+        () => { setToast(null); persist(guest.id, { angbao_given: guest.angbao_given, angbao_amount: guest.angbao_amount }, guest); }
+      );
     }
   };
 
-  // Update angbao amount
-  const updateAmount = async (guest, amount) => {
+  // Update angbao amount. Optimistic locally + debounced persist (~400ms) so a
+  // helper typing "200" fires one write, not three, and the poll can't eat
+  // keystrokes mid-type (id stays pending until the debounced write lands).
+  const updateAmount = (guest, amount) => {
     const val = cleanAmount(amount);
-    const updated = { ...guest, angbao_amount: val };
-    setGuests((g) => g.map((x) => (x.id === guest.id ? updated : x)));
-    if (!isDemoMode) {
+    setGuests((g) => g.map((x) => (x.id === guest.id ? { ...x, angbao_amount: val } : x)));
+    if (isDemoMode) return;
+    pendingIds.current.add(guest.id);
+    clearTimeout(amountTimers.current[guest.id]);
+    amountTimers.current[guest.id] = setTimeout(async () => {
       try {
         await sb.update("guests", guest.id, { angbao_amount: val });
-      } catch { syncFail(); }
-    }
+      } catch {
+        syncFail();
+      } finally {
+        pendingIds.current.delete(guest.id);
+      }
+    }, 400);
   };
 
   // Save guest (add/edit)
@@ -687,7 +708,11 @@ export default function WeddingTracker() {
       if (editGuest) {
         const updated = { ...editGuest, ...data };
         setGuests((g) => g.map((x) => (x.id === editGuest.id ? updated : x)));
-        if (!isDemoMode) await sb.update("guests", editGuest.id, data);
+        if (!isDemoMode) {
+          pendingIds.current.add(editGuest.id);
+          try { await sb.update("guests", editGuest.id, data); }
+          finally { pendingIds.current.delete(editGuest.id); }
+        }
         showToast("Guest updated");
       } else {
         const newGuest = { ...data, id: isDemoMode ? Date.now() : undefined };
@@ -707,16 +732,41 @@ export default function WeddingTracker() {
     setForm({ name: "", table_number: "", notes: "", party: "", is_vip: false });
   };
 
-  // Delete guest
+  // Delete guest — optimistic removal with an Undo toast (no blocking native
+  // confirm(), which is jarring in mobile in-app browsers).
   const deleteGuest = async (guest) => {
-    if (!confirm(`Remove ${guest.name}?`)) return;
+    setActivePopup(null);
     setGuests((g) => g.filter((x) => x.id !== guest.id));
     if (!isDemoMode) {
       try {
         await sb.delete("guests", guest.id);
       } catch { return syncFail("Could not remove guest — check connection"); }
     }
-    showToast("Guest removed");
+    showToast(`${guest.name} removed`, () => undoDelete(guest));
+  };
+
+  // Undo a delete by re-inserting the guest (a new id is assigned by the DB).
+  const undoDelete = async (guest) => {
+    setToast(null);
+    const data = {
+      name: guest.name,
+      table_number: guest.table_number,
+      notes: guest.notes || "",
+      party: guest.party || "",
+      is_vip: guest.is_vip || false,
+      checked_in: guest.checked_in || false,
+      checked_in_at: guest.checked_in_at || null,
+      angbao_given: guest.angbao_given || false,
+      angbao_amount: guest.angbao_amount || 0,
+    };
+    if (isDemoMode) {
+      setGuests((g) => [...g, { ...data, id: Date.now() }]);
+      return;
+    }
+    try {
+      const res = await sb.insert("guests", data);
+      if (Array.isArray(res)) setGuests((g) => [...g, res[0]]);
+    } catch { syncFail("Could not restore guest — check connection"); }
   };
 
   // CSV import
@@ -742,19 +792,27 @@ export default function WeddingTracker() {
     showToast(`${parsed.length} guests imported`);
   };
 
-  // Export CSV
-  const exportCSV = () => {
-    const rows = [
-      "Name,Table,Checked In,Check-In Time,Angbao Given,Amount,Notes,VIP",
-      ...guests.map((g) =>
-        `"${g.name}",${g.table_number},${g.checked_in},${g.checked_in_at || ""},${g.angbao_given},${g.angbao_amount},"${g.notes || ""}",${g.is_vip}`
-      ),
-    ];
-    const blob = new Blob([rows.join("\n")], { type: "text/csv" });
+  // Trigger a browser download of `content` as `filename`.
+  const download = (content, filename, type) => {
+    const blob = new Blob([content], { type });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = "wedding-attendance.csv";
+    a.download = filename;
     a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  // Export CSV (cells are escaped against spreadsheet formula injection in toCSV).
+  const exportCSV = () => {
+    download(toCSV(guests), "wedding-attendance.csv", "text/csv");
+  };
+
+  // Lossless JSON backup of the raw guest rows — the safety net before/during
+  // the event (the CSV export drops id/party and reformats times).
+  const backupJSON = () => {
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
+    download(JSON.stringify(guests, null, 2), `wedding-backup-${stamp}.json`, "application/json");
+    showToast(`Backed up ${guests.length} guests`);
   };
 
   // Filtered guests
@@ -788,12 +846,6 @@ export default function WeddingTracker() {
     const sideGuest = tables[tNum].find((g) => g.party === "bride" || g.party === "groom");
     tableSide[tNum] = sideGuest ? sideGuest.party : null;
   });
-
-  const formatTime = (iso) => {
-    if (!iso) return "";
-    const d = new Date(iso);
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  };
 
   if (!unlocked) {
     return (
@@ -882,6 +934,7 @@ export default function WeddingTracker() {
             <Icon.Plus /> Add Guest
           </button>
           <button className="btn btn-outline btn-sm" onClick={exportCSV} title="Export CSV"><Icon.Download /></button>
+          <button className="btn btn-outline btn-sm" onClick={backupJSON} title="Backup (JSON)">Backup</button>
           <button className="btn btn-outline btn-sm" onClick={loadGuests} title="Refresh"><Icon.Refresh /></button>
         </div>
 
@@ -938,6 +991,8 @@ export default function WeddingTracker() {
                         value={g.angbao_amount || ""}
                         onChange={(e) => updateAmount(g, e.target.value)}
                         onClick={(e) => e.stopPropagation()}
+                        onFocus={() => (editingId.current = g.id)}
+                        onBlur={() => { if (editingId.current === g.id) editingId.current = null; }}
                       />
                     )}
                   </div>
@@ -1015,6 +1070,8 @@ export default function WeddingTracker() {
                                     value={g.angbao_amount || ""}
                                     onClick={(e) => e.stopPropagation()}
                                     onChange={(e) => updateAmount(g, e.target.value)}
+                                    onFocus={() => (editingId.current = g.id)}
+                                    onBlur={() => { if (editingId.current === g.id) editingId.current = null; }}
                                   />
                                 </div>
                               )}
@@ -1164,7 +1221,12 @@ export default function WeddingTracker() {
         )}
 
         {/* TOAST */}
-        {toast && <div className="toast">{toast}</div>}
+        {toast && (
+          <div className="toast">
+            <span>{toast.message}</span>
+            {toast.onUndo && <button className="toast-undo" onClick={toast.onUndo}>Undo</button>}
+          </div>
+        )}
       </div>
     </>
   );
