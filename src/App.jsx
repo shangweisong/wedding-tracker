@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { cleanName, cleanNotes, cleanTable, cleanParty, cleanAmount } from "./lib/validation.js";
+import { QRCodeSVG } from "qrcode.react";
+import { buildPayNowPayload, normalizeMobile } from "./paynow";
+import { cleanName, cleanNotes, cleanTable, cleanParty, cleanAmount, MAX_ANGBAO } from "./lib/validation.js";
 import { parseCSV, toCSV } from "./lib/csv.js";
 import { formatTime } from "./lib/format.js";
 
@@ -13,6 +15,13 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 // in the bundle — helpers type it on the unlock screen and Supabase Auth
 // verifies it on the server. Only the (non-secret) email lives in config.
 const HELPER_EMAIL = import.meta.env.VITE_HELPER_EMAIL || "helpers@wedding.local";
+
+// ─── PAYNOW CONFIG ────────────────────────────────────────────────────────────
+// The host's PayNow-linked mobile number and display name. These are NOT secret
+// (they ship in the bundle and are visible to anyone who scans the QR) — they are
+// simply the public payee details a guest would type to send an ang-bao.
+const PAYNOW_MOBILE = import.meta.env.VITE_PAYNOW_MOBILE || "";
+const PAYNOW_NAME = import.meta.env.VITE_PAYNOW_NAME || "";
 
 const isDemoMode = !SUPABASE_URL || !SUPABASE_ANON_KEY;
 
@@ -349,6 +358,58 @@ const styles = `
   }
   .pin-unlock:disabled { opacity: 0.5; cursor: default; }
 
+  /* PIN SCREEN → PAYNOW LINK */
+  .pin-paylink {
+    margin-top: 28px; background: none; border: none; cursor: pointer;
+    color: var(--gold-light); font-family: 'DM Sans', sans-serif; font-size: 14px;
+    letter-spacing: 0.04em; text-decoration: underline; text-underline-offset: 4px;
+    opacity: 0.85; transition: opacity 0.15s;
+  }
+  .pin-paylink:hover { opacity: 1; }
+
+  /* PAYNOW SEND PAGE */
+  .pay-amount-input {
+    width: 100%; padding: 16px 16px 16px 38px; border-radius: 12px; box-sizing: border-box;
+    background: rgba(255,255,255,0.06); border: 1.5px solid rgba(201,168,76,0.25);
+    color: white; font-size: 22px; letter-spacing: 0.02em; text-align: center; outline: none;
+    font-family: 'Cormorant Garamond', serif;
+  }
+  .pay-amount-input:focus { border-color: var(--gold); }
+  .pay-amount-wrap { position: relative; width: 100%; }
+  .pay-amount-wrap .pay-currency {
+    position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
+    color: rgba(255,255,255,0.45); font-size: 15px; font-family: 'DM Sans', sans-serif;
+  }
+  .pay-quick { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  .pay-quick button {
+    background: rgba(255,255,255,0.05); border: 1.5px solid rgba(201,168,76,0.25);
+    color: var(--gold-light); border-radius: 20px; padding: 7px 14px; cursor: pointer;
+    font-family: 'DM Sans', sans-serif; font-size: 13px; transition: all 0.12s;
+  }
+  .pay-quick button:hover { background: rgba(201,168,76,0.15); border-color: rgba(201,168,76,0.5); }
+  .pay-qr {
+    background: white; padding: 18px; border-radius: 16px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+  }
+  .pay-qr-meta { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .pay-qr-amount {
+    font-family: 'Cormorant Garamond', serif; font-size: 32px; color: var(--gold-light);
+  }
+  .pay-qr-to { font-size: 12px; color: rgba(255,255,255,0.5); letter-spacing: 0.05em; }
+  .pay-hint { font-size: 13px; color: rgba(255,255,255,0.55); text-align: center; line-height: 1.6; max-width: 280px; }
+  .pay-lock {
+    font-size: 11px; color: var(--gold); letter-spacing: 0.08em; text-transform: uppercase;
+    border: 1px solid rgba(201,168,76,0.3); border-radius: 20px; padding: 4px 12px;
+  }
+  .pay-error { font-size: 13px; color: #f1948a; text-align: center; min-height: 18px; }
+  .pay-back {
+    background: none; border: none; cursor: pointer; color: rgba(255,255,255,0.45);
+    font-family: 'DM Sans', sans-serif; font-size: 14px; letter-spacing: 0.04em;
+    margin-top: 24px; transition: color 0.15s;
+  }
+  .pay-back:hover { color: var(--gold-light); }
+
   /* GUEST QUICK POPUP */
   .table-guest-name-btn {
     background: none; border: none; cursor: pointer; font-family: 'DM Sans', sans-serif;
@@ -510,6 +571,95 @@ const styles = `
   }
 `;
 
+// ─── PAYNOW ANG-BAO PAGE (public) ─────────────────────────────────────────────
+// A login-free page where a guest types an amount and gets a PayNow QR, pre-filled
+// with that amount and locked, pointing to the host's PayNow mobile. The guest
+// scans it with their banking app to send the ang-bao. Everything is generated in
+// the browser — no backend, no payment provider, no fees.
+const QUICK_AMOUNTS = [20, 50, 88, 168, 288];
+
+function PayNowPage({ onBack }) {
+  const [amountText, setAmountText] = useState("");
+  const configured = !!normalizeMobile(PAYNOW_MOBILE);
+  const rawAmount = parseFloat(amountText);
+  const tooLarge = Number.isFinite(rawAmount) && rawAmount > MAX_ANGBAO;
+  const amount = cleanAmount(amountText); // 0 when invalid / empty
+  const payload = configured && !tooLarge && amount > 0
+    ? buildPayNowPayload({ mobile: PAYNOW_MOBILE, amount, merchantName: PAYNOW_NAME, editable: false })
+    : "";
+
+  return (
+    <>
+      <style>{styles}</style>
+      <div className="pin-screen">
+        <div className="pin-logo">♡ Send an Ang-Bao</div>
+        <div className="pin-sub">PayNow · No app sign-in needed</div>
+
+        <div className="pin-box">
+          {!configured ? (
+            <div className="pay-hint">
+              PayNow isn’t set up yet. The couple needs to add their PayNow mobile
+              number before gifts can be sent here.
+            </div>
+          ) : (
+            <>
+              <div className="pin-label">Enter your gift amount</div>
+
+              <div className="pay-amount-wrap">
+                <span className="pay-currency">S$</span>
+                <input
+                  className="pay-amount-input"
+                  type="number"
+                  inputMode="decimal"
+                  min="1"
+                  step="1"
+                  autoFocus
+                  value={amountText}
+                  onChange={(e) => setAmountText(e.target.value)}
+                  placeholder="88"
+                />
+              </div>
+
+              <div className="pay-quick">
+                {QUICK_AMOUNTS.map((a) => (
+                  <button key={a} type="button" onClick={() => setAmountText(String(a))}>
+                    ${a}
+                  </button>
+                ))}
+              </div>
+
+              <div className="pay-error">{tooLarge ? "That amount is too large." : ""}</div>
+
+              {payload ? (
+                <>
+                  <div className="pay-qr">
+                    <QRCodeSVG value={payload} size={224} level="M" marginSize={0} />
+                  </div>
+                  <div className="pay-qr-meta">
+                    <div className="pay-qr-amount">S${amount.toFixed(2)}</div>
+                    {PAYNOW_NAME && <div className="pay-qr-to">to {PAYNOW_NAME}</div>}
+                    <div className="pay-lock">🔒 Amount locked</div>
+                  </div>
+                  <div className="pay-hint">
+                    Open your banking app, scan this PayNow QR, and confirm — the
+                    amount is already filled in for you. 💝
+                  </div>
+                </>
+              ) : (
+                <div className="pay-hint">
+                  Type an amount above to generate your PayNow QR code.
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        <button className="pay-back" onClick={onBack}>← Back</button>
+      </div>
+    </>
+  );
+}
+
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function WeddingTracker() {
   const [unlocked, setUnlocked] = useState(isDemoMode);
@@ -528,6 +678,14 @@ export default function WeddingTracker() {
   const [csvText, setCsvText] = useState("");
   const [syncing, setSyncing] = useState(false);
   const [activePopup, setActivePopup] = useState(null); // guest id
+  const [route, setRoute] = useState(() => window.location.hash.replace(/^#\/?/, ""));
+
+  // Hash-based routing: "#pay" opens the public ang-bao QR page (no login needed).
+  useEffect(() => {
+    const onHashChange = () => setRoute(window.location.hash.replace(/^#\/?/, ""));
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
 
   // Guests with an in-flight write (or a focused amount input) must not be
   // overwritten by the 5-second poll, or a helper's keystrokes get clobbered.
@@ -847,6 +1005,11 @@ export default function WeddingTracker() {
     tableSide[tNum] = sideGuest ? sideGuest.party : null;
   });
 
+  // Public ang-bao page — reachable without the helper login.
+  if (route === "pay") {
+    return <PayNowPage onBack={() => { window.location.hash = ""; }} />;
+  }
+
   if (!unlocked) {
     return (
       <>
@@ -870,6 +1033,9 @@ export default function WeddingTracker() {
             </button>
             <div className="pin-error">{pinError}</div>
           </form>
+          <button className="pin-paylink" onClick={() => { window.location.hash = "pay"; }}>
+            Send a gift · Ang-Bao →
+          </button>
         </div>
       </>
     );

@@ -9,6 +9,7 @@ A real-time, multi-device wedding guest tracker — check-in, table management, 
 - **Check-in** — tap to mark guests arrived, with timestamp
 - **Table view** — all tables at a glance with arrival progress; tap a guest to update inline
 - **Angbao tracker** — log red packets and amounts per guest, with a running total
+- **PayNow ang-bao QR** — a public, login-free page where guests type an amount and scan a pre-filled, amount-locked PayNow QR to send a gift (Singapore only)
 - **VIP & bride/groom tagging** — starred VIPs; pink/blue colour coding by side
 - **CSV import/export** — bulk import a guest list; export an attendance report afterwards
 - **JSON backup** — one-tap lossless backup of every guest record (the safety net)
@@ -47,6 +48,10 @@ cp .env.example .env
 VITE_SUPABASE_URL=https://xxxxxxxxxxxx.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJ...your anon key...
 VITE_HELPER_EMAIL=helpers@wedding.local   # must match the helper account; not secret
+
+# Optional — enables the PayNow ang-bao page (Singapore). Not secret.
+VITE_PAYNOW_MOBILE=+6591234567            # the couple's PayNow-linked mobile
+VITE_PAYNOW_NAME=The Happy Couple         # name shown to guests
 ```
 
 `.env` is already gitignored — never commit it. Only the helper account *password* is secret (the email and anon key are not).
@@ -62,7 +67,7 @@ Open http://localhost:5173. To test multi-device sync on the same WiFi, use your
 ## 5. Deploy to Vercel
 
 1. Import the repo at [vercel.com](https://vercel.com) (or run `npx vercel`).
-2. Add the three env vars from step 3 under **Settings → Environment Variables**.
+2. Add the env vars from step 3 under **Settings → Environment Variables** (include the optional `VITE_PAYNOW_*` pair to enable the ang-bao QR).
 3. Deploy. Security headers (CSP, HSTS, etc.) are applied automatically via [`vercel.json`](vercel.json).
 
 Share the live URL and the access code (helper password) with your helpers on the day.
@@ -87,6 +92,26 @@ Priya Nair,VIP 2,,true,bride
 ```
 
 Import via **Import CSV** in the app toolbar.
+
+## PayNow ang-bao QR (Singapore)
+
+Guests can send a cash gift without any hassle: they open the public **#pay** page
+(linked as *“Send a gift · Ang-Bao →”* on the sign-in screen — no access code needed),
+type an amount, and get a PayNow QR pre-filled with that amount and **locked** so it
+can’t be changed. Scanning it with any Singapore banking app fills in the payment
+ready to confirm. Share `https://your-site.vercel.app/#pay` directly with guests if you
+like.
+
+- Set `VITE_PAYNOW_MOBILE` to the couple's PayNow-linked mobile and `VITE_PAYNOW_NAME`
+  to the name guests should see. Without `VITE_PAYNOW_MOBILE`, the page shows a “not set
+  up yet” notice.
+- The QR is generated entirely in the browser (EMVCo/SGQR standard) — no backend, no
+  payment provider, no fees. The mobile number is embedded in the QR and visible to
+  anyone who decodes it (inherent to PayNow QR).
+- **No automatic confirmation.** Singapore banks don’t expose a payment webhook for
+  personal accounts, so the app can’t detect that a gift arrived — marking ang-bao as
+  received in the helper tracker stays manual. **Test with a real banking app (e.g. a
+  S$0.01 transfer) before the wedding.**
 
 ## Security
 
