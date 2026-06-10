@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { QRCodeSVG } from "qrcode.react";
 import { buildPayNowPayload, normalizeMobile } from "./paynow";
-import { cleanName, cleanNotes, cleanTable, cleanParty, cleanAmount } from "./lib/validation.js";
+import { cleanName, cleanNotes, cleanTable, cleanParty, cleanAmount, MAX_ANGBAO } from "./lib/validation.js";
 import { parseCSV, toCSV } from "./lib/csv.js";
 import { formatTime } from "./lib/format.js";
 
@@ -1004,12 +1004,6 @@ export default function WeddingTracker() {
     const sideGuest = tables[tNum].find((g) => g.party === "bride" || g.party === "groom");
     tableSide[tNum] = sideGuest ? sideGuest.party : null;
   });
-
-  const formatTime = (iso) => {
-    if (!iso) return "";
-    const d = new Date(iso);
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  };
 
   // Public ang-bao page — reachable without the helper login.
   if (route === "pay") {
