@@ -5,17 +5,19 @@ import { parseCSV, toCSV } from "../lib/csv.js";
 import { formatTime } from "../lib/format.js";
 import { Icon } from "../shared/icons.jsx";
 import { theme } from "../shared/theme.js";
+import RsvpTab from "./RsvpTab.jsx";
+import SeatingTab from "./SeatingTab.jsx";
 
 // ─── DEMO MODE (no Supabase) ──────────────────────────────────────────────────
 const DEMO_GUESTS = [
-  { id: 1, name: "Tan Wei Ming", table_number: 1, checked_in: true, checked_in_at: "2024-06-15T18:32:00", angbao_given: true, angbao_amount: 200, notes: "Best man", is_vip: true },
-  { id: 2, name: "Lim Siew Yong", table_number: 1, checked_in: true, checked_in_at: "2024-06-15T18:45:00", angbao_given: true, angbao_amount: 150, notes: "", is_vip: false },
-  { id: 3, name: "Ahmad Razif", table_number: 2, checked_in: false, checked_in_at: null, angbao_given: false, angbao_amount: 0, notes: "Vegetarian", is_vip: false },
-  { id: 4, name: "Priya Nair", table_number: 2, checked_in: true, checked_in_at: "2024-06-15T19:01:00", angbao_given: true, angbao_amount: 100, notes: "", is_vip: false },
-  { id: 5, name: "Chen Jing Wen", table_number: 3, checked_in: false, checked_in_at: null, angbao_given: false, angbao_amount: 0, notes: "", is_vip: false },
-  { id: 6, name: "Ng Boon Kiat", table_number: 3, checked_in: true, checked_in_at: "2024-06-15T19:15:00", angbao_given: false, angbao_amount: 0, notes: "Uncle of groom", is_vip: true },
-  { id: 7, name: "Siti Rahimah", table_number: 4, checked_in: false, checked_in_at: null, angbao_given: false, angbao_amount: 0, notes: "", is_vip: false },
-  { id: 8, name: "David Koh", table_number: 4, checked_in: true, checked_in_at: "2024-06-15T18:50:00", angbao_given: true, angbao_amount: 300, notes: "Boss", is_vip: true },
+  { id: 1, name: "Tan Wei Ming", party: "bride", table_number: "1", table_id: "t1", checked_in: true, checked_in_at: "2024-06-15T18:32:00", angbao_given: true, angbao_amount: 200, notes: "Best man", is_vip: true, rsvp_status: "confirmed", rsvp_at: "2024-05-01T10:00:00", meal_choice: "Chicken", plus_one_name: "Emily Tan", dietary_notes: "", rsvp_message: "Can't wait!", rsvp_token: "a1b2c3d4-e5f6-7890-abcd-ef1234567890" },
+  { id: 2, name: "Lim Siew Yong", party: "groom", table_number: "1", table_id: "t1", checked_in: true, checked_in_at: "2024-06-15T18:45:00", angbao_given: true, angbao_amount: 150, notes: "", is_vip: false, rsvp_status: "confirmed", rsvp_at: "2024-05-03T14:20:00", meal_choice: "Fish", plus_one_name: "", dietary_notes: "No shellfish", rsvp_message: "", rsvp_token: "b2c3d4e5-f6a7-8901-bcde-f01234567891" },
+  { id: 3, name: "Ahmad Razif", party: "groom", table_number: "2", table_id: null, checked_in: false, checked_in_at: null, angbao_given: false, angbao_amount: 0, notes: "Vegetarian", is_vip: false, rsvp_status: "pending", rsvp_at: null, meal_choice: "", plus_one_name: "", dietary_notes: "", rsvp_message: "", rsvp_token: "c3d4e5f6-a7b8-9012-cdef-012345678902" },
+  { id: 4, name: "Priya Nair", party: "bride", table_number: "2", table_id: null, checked_in: true, checked_in_at: "2024-06-15T19:01:00", angbao_given: true, angbao_amount: 100, notes: "", is_vip: false, rsvp_status: "confirmed", rsvp_at: "2024-04-28T09:15:00", meal_choice: "Vegetarian", plus_one_name: "Raj Nair", dietary_notes: "Vegetarian only", rsvp_message: "Congratulations!", rsvp_token: "d4e5f6a7-b8c9-0123-defa-123456789013" },
+  { id: 5, name: "Chen Jing Wen", party: "bride", table_number: "3", table_id: null, checked_in: false, checked_in_at: null, angbao_given: false, angbao_amount: 0, notes: "", is_vip: false, rsvp_status: "declined", rsvp_at: "2024-05-10T16:00:00", meal_choice: "", plus_one_name: "", dietary_notes: "", rsvp_message: "Sorry, will be overseas that week!", rsvp_token: "e5f6a7b8-c9d0-1234-efab-234567890124" },
+  { id: 6, name: "Ng Boon Kiat", party: "groom", table_number: "3", table_id: null, checked_in: true, checked_in_at: "2024-06-15T19:15:00", angbao_given: false, angbao_amount: 0, notes: "Uncle of groom", is_vip: true, rsvp_status: "confirmed", rsvp_at: "2024-04-20T11:30:00", meal_choice: "Chicken", plus_one_name: "", dietary_notes: "", rsvp_message: "", rsvp_token: "f6a7b8c9-d0e1-2345-fabc-345678901235" },
+  { id: 7, name: "Siti Rahimah", party: "groom", table_number: "4", table_id: null, checked_in: false, checked_in_at: null, angbao_given: false, angbao_amount: 0, notes: "", is_vip: false, rsvp_status: "pending", rsvp_at: null, meal_choice: "", plus_one_name: "", dietary_notes: "Halal only", rsvp_message: "", rsvp_token: "07a8b9c0-e1f2-3456-abcd-456789012346" },
+  { id: 8, name: "David Koh", party: "groom", table_number: "4", table_id: "t2", checked_in: true, checked_in_at: "2024-06-15T18:50:00", angbao_given: true, angbao_amount: 300, notes: "Boss", is_vip: true, rsvp_status: "confirmed", rsvp_at: "2024-04-15T08:00:00", meal_choice: "Fish", plus_one_name: "Karen Koh", dietary_notes: "", rsvp_message: "Looking forward to it!", rsvp_token: "18b9c0d1-f2a3-4567-bcde-567890123457" },
 ];
 
 // ─── STYLES ───────────────────────────────────────────────────────────────────
@@ -583,6 +585,15 @@ export default function WeddingTracker() {
     }
   };
 
+  // Generic optimistic update used by RsvpTab and SeatingTab for RSVP/seating edits.
+  const updateGuest = async (id, patch) => {
+    setGuests((g) => g.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+    if (!isDemoMode) {
+      try { await sb.update("guests", id, patch); }
+      catch { showToast("Not saved — check connection"); }
+    }
+  };
+
   // Update angbao amount. Optimistic locally + debounced persist (~400ms) so a
   // helper typing "200" fires one write, not three, and the poll can't eat
   // keystrokes mid-type (id stays pending until the debounced write lands).
@@ -827,10 +838,16 @@ export default function WeddingTracker() {
           <button className={`view-tab ${view === "angbao" ? "active" : ""}`} onClick={() => setView("angbao")}>
             <Icon.Gift /> Angbao Tracker
           </button>
+          <button className={`view-tab ${view === "rsvp" ? "active" : ""}`} onClick={() => setView("rsvp")}>
+            <Icon.Mail /> RSVP
+          </button>
+          <button className={`view-tab ${view === "seating" ? "active" : ""}`} onClick={() => setView("seating")}>
+            <Icon.Users /> Seating Plan
+          </button>
         </div>
 
-        {/* TOOLBAR */}
-        <div className="toolbar">
+        {/* TOOLBAR — hidden on RSVP / Seating tabs which have their own controls */}
+        {view !== "rsvp" && view !== "seating" && <div className="toolbar">
           <div className="search-wrap">
             <Icon.Search />
             <input className="search-input" placeholder="Search guests or table…" value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -849,7 +866,7 @@ export default function WeddingTracker() {
           <button className="btn btn-outline btn-sm" onClick={exportCSV} title="Export CSV"><Icon.Download /></button>
           <button className="btn btn-outline btn-sm" onClick={backupJSON} title="Backup (JSON)">Backup</button>
           <button className="btn btn-outline btn-sm" onClick={loadGuests} title="Refresh"><Icon.Refresh /></button>
-        </div>
+        </div>}
 
         {/* CONTENT */}
         <div className="content">
@@ -1000,6 +1017,10 @@ export default function WeddingTracker() {
                 <div className="empty"><div className="empty-icon">🪑</div><div className="empty-text">No tables yet</div><div className="empty-sub">Add guests with table numbers</div></div>
               )}
             </div>
+          ) : view === "rsvp" ? (
+            <RsvpTab guests={guests} onUpdate={updateGuest} showToast={showToast} />
+          ) : view === "seating" ? (
+            <SeatingTab guests={guests} onUpdate={updateGuest} showToast={showToast} />
           ) : (
             /* ANGBAO VIEW */
             <>
