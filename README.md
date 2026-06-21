@@ -52,6 +52,11 @@ VITE_HELPER_EMAIL=helpers@wedding.local   # must match the helper account; not s
 # Optional — enables the PayNow ang-bao page (Singapore). Not secret.
 VITE_PAYNOW_MOBILE=+6591234567            # the couple's PayNow-linked mobile
 VITE_PAYNOW_NAME=The Happy Couple         # name shown to guests
+
+# Optional — set to "false" to hide all ang-bao tracking (stat pill, Angbao
+# Tracker tab, per-guest toggles, Submissions tab, public gift page). Default on.
+# Only hides the UI; existing angbao data is preserved if re-enabled.
+VITE_ENABLE_ANGBAO=true
 ```
 
 `.env` is already gitignored — never commit it. Only the helper account *password* is secret (the email and anon key are not).

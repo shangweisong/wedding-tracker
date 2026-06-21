@@ -23,6 +23,13 @@ const HELPER_EMAIL = import.meta.env.VITE_HELPER_EMAIL || "helpers@wedding.local
 const PAYNOW_MOBILE = import.meta.env.VITE_PAYNOW_MOBILE || "";
 const PAYNOW_NAME = import.meta.env.VITE_PAYNOW_NAME || "";
 
+// ─── ANGBAO FEATURE TOGGLE ────────────────────────────────────────────────────
+// Set VITE_ENABLE_ANGBAO=false to hide all ang-bao tracking UI (stat pill,
+// Angbao Tracker tab, per-guest toggles, Submissions tab, public gift page) for
+// events where collecting ang-bao isn't applicable. Existing angbao data in the
+// DB is preserved and reappears if the feature is re-enabled. Default = enabled.
+const ANGBAO_ENABLED = import.meta.env.VITE_ENABLE_ANGBAO !== "false";
+
 const isDemoMode = !SUPABASE_URL || !SUPABASE_ANON_KEY;
 
 // ─── SUPABASE CLIENT (official SDK) ───────────────────────────────────────────
@@ -1271,8 +1278,10 @@ export default function WeddingTracker() {
     tableSide[tNum] = sideGuest ? sideGuest.party : null;
   });
 
-  // Public ang-bao page — reachable without the helper login.
-  if (route === "pay") {
+  // Public ang-bao page — reachable without the helper login. When the angbao
+  // feature is disabled it is never rendered; the route falls through to the
+  // normal helper app instead.
+  if (route === "pay" && ANGBAO_ENABLED) {
     return <PayNowPage onBack={() => { window.location.hash = ""; }} />;
   }
 
@@ -1299,9 +1308,11 @@ export default function WeddingTracker() {
             </button>
             <div className="pin-error">{pinError}</div>
           </form>
-          <button className="pin-paylink" onClick={() => { window.location.hash = "pay"; }}>
-            Send a gift · Ang-Bao →
-          </button>
+          {ANGBAO_ENABLED && (
+            <button className="pin-paylink" onClick={() => { window.location.hash = "pay"; }}>
+              Send a gift · Ang-Bao →
+            </button>
+          )}
         </div>
       </>
     );
@@ -1328,10 +1339,12 @@ export default function WeddingTracker() {
               <span className="num">{total > 0 ? Math.round((arrived / total) * 100) : 0}%</span>
               <span className="lbl">Attendance</span>
             </div>
-            <div className="stat-pill">
-              <span className="num">🧧 {angbaoCount}</span>
-              <span className="lbl">Angbaos</span>
-            </div>
+            {ANGBAO_ENABLED && (
+              <div className="stat-pill">
+                <span className="num">🧧 {angbaoCount}</span>
+                <span className="lbl">Angbaos</span>
+              </div>
+            )}
           </div>
         </header>
 
@@ -1343,10 +1356,12 @@ export default function WeddingTracker() {
           <button className={`view-tab ${view === "tables" ? "active" : ""}`} onClick={() => setView("tables")}>
             <Icon.Table /> Tables
           </button>
-          <button className={`view-tab ${view === "angbao" ? "active" : ""}`} onClick={() => setView("angbao")}>
-            <Icon.Gift /> Angbao Tracker
-          </button>
-          {!isDemoMode && (
+          {ANGBAO_ENABLED && (
+            <button className={`view-tab ${view === "angbao" ? "active" : ""}`} onClick={() => setView("angbao")}>
+              <Icon.Gift /> Angbao Tracker
+            </button>
+          )}
+          {ANGBAO_ENABLED && !isDemoMode && (
             <button className={`view-tab ${view === "submissions" ? "active" : ""}`} onClick={() => setView("submissions")}>
               <Icon.Upload /> Submissions
               {pendingSubs > 0 && <span className="sub-pill">{pendingSubs}</span>}
@@ -1361,7 +1376,7 @@ export default function WeddingTracker() {
             <input className="search-input" placeholder="Search guests or table…" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
           <div className="filter-tabs">
-            {[["all","All"],["arrived","Arrived"],["pending","Pending"],["angbao","🧧 Gave"]].map(([k,l]) => (
+            {[["all","All"],["arrived","Arrived"],["pending","Pending"],...(ANGBAO_ENABLED ? [["angbao","🧧 Gave"]] : [])].map(([k,l]) => (
               <button key={k} className={`filter-tab ${filter === k ? "active" : ""}`} onClick={() => setFilter(k)}>{l}</button>
             ))}
           </div>
@@ -1417,24 +1432,26 @@ export default function WeddingTracker() {
                       {g.notes && <span>{g.notes}</span>}
                     </div>
                   </div>
-                  <div className="angbao-area">
-                    <button className={`angbao-toggle ${g.angbao_given ? "given" : "not-given"}`} onClick={() => toggleAngbao(g)}>
-                      🧧 {g.angbao_given ? "Gave" : "Pending"}
-                    </button>
-                    {g.angbao_given && (
-                      <input
-                        className="amount-input"
-                        type="number"
-                        placeholder="$0"
-                        value={g.angbao_amount || ""}
-                        onChange={(e) => updateAmount(g, e.target.value)}
-                        onClick={(e) => e.stopPropagation()}
-                        onFocus={() => (editingId.current = g.id)}
-                        onBlur={() => { if (editingId.current === g.id) editingId.current = null; }}
-                      />
-                    )}
-                    {g.draw_number ? <span className="draw-badge" title="Lucky-draw number">🎟 #{g.draw_number}</span> : null}
-                  </div>
+                  {ANGBAO_ENABLED && (
+                    <div className="angbao-area">
+                      <button className={`angbao-toggle ${g.angbao_given ? "given" : "not-given"}`} onClick={() => toggleAngbao(g)}>
+                        🧧 {g.angbao_given ? "Gave" : "Pending"}
+                      </button>
+                      {g.angbao_given && (
+                        <input
+                          className="amount-input"
+                          type="number"
+                          placeholder="$0"
+                          value={g.angbao_amount || ""}
+                          onChange={(e) => updateAmount(g, e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          onFocus={() => (editingId.current = g.id)}
+                          onBlur={() => { if (editingId.current === g.id) editingId.current = null; }}
+                        />
+                      )}
+                      {g.draw_number ? <span className="draw-badge" title="Lucky-draw number">🎟 #{g.draw_number}</span> : null}
+                    </div>
+                  )}
                   <div className="guest-actions">
                     <button className="icon-btn" onClick={() => { setEditGuest(g); setForm({ name: g.name, table_number: g.table_number, notes: g.notes || "", party: g.party || "", is_vip: g.is_vip || false }); setModal("edit"); }}>
                       <Icon.Edit />
@@ -1475,7 +1492,7 @@ export default function WeddingTracker() {
                           >
                             {g.name}
                           </button>
-                          {g.angbao_given && <span style={{fontSize:"14px"}}>🧧</span>}
+                          {ANGBAO_ENABLED && g.angbao_given && <span style={{fontSize:"14px"}}>🧧</span>}
                           {g.is_vip && <span style={{fontSize:"12px", color:"var(--gold)"}}>★</span>}
                           {activePopup === g.id && (
                             <div className="guest-quick-popup">
@@ -1490,16 +1507,18 @@ export default function WeddingTracker() {
                                   {g.checked_in ? <Icon.Check /> : <Icon.Plus />}
                                 </button>
                               </div>
-                              <div className="popup-row">
-                                <span className="popup-label">Angbao</span>
-                                <button
-                                  className={`angbao-toggle ${g.angbao_given ? "given" : "not-given"}`}
-                                  onClick={(e) => { e.stopPropagation(); toggleAngbao(g); }}
-                                >
-                                  🧧 {g.angbao_given ? "Received" : "Pending"}
-                                </button>
-                              </div>
-                              {g.angbao_given && (
+                              {ANGBAO_ENABLED && (
+                                <div className="popup-row">
+                                  <span className="popup-label">Angbao</span>
+                                  <button
+                                    className={`angbao-toggle ${g.angbao_given ? "given" : "not-given"}`}
+                                    onClick={(e) => { e.stopPropagation(); toggleAngbao(g); }}
+                                  >
+                                    🧧 {g.angbao_given ? "Received" : "Pending"}
+                                  </button>
+                                </div>
+                              )}
+                              {ANGBAO_ENABLED && g.angbao_given && (
                                 <div className="popup-row">
                                   <span className="popup-label">Amount ($)</span>
                                   <input
@@ -1514,7 +1533,7 @@ export default function WeddingTracker() {
                                   />
                                 </div>
                               )}
-                              {g.draw_number ? (
+                              {ANGBAO_ENABLED && g.draw_number ? (
                                 <div className="popup-row">
                                   <span className="popup-label">Lucky draw</span>
                                   <span className="draw-badge">🎟 #{g.draw_number}</span>
@@ -1532,7 +1551,7 @@ export default function WeddingTracker() {
                 <div className="empty"><div className="empty-icon">🪑</div><div className="empty-text">No tables yet</div><div className="empty-sub">Add guests with table numbers</div></div>
               )}
             </div>
-          ) : view === "angbao" ? (
+          ) : ANGBAO_ENABLED && view === "angbao" ? (
             /* ANGBAO VIEW */
             <>
               <div className="angbao-header">
