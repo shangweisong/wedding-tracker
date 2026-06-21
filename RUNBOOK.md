@@ -21,13 +21,15 @@ at the reception desk.
 - [ ] Each helper opens the URL and enters the access code once.
 - [ ] Decide **one person owns the angbao amounts.** Two people editing the same
       red-packet amount can overwrite each other — keep it to one.
+      *(Skip this if ang-bao tracking is turned off — `VITE_ENABLE_ANGBAO=false`;
+      the 🧧 buttons and Angbao tab won't appear. See the README.)*
 
 ## During the event
 
 - **Check-in:** tap the round button next to a guest's name. It turns green and
   records the arrival time.
-- **Angbao:** tap **🧧 Pending → Gave**, then type the amount. Wait a second after
-  typing so it saves.
+- **Angbao** *(if enabled):* tap **🧧 Pending → Gave**, then type the amount. Wait
+  a second after typing so it saves.
 - **Made a mistake?** A toast with an **Undo** button appears after check-ins,
   angbao changes, and deletes — tap it to revert.
 - **Hit Backup** once mid-event (e.g. after the bulk of guests arrive).

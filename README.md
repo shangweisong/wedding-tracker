@@ -8,7 +8,7 @@ A real-time, multi-device wedding guest tracker — check-in, table management, 
 
 - **Check-in** — tap to mark guests arrived, with timestamp
 - **Table view** — all tables at a glance with arrival progress; tap a guest to update inline
-- **Angbao tracker** — log red packets and amounts per guest, with a running total
+- **Angbao tracker** — log red packets and amounts per guest, with a running total. Optional: turn the whole feature off with `VITE_ENABLE_ANGBAO=false` for events that don't collect ang-bao (see [Disabling angbao tracking](#disabling-angbao-tracking))
 - **PayNow ang-bao QR** — a public, login-free page where guests type an amount and scan a pre-filled, amount-locked PayNow QR to send a gift (Singapore only)
 - **VIP & bride/groom tagging** — starred VIPs; pink/blue colour coding by side
 - **CSV import/export** — bulk import a guest list; export an attendance report afterwards
@@ -72,7 +72,7 @@ Open http://localhost:5173. To test multi-device sync on the same WiFi, use your
 ## 5. Deploy to Vercel
 
 1. Import the repo at [vercel.com](https://vercel.com) (or run `npx vercel`).
-2. Add the env vars from step 3 under **Settings → Environment Variables** (include the optional `VITE_PAYNOW_*` pair to enable the ang-bao QR).
+2. Add the env vars from step 3 under **Settings → Environment Variables** (include the optional `VITE_PAYNOW_*` pair to enable the ang-bao QR, or set `VITE_ENABLE_ANGBAO=false` to turn ang-bao tracking off entirely).
 3. Deploy. Security headers (CSP, HSTS, etc.) are applied automatically via [`vercel.json`](vercel.json).
 
 Share the live URL and the access code (helper password) with your helpers on the day.
@@ -118,6 +118,27 @@ like.
   received in the helper tracker stays manual. **Test with a real banking app (e.g. a
   S$0.01 transfer) before the wedding.**
 
+## Disabling angbao tracking
+
+Not every event collects ang-bao. Set `VITE_ENABLE_ANGBAO=false` (in `.env` for
+local dev, or under **Settings → Environment Variables** in Vercel) to hide the
+entire ang-bao feature, then rebuild/redeploy. When disabled, the app no longer
+shows:
+
+- the **🧧 Angbaos** stat pill in the header
+- the **Angbao Tracker** tab and the **Submissions** tab
+- the **🧧 Gave** search filter
+- the per-guest ang-bao toggle and amount field (on guest cards, in the table
+  view, and in the quick-edit popup)
+- the public **#pay** PayNow gift page and its *“Send a gift · Ang-Bao →”* link
+
+The toggle is **build-time** and read once at startup, so changing it requires a
+rebuild/redeploy — it can't be flipped from inside the running app. It is also
+**UI-only and non-destructive**: the `angbao_given` / `angbao_amount` columns and
+any values already recorded are left untouched in the database, so re-enabling the
+feature later brings every amount back exactly as it was. Leave the variable unset
+(or `true`) to keep ang-bao tracking on, which is the default.
+
 ## Security
 
 The app has no backend of its own, so the database is the trust boundary: RLS limits all access to signed-in helpers, and the access code is verified server-side by Supabase Auth (never shipped in the bundle). **Residual risk:** helpers share one login, so anyone with the access code has full access — fine for a small trusted group. Details in [`SECURITY.md`](SECURITY.md).
@@ -133,4 +154,5 @@ if a screen freezes or the WiFi blips).
 - **Import fails / 400 error** — check the browser console; verify your env vars and that CSV columns match the format above.
 - **Not syncing across devices** — use the live Vercel URL (not `localhost`) and confirm env vars are set in Vercel. Devices poll every 5 seconds; the **Refresh** button forces an immediate sync.
 - **Supabase project paused** — the free tier pauses after ~1 week idle; click **Restore project** in the dashboard (open the app a day before the wedding to be safe).
+- **Angbao tab / 🧧 buttons / #pay page are missing** — the ang-bao feature is turned off. Set `VITE_ENABLE_ANGBAO=true` (or remove the variable) and rebuild/redeploy. No data is lost while it's off; amounts reappear when you re-enable it.
 - **"Not saved — check connection"** — a write failed (usually flaky WiFi). The optimistic change stays on screen and reconciles on the next successful sync; the JSON **Backup** button is your safety net before/during the event.

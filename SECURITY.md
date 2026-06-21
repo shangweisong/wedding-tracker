@@ -40,6 +40,13 @@ This project is configured so that:
   isolation, switch to per-helper accounts.
 - **Google Fonts** is loaded from an external origin (allow-listed in the CSP).
   Self-hosting the fonts would remove this dependency.
+- **`VITE_ENABLE_ANGBAO=false` is a UI toggle, not a security control.** Disabling
+  ang-bao tracking hides the public `#pay` page and the helper-side ang-bao UI in
+  the browser bundle, but it does **not** alter RLS or storage policies: the
+  anonymous *insert a pending submission* / *upload a receipt* grants from
+  [`0002_draw_and_submissions.sql`](supabase/migrations/0002_draw_and_submissions.sql)
+  still exist server-side. If you need those endpoints fully closed (not just
+  hidden), drop or tighten the corresponding policies in Supabase as well.
 
 ## Reporting a vulnerability
 
