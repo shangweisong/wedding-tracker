@@ -450,7 +450,7 @@ const styles = theme + `
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function WeddingTracker() {
-  const [unlocked, setUnlocked] = useState(isDemoMode);
+  const [unlocked, setUnlocked] = useState(true); // PIN disabled — set to `isDemoMode` to re-enable
   const [accessCode, setAccessCode] = useState("");
   const [pinError, setPinError] = useState("");
   const [unlocking, setUnlocking] = useState(false);
@@ -478,6 +478,13 @@ export default function WeddingTracker() {
   // Restore an existing helper session on load (Supabase persists it).
   useEffect(() => {
     if (isDemoMode) return;
+    // Auto-sign-in using VITE_HELPER_PASSWORD so Supabase RLS still works
+    // when the PIN screen is disabled.
+    const pass = import.meta.env.VITE_HELPER_PASSWORD;
+    if (pass) {
+      supabase.auth.signInWithPassword({ email: HELPER_EMAIL, password: pass });
+      return;
+    }
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) setUnlocked(true);
     });
