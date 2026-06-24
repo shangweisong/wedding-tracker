@@ -1,11 +1,17 @@
-# 💍 Wedding Guest Attendance Tracker
+# 💍 Wedding Planner & Guest Tracker
 
-A real-time, multi-device wedding guest tracker — check-in, table management, and red packet (angbao) tracking. Built with React + Vite, powered by Supabase.
+A two-phase wedding management app — pre-wedding RSVP collection and seating plan, then wedding-day check-in, table management, and red packet (angbao) tracking. Built with React + Vite, powered by Supabase.
 
-> Access is gated by a server-verified helper sign-in and the database is locked down with Row Level Security. See [`SECURITY.md`](SECURITY.md) for the threat model.
+> The database is the trust boundary: Row Level Security locks all guest data to authenticated helpers. The public RSVP form accesses the DB only through narrow `security definer` RPC functions — the full guest list is never exposed. See [`SECURITY.md`](SECURITY.md) for the threat model.
 
 ## Features
 
+### 📋 Planning Mode (pre-wedding)
+- **RSVP collection** — guests go to `/rsvp`, fill in their name + choices, submit. Fuzzy name matching verifies them against your guest list without exposing it.
+- **RSVP dashboard** — see confirmed / declined / pending counts, headcount (including response rate), meal breakdown; filter by status or bride/groom side; edit any RSVP field inline
+- **Seating plan** — create tables with capacity limits, assign confirmed guests, lock tables when done, export as CSV, print-ready layout
+
+### 💒 D-Day Mode (wedding day)
 - **Check-in** — tap to mark guests arrived, with timestamp
 - **Table view** — all tables at a glance with arrival progress; tap a guest to update inline
 - **Angbao tracker** — log red packets and amounts per guest, with a running total. Optional: turn the whole feature off with `VITE_ENABLE_ANGBAO=false` for events that don't collect ang-bao (see [Disabling angbao tracking](#disabling-angbao-tracking))
@@ -17,26 +23,71 @@ A real-time, multi-device wedding guest tracker — check-in, table management, 
 - **Real-time sync** — devices auto-sync every 5 seconds
 - **Search & filter** — by name, table, arrival, or angbao status
 
+Switch between modes with the **📋 Planning / 💒 D-Day** toggle in the header.
+
+---
+
+## How the RSVP works
+
+Share one link with all your guests — no individual links needed:
+
+```
+https://your-app.vercel.app/rsvp
+```
+
+Guests open it, fill in the form (name, attendance, meal choice, dietary needs, message), and submit. Their name is fuzzy-matched against your guest list on the server — typos and partial names still resolve correctly. If verification passes, their RSVP is saved. The guest list is never sent to the browser.
+
+**Edge cases:**
+- Typo in name → still matches if close enough (pg_trgm similarity)
+- Multiple people with the same partial name → "please enter your full name"
+- Name not found → "check spelling or contact us"
+- Partners / plus-ones → add them as separate guests so they RSVP independently (not everyone gets a plus one)
+
+---
+
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/) v18+
-- A free [Supabase](https://supabase.com) account, plus a [Vercel](https://vercel.com) account to deploy
+- A free [Supabase](https://supabase.com) account
+- A [Vercel](https://vercel.com) account to deploy
+
+---
 
 ## 1. Install
 
 ```bash
-git clone https://github.com/chuanseng-ng/wedding-tracker.git
+git clone https://github.com/shangweisong/wedding-tracker.git
 cd wedding-tracker
 npm install
 ```
 
 ## 2. Set up Supabase
 
-1. Create a new project at [supabase.com](https://supabase.com).
-2. **Database** — open the **SQL Editor** and run the contents of [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql), then [`supabase/migrations/0002_draw_and_submissions.sql`](supabase/migrations/0002_draw_and_submissions.sql). The first creates the `guests` table and locks Row Level Security to authenticated helpers only. The second adds the **lucky-draw number** (`draw_number`, minted when an ang-bao is confirmed), the **guest receipt-upload queue** (`submissions` table), and a **private `receipts` storage bucket**. Guests can only *insert* a pending submission / *upload* a file — they can never read, list, or approve anything; helpers review and approve from the **Submissions** tab.
-   > ⚠️ Don't use a `for all using (true)` policy — that exposes the whole guest list to anyone with the (public) anon key.
-3. **Helper login** — under **Authentication → Users**, add one user (e.g. `helpers@wedding.local`) with a strong password. That password is the **access code** your helpers enter. Then under **Authentication → Providers → Email**, turn off "Allow new users to sign up".
-4. **API keys** — under **Project Settings → API**, copy your **Project URL** and **anon public key**.
+### 2a. Database migrations
+
+Open the **SQL Editor** in your Supabase dashboard and run the migrations **in order**:
+
+| File | What it creates |
+|---|---|
+| [`0001_init.sql`](supabase/migrations/0001_init.sql) | `guests` table, RLS policies, `set_updated_at` trigger |
+| [`0002_draw_and_submissions.sql`](supabase/migrations/0002_draw_and_submissions.sql) | **Lucky-draw number** (`draw_number`, minted when an ang-bao is confirmed), the **guest receipt-upload queue** (`submissions` table), and a private `receipts` storage bucket. Guests can only *insert* a pending submission / *upload* a file — never read, list, or approve; helpers review from the **Submissions** tab. |
+| [`0003_phase2_rsvp_seating.sql`](supabase/migrations/0003_phase2_rsvp_seating.sql) | `tables` table; RSVP columns on guests (`rsvp_status`, `rsvp_token`, `meal_choice`, etc.); 3 public RPC functions for the RSVP form |
+| [`0004_fuzzy_rsvp_by_name.sql`](supabase/migrations/0004_fuzzy_rsvp_by_name.sql) | `pg_trgm` extension; `submit_rsvp_by_name` RPC for fuzzy name-based RSVP submission |
+
+All migrations are idempotent (`CREATE OR REPLACE`, `IF NOT EXISTS`) — safe to re-run.
+
+> ⚠️ Never use `for all using (true)` — that exposes the entire guest list to anyone with the public anon key.
+
+### 2b. Helper login
+
+Under **Authentication → Users**, add one user (e.g. `helpers@wedding.local`) with a strong password. That password is the **access code**.
+Under **Authentication → Providers → Email**, turn off "Allow new users to sign up".
+
+### 2c. API keys
+
+Under **Project Settings → API**, copy your **Project URL** and **anon public key**.
+
+---
 
 ## 3. Configure environment
 
@@ -49,6 +100,9 @@ VITE_SUPABASE_URL=https://xxxxxxxxxxxx.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJ...your anon key...
 VITE_HELPER_EMAIL=helpers@wedding.local   # must match the helper account; not secret
 
+# Optional — auto-signs in so the DB works without the PIN screen
+VITE_HELPER_PASSWORD=your-access-code
+
 # Optional — enables the PayNow ang-bao page (Singapore). Not secret.
 VITE_PAYNOW_MOBILE=+6591234567            # the couple's PayNow-linked mobile
 VITE_PAYNOW_NAME=The Happy Couple         # name shown to guests
@@ -59,7 +113,9 @@ VITE_PAYNOW_NAME=The Happy Couple         # name shown to guests
 VITE_ENABLE_ANGBAO=true
 ```
 
-`.env` is already gitignored — never commit it. Only the helper account *password* is secret (the email and anon key are not).
+`.env` is gitignored — never commit it.
+
+---
 
 ## 4. Run locally
 
@@ -67,36 +123,64 @@ VITE_ENABLE_ANGBAO=true
 npm run dev
 ```
 
-Open http://localhost:5173. To test multi-device sync on the same WiFi, use your computer's LAN IP instead of `localhost` (e.g. `http://192.168.1.x:5173`).
+Open `http://localhost:5173` for the admin. Open `http://localhost:5173/rsvp` to see the guest RSVP form.
+
+To test multi-device sync on the same WiFi, use your computer's LAN IP instead of `localhost`.
+
+---
 
 ## 5. Deploy to Vercel
 
-1. Import the repo at [vercel.com](https://vercel.com) (or run `npx vercel`).
+1. Import the repo at [vercel.com](https://vercel.com) (or run `npx vercel`) for automatic GitHub deploys.
 2. Add the env vars from step 3 under **Settings → Environment Variables** (include the optional `VITE_PAYNOW_*` pair to enable the ang-bao QR, or set `VITE_ENABLE_ANGBAO=false` to turn ang-bao tracking off entirely).
-3. Deploy. Security headers (CSP, HSTS, etc.) are applied automatically via [`vercel.json`](vercel.json).
+3. Deploy. Security headers (CSP, HSTS, X-Frame-Options, etc.) are applied automatically via [`vercel.json`](vercel.json).
 
-Share the live URL and the access code (helper password) with your helpers on the day.
+---
 
-## CSV format
+## Adding guests
 
-Columns: `name,table,notes,vip,party` — only `name` is required.
+### Via the app
+Admin → D-Day mode → toolbar → **Add Guest** or **Import CSV**.
+
+### CSV format
+
+Columns: `name, table, notes, vip, party` — only `name` is required.
 
 | Column | Description | Example |
 |---|---|---|
 | `name` | Full name (**required**) | `Tan Wei Ming` |
-| `table` | Number or text | `1` or `VIP 1` |
+| `table` | Number or label | `1` or `VIP 1` |
 | `notes` | Dietary needs, relationship, etc. | `Vegetarian` |
 | `vip` | `true` / `false` | `true` |
-| `party` | `bride` or `groom` (colour coding) | `groom` |
+| `party` | `bride` or `groom` | `groom` |
 
 ```
 name,table,notes,vip,party
 Tan Wei Ming,1,Best man,true,groom
-Ahmad Razif,VIP 1,Vegetarian,false,groom
-Priya Nair,VIP 2,,true,bride
+Ahmad Razif,2,Vegetarian,false,groom
+Priya Nair,2,,false,bride
 ```
 
-Import via **Import CSV** in the app toolbar.
+> **Partners and plus-ones:** add them as separate rows so they RSVP independently. Only add them if they are actually invited — not everyone needs a plus one.
+
+---
+
+## Workflow
+
+### Before the wedding
+1. Import your guest list via CSV (or add guests one by one)
+2. Share `https://your-app.vercel.app/rsvp` in your wedding group chat
+3. Guests fill in the RSVP form — responses appear in the **RSVP tab** in real time
+4. Once RSVPs are in, open the **Seating Plan tab** to assign confirmed guests to tables
+5. Export the seating plan as CSV or print it
+
+### On the wedding day
+1. Switch to **💒 D-Day** mode in the header
+2. Give helpers the URL — they check guests in as they arrive
+3. Track angbaos in the **Angbao Tracker tab**
+4. Export an attendance report afterwards
+
+---
 
 ## PayNow ang-bao QR (Singapore)
 
@@ -141,18 +225,21 @@ feature later brings every amount back exactly as it was. Leave the variable uns
 
 ## Security
 
-The app has no backend of its own, so the database is the trust boundary: RLS limits all access to signed-in helpers, and the access code is verified server-side by Supabase Auth (never shipped in the bundle). **Residual risk:** helpers share one login, so anyone with the access code has full access — fine for a small trusted group. Details in [`SECURITY.md`](SECURITY.md).
+No backend of its own — the database is the trust boundary.
 
-## Running on the day
+- **Admin access** — RLS limits all direct table access to authenticated helpers. The helper account is a shared Supabase Auth user; the password (access code) is verified server-side and never shipped in the bundle.
+- **Public RSVP** — the `/rsvp` page has zero direct table access. It calls three `security definer` RPC functions that expose only the minimum needed: fuzzy name verification and writing RSVP fields. The guest list is never returned to the browser.
+- **Residual risk** — helpers share one login, so anyone with the access code has full admin access. Fine for a small trusted group. Details in [`SECURITY.md`](SECURITY.md).
 
-See [`RUNBOOK.md`](RUNBOOK.md) for a printable wedding-day checklist (wake the
-database the day before, take a backup, who owns the angbao amounts, what to do
-if a screen freezes or the WiFi blips).
+---
 
 ## Troubleshooting
 
-- **Import fails / 400 error** — check the browser console; verify your env vars and that CSV columns match the format above.
-- **Not syncing across devices** — use the live Vercel URL (not `localhost`) and confirm env vars are set in Vercel. Devices poll every 5 seconds; the **Refresh** button forces an immediate sync.
-- **Supabase project paused** — the free tier pauses after ~1 week idle; click **Restore project** in the dashboard (open the app a day before the wedding to be safe).
-- **Angbao tab / 🧧 buttons / #pay page are missing** — the ang-bao feature is turned off. Set `VITE_ENABLE_ANGBAO=true` (or remove the variable) and rebuild/redeploy. No data is lost while it's off; amounts reappear when you re-enable it.
-- **"Not saved — check connection"** — a write failed (usually flaky WiFi). The optimistic change stays on screen and reconciles on the next successful sync; the JSON **Backup** button is your safety net before/during the event.
+| Problem | Fix |
+|---|---|
+| RSVP form says "name not found" | Run the `0003` and `0004` migrations in the Supabase SQL Editor |
+| Not syncing across devices | Use the live Vercel URL, not `localhost`. Check env vars are set in Vercel. Devices poll every 5 seconds; the **Refresh** button forces an immediate sync. |
+| Supabase project paused | Free tier pauses after ~1 week idle — restore in the dashboard. Open the app the day before the wedding. |
+| "Not saved — check connection" | A write failed (usually flaky WiFi). The optimistic change stays on screen and reconciles on next sync. Use JSON **Backup** as a safety net. |
+| Import fails / 400 error | Check browser console. Verify env vars and that CSV columns match the format above. |
+| Angbao tab / 🧧 buttons / #pay page are missing | The ang-bao feature is turned off. Set `VITE_ENABLE_ANGBAO=true` (or remove the variable) and rebuild/redeploy. No data is lost while it's off. |

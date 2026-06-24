@@ -1,20 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { createClient } from "@supabase/supabase-js";
 import { QRCodeSVG } from "qrcode.react";
-import { buildPayNowPayload, normalizeMobile } from "./paynow";
-import { cleanName, cleanNotes, cleanTable, cleanParty, cleanAmount, MAX_ANGBAO } from "./lib/validation.js";
-import { parseCSV, toCSV } from "./lib/csv.js";
-import { formatTime } from "./lib/format.js";
-
-// ─── SUPABASE CONFIG ──────────────────────────────────────────────────────────
-// Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-// Shared sign-in identity for wedding-day helpers. The PASSWORD is never stored
-// in the bundle — helpers type it on the unlock screen and Supabase Auth
-// verifies it on the server. Only the (non-secret) email lives in config.
-const HELPER_EMAIL = import.meta.env.VITE_HELPER_EMAIL || "helpers@wedding.local";
+import { buildPayNowPayload, normalizeMobile } from "../paynow";
+import { sb, isDemoMode, supabase, HELPER_EMAIL } from "../lib/supabase.js";
+import { cleanName, cleanNotes, cleanTable, cleanParty, cleanAmount, MAX_ANGBAO } from "../lib/validation.js";
+import { parseCSV, toCSV } from "../lib/csv.js";
+import { formatTime } from "../lib/format.js";
+import { Icon } from "../shared/icons.jsx";
+import { theme } from "../shared/theme.js";
+import RsvpTab from "./RsvpTab.jsx";
+import SeatingTab from "./SeatingTab.jsx";
 
 // ─── PAYNOW CONFIG ────────────────────────────────────────────────────────────
 // The host's PayNow-linked mobile number and display name. These are NOT secret
@@ -30,122 +24,20 @@ const PAYNOW_NAME = import.meta.env.VITE_PAYNOW_NAME || "";
 // DB is preserved and reappears if the feature is re-enabled. Default = enabled.
 const ANGBAO_ENABLED = import.meta.env.VITE_ENABLE_ANGBAO !== "false";
 
-const isDemoMode = !SUPABASE_URL || !SUPABASE_ANON_KEY;
-
-// ─── SUPABASE CLIENT (official SDK) ───────────────────────────────────────────
-// The SDK manages the auth session + token refresh and builds queries safely
-// (user input is never string-interpolated into a request URL). All data access
-// runs as the signed-in helper, so RLS (authenticated-only) is the real gate.
-const supabase = isDemoMode
-  ? null
-  : createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: { persistSession: true, autoRefreshToken: true },
-    });
-
-// Thin wrapper preserving the original call sites used throughout the app.
-const sb = {
-  async select(table) {
-    const { data, error } = await supabase.from(table).select("*").order("name", { ascending: true });
-    if (error) throw error;
-    return data;
-  },
-  async insert(table, data) {
-    const { data: rows, error } = await supabase.from(table).insert(data).select();
-    if (error) throw error;
-    return rows;
-  },
-  async update(table, id, data) {
-    const { data: rows, error } = await supabase.from(table).update(data).eq("id", id).select();
-    if (error) throw error;
-    return rows;
-  },
-  async delete(table, id) {
-    const { error } = await supabase.from(table).delete().eq("id", id);
-    if (error) throw error;
-  },
-  // Atomically mint (or re-read) a guest's lucky-draw number. See the
-  // assign_draw_number migration — distinct, assign-once, collision-free.
-  async assignDraw(guestId) {
-    const { data, error } = await supabase.rpc("assign_draw_number", { p_guest_id: guestId });
-    if (error) throw error;
-    return data;
-  },
-  // Guest-uploaded ang-bao submissions, newest first (own ordering — the table
-  // has no `name` column, so it can't reuse select()).
-  async listSubmissions() {
-    const { data, error } = await supabase
-      .from("submissions")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (error) throw error;
-    return data;
-  },
-  // Short-lived signed URL so a helper can view a receipt in the private bucket.
-  async receiptUrl(path) {
-    const { data, error } = await supabase.storage.from("receipts").createSignedUrl(path, 60);
-    if (error) throw error;
-    return data.signedUrl;
-  },
-  subscribeToChanges(table, callback) {
-    // Polling fallback for real-time (works without Supabase Realtime setup)
-    const interval = setInterval(callback, 5000);
-    return () => clearInterval(interval);
-  },
-};
-
 // ─── DEMO MODE (no Supabase) ──────────────────────────────────────────────────
 const DEMO_GUESTS = [
-  { id: 1, name: "Tan Wei Ming", table_number: 1, checked_in: true, checked_in_at: "2024-06-15T18:32:00", angbao_given: true, angbao_amount: 200, draw_number: 1, notes: "Best man", is_vip: true },
-  { id: 2, name: "Lim Siew Yong", table_number: 1, checked_in: true, checked_in_at: "2024-06-15T18:45:00", angbao_given: true, angbao_amount: 150, draw_number: 2, notes: "", is_vip: false },
-  { id: 3, name: "Ahmad Razif", table_number: 2, checked_in: false, checked_in_at: null, angbao_given: false, angbao_amount: 0, draw_number: null, notes: "Vegetarian", is_vip: false },
-  { id: 4, name: "Priya Nair", table_number: 2, checked_in: true, checked_in_at: "2024-06-15T19:01:00", angbao_given: true, angbao_amount: 100, draw_number: 3, notes: "", is_vip: false },
-  { id: 5, name: "Chen Jing Wen", table_number: 3, checked_in: false, checked_in_at: null, angbao_given: false, angbao_amount: 0, draw_number: null, notes: "", is_vip: false },
-  { id: 6, name: "Ng Boon Kiat", table_number: 3, checked_in: true, checked_in_at: "2024-06-15T19:15:00", angbao_given: false, angbao_amount: 0, draw_number: null, notes: "Uncle of groom", is_vip: true },
-  { id: 7, name: "Siti Rahimah", table_number: 4, checked_in: false, checked_in_at: null, angbao_given: false, angbao_amount: 0, draw_number: null, notes: "", is_vip: false },
-  { id: 8, name: "David Koh", table_number: 4, checked_in: true, checked_in_at: "2024-06-15T18:50:00", angbao_given: true, angbao_amount: 300, draw_number: 4, notes: "Boss", is_vip: true },
+  { id: 1, name: "Tan Wei Ming", party: "bride", table_number: "1", table_id: "t1", checked_in: true, checked_in_at: "2024-06-15T18:32:00", angbao_given: true, angbao_amount: 200, draw_number: 1, notes: "Best man", is_vip: true, rsvp_status: "confirmed", rsvp_at: "2024-05-01T10:00:00", meal_choice: "Chicken", plus_one_name: "Emily Tan", dietary_notes: "", rsvp_message: "Can't wait!", rsvp_token: "a1b2c3d4-e5f6-7890-abcd-ef1234567890" },
+  { id: 2, name: "Lim Siew Yong", party: "groom", table_number: "1", table_id: "t1", checked_in: true, checked_in_at: "2024-06-15T18:45:00", angbao_given: true, angbao_amount: 150, draw_number: 2, notes: "", is_vip: false, rsvp_status: "confirmed", rsvp_at: "2024-05-03T14:20:00", meal_choice: "Fish", plus_one_name: "", dietary_notes: "No shellfish", rsvp_message: "", rsvp_token: "b2c3d4e5-f6a7-8901-bcde-f01234567891" },
+  { id: 3, name: "Ahmad Razif", party: "groom", table_number: "2", table_id: null, checked_in: false, checked_in_at: null, angbao_given: false, angbao_amount: 0, draw_number: null, notes: "Vegetarian", is_vip: false, rsvp_status: "pending", rsvp_at: null, meal_choice: "", plus_one_name: "", dietary_notes: "", rsvp_message: "", rsvp_token: "c3d4e5f6-a7b8-9012-cdef-012345678902" },
+  { id: 4, name: "Priya Nair", party: "bride", table_number: "2", table_id: null, checked_in: true, checked_in_at: "2024-06-15T19:01:00", angbao_given: true, angbao_amount: 100, draw_number: 3, notes: "", is_vip: false, rsvp_status: "confirmed", rsvp_at: "2024-04-28T09:15:00", meal_choice: "Vegetarian", plus_one_name: "Raj Nair", dietary_notes: "Vegetarian only", rsvp_message: "Congratulations!", rsvp_token: "d4e5f6a7-b8c9-0123-defa-123456789013" },
+  { id: 5, name: "Chen Jing Wen", party: "bride", table_number: "3", table_id: null, checked_in: false, checked_in_at: null, angbao_given: false, angbao_amount: 0, draw_number: null, notes: "", is_vip: false, rsvp_status: "declined", rsvp_at: "2024-05-10T16:00:00", meal_choice: "", plus_one_name: "", dietary_notes: "", rsvp_message: "Sorry, will be overseas that week!", rsvp_token: "e5f6a7b8-c9d0-1234-efab-234567890124" },
+  { id: 6, name: "Ng Boon Kiat", party: "groom", table_number: "3", table_id: null, checked_in: true, checked_in_at: "2024-06-15T19:15:00", angbao_given: false, angbao_amount: 0, draw_number: null, notes: "Uncle of groom", is_vip: true, rsvp_status: "confirmed", rsvp_at: "2024-04-20T11:30:00", meal_choice: "Chicken", plus_one_name: "", dietary_notes: "", rsvp_message: "", rsvp_token: "f6a7b8c9-d0e1-2345-fabc-345678901235" },
+  { id: 7, name: "Siti Rahimah", party: "groom", table_number: "4", table_id: null, checked_in: false, checked_in_at: null, angbao_given: false, angbao_amount: 0, draw_number: null, notes: "", is_vip: false, rsvp_status: "pending", rsvp_at: null, meal_choice: "", plus_one_name: "", dietary_notes: "Halal only", rsvp_message: "", rsvp_token: "07a8b9c0-e1f2-3456-abcd-456789012346" },
+  { id: 8, name: "David Koh", party: "groom", table_number: "4", table_id: "t2", checked_in: true, checked_in_at: "2024-06-15T18:50:00", angbao_given: true, angbao_amount: 300, draw_number: 4, notes: "Boss", is_vip: true, rsvp_status: "confirmed", rsvp_at: "2024-04-15T08:00:00", meal_choice: "Fish", plus_one_name: "Karen Koh", dietary_notes: "", rsvp_message: "Looking forward to it!", rsvp_token: "18b9c0d1-f2a3-4567-bcde-567890123457" },
 ];
 
-// ─── ICONS ────────────────────────────────────────────────────────────────────
-const Icon = {
-  Check: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20,6 9,17 4,12"/></svg>,
-  X: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
-  Search: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
-  Upload: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16,16 12,12 8,16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39,18.39A5,5,0,0,0,18,9h-1.26A8,8,0,1,0,3,16.3"/></svg>,
-  Gift: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20,12 20,22 4,22 4,12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12,7H7.5a2.5,2.5,0,0,1,0-5C11,2,12,7,12,7z"/><path d="M12,7h4.5a2.5,2.5,0,0,0,0-5C13,2,12,7,12,7z"/></svg>,
-  Table: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="21"/></svg>,
-  Star: () => <svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg>,
-  Plus: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
-  Download: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="8,17 12,21 16,17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88,18.09A5,5,0,0,0,18,9h-1.26A8,8,0,1,0,3,16.3"/></svg>,
-  Refresh: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23,4 23,10 17,10"/><path d="M20.49,15a9,9,0,1,1-2.12-9.36L23,10"/></svg>,
-  Edit: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11,4H4A2,2,0,0,0,2,6V20a2,2,0,0,0,2,2H18a2,2,0,0,0,2-2V13"/><path d="M18.5,2.5a2.121,2.121,0,0,1,3,3L12,15l-4,1,1-4Z"/></svg>,
-  Trash: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3,6 5,6 21,6"/><path d="M19,6l-1,14a2,2,0,0,1-2,2H8a2,2,0,0,1-2-2L5,6"/><path d="M10,11v6"/><path d="M14,11v6"/><path d="M9,6V4a1,1,0,0,1,1-1h4a1,1,0,0,1,1,1V6"/></svg>,
-};
-
 // ─── STYLES ───────────────────────────────────────────────────────────────────
-const styles = `
-  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap');
-
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  :root {
-    --cream: #faf7f2;
-    --warm-white: #f5f0e8;
-    --gold: #c9a84c;
-    --gold-light: #e8d5a3;
-    --gold-dark: #a07830;
-    --charcoal: #2c2416;
-    --brown: #5c4a2a;
-    --red: #c0392b;
-    --red-soft: #fdf0ee;
-    --green: #2d6a4f;
-    --green-soft: #edf7f2;
-    --shadow: 0 2px 20px rgba(44,36,22,0.08);
-    --shadow-lg: 0 8px 40px rgba(44,36,22,0.12);
-    --radius: 12px;
-  }
-
-  body { font-family: 'DM Sans', sans-serif; background: var(--cream); color: var(--charcoal); }
-
+const styles = theme + `
   .app { min-height: 100vh; }
 
   /* HEADER */
@@ -189,6 +81,29 @@ const styles = `
     letter-spacing: 0.1em;
     text-transform: uppercase;
   }
+  .mode-toggle {
+    display: flex;
+    border: 1.5px solid rgba(201,168,76,0.35);
+    border-radius: 8px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .mode-btn {
+    padding: 6px 14px;
+    border: none;
+    background: rgba(255,255,255,0.08);
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.55);
+    letter-spacing: 0.02em;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .mode-btn + .mode-btn { border-left: 1.5px solid rgba(201,168,76,0.35); }
+  .mode-btn.active { background: var(--gold); color: var(--charcoal); }
+  .mode-btn:not(.active):hover { background: rgba(255,255,255,0.14); color: rgba(255,255,255,0.85); }
 
   /* TOOLBAR */
   .toolbar {
@@ -836,7 +751,7 @@ function PayNowPage({ onBack }) {
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function WeddingTracker() {
-  const [unlocked, setUnlocked] = useState(isDemoMode);
+  const [unlocked, setUnlocked] = useState(true); // PIN disabled — set to `isDemoMode` to re-enable
   const [accessCode, setAccessCode] = useState("");
   const [pinError, setPinError] = useState("");
   const [unlocking, setUnlocking] = useState(false);
@@ -844,7 +759,8 @@ export default function WeddingTracker() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
-  const [view, setView] = useState("guests");
+  const [mode, setMode] = useState("planning"); // "planning" | "dday"
+  const [view, setView] = useState("rsvp");
   const [modal, setModal] = useState(null); // 'add' | 'edit' | 'upload' | 'setup'
   const [editGuest, setEditGuest] = useState(null);
   const [toast, setToast] = useState(null);
@@ -875,6 +791,13 @@ export default function WeddingTracker() {
   // Restore an existing helper session on load (Supabase persists it).
   useEffect(() => {
     if (isDemoMode) return;
+    // Auto-sign-in using VITE_HELPER_PASSWORD so Supabase RLS still works
+    // when the PIN screen is disabled.
+    const pass = import.meta.env.VITE_HELPER_PASSWORD;
+    if (pass) {
+      supabase.auth.signInWithPassword({ email: HELPER_EMAIL, password: pass });
+      return;
+    }
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) setUnlocked(true);
     });
@@ -1040,6 +963,20 @@ export default function WeddingTracker() {
       showToast(n ? `🧧 ${guest.name} — angbao received · Draw #${n}` : `🧧 ${guest.name} — angbao received`, undo);
     } else {
       showToast(`${guest.name} — angbao cleared`, undo);
+    }
+  };
+
+  const switchMode = (newMode) => {
+    setMode(newMode);
+    setView(newMode === "planning" ? "rsvp" : "guests");
+  };
+
+  // Generic optimistic update used by RsvpTab and SeatingTab for RSVP/seating edits.
+  const updateGuest = async (id, patch) => {
+    setGuests((g) => g.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+    if (!isDemoMode) {
+      try { await sb.update("guests", id, patch); }
+      catch { showToast("Not saved — check connection"); }
     }
   };
 
@@ -1263,6 +1200,9 @@ export default function WeddingTracker() {
   const angbaoTotal = guests.filter((g) => g.angbao_given).reduce((s, g) => s + (g.angbao_amount || 0), 0);
   const angbaoCount = guests.filter((g) => g.angbao_given).length;
   const pendingSubs = submissions.filter((s) => s.status === "pending").length;
+  const rsvpConfirmed = guests.filter((g) => g.rsvp_status === "confirmed").length;
+  const rsvpPending = guests.filter((g) => g.rsvp_status === "pending").length;
+  const rsvpHeadcount = rsvpConfirmed + guests.filter((g) => g.rsvp_status === "confirmed" && g.plus_one_name?.trim()).length;
 
   // Table groups
   const tables = {};
@@ -1326,69 +1266,121 @@ export default function WeddingTracker() {
         {/* HEADER */}
         <header className="header">
           <div className="header-left">
-            <div className="header-title">♡ Wedding Day</div>
-            <div className="header-subtitle">Guest Attendance Tracker</div>
+            <div className="header-title">
+              {mode === "planning" ? "♡ Wedding Planner" : "♡ Wedding Day"}
+            </div>
+            <div className="header-subtitle">
+              {mode === "planning" ? "RSVP & Seating Plan" : "Guest Attendance Tracker"}
+            </div>
           </div>
           <div className="header-stats">
             {isDemoMode && <span className="demo-badge">Demo Mode</span>}
-            <div className="stat-pill">
-              <span className="num">{arrived}/{total}</span>
-              <span className="lbl">Arrived</span>
-            </div>
-            <div className="stat-pill">
-              <span className="num">{total > 0 ? Math.round((arrived / total) * 100) : 0}%</span>
-              <span className="lbl">Attendance</span>
-            </div>
-            {ANGBAO_ENABLED && (
-              <div className="stat-pill">
-                <span className="num">🧧 {angbaoCount}</span>
-                <span className="lbl">Angbaos</span>
-              </div>
+            {mode === "planning" ? (
+              <>
+                <div className="stat-pill">
+                  <span className="num">{rsvpConfirmed}/{total}</span>
+                  <span className="lbl">Confirmed</span>
+                </div>
+                <div className="stat-pill">
+                  <span className="num">{rsvpHeadcount}</span>
+                  <span className="lbl">Headcount</span>
+                </div>
+                <div className="stat-pill">
+                  <span className="num">{rsvpPending}</span>
+                  <span className="lbl">Pending</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="stat-pill">
+                  <span className="num">{arrived}/{total}</span>
+                  <span className="lbl">Arrived</span>
+                </div>
+                <div className="stat-pill">
+                  <span className="num">{total > 0 ? Math.round((arrived / total) * 100) : 0}%</span>
+                  <span className="lbl">Attendance</span>
+                </div>
+                {ANGBAO_ENABLED && (
+                  <div className="stat-pill">
+                    <span className="num">🧧 {angbaoCount}</span>
+                    <span className="lbl">Angbaos</span>
+                  </div>
+                )}
+              </>
             )}
+            <div className="mode-toggle">
+              <button className={`mode-btn ${mode === "planning" ? "active" : ""}`} onClick={() => switchMode("planning")}>
+                📋 Planning
+              </button>
+              <button className={`mode-btn ${mode === "dday" ? "active" : ""}`} onClick={() => switchMode("dday")}>
+                💒 D-Day
+              </button>
+            </div>
           </div>
         </header>
 
         {/* VIEW TABS */}
         <div className="view-tabs">
-          <button className={`view-tab ${view === "guests" ? "active" : ""}`} onClick={() => setView("guests")}>
-            <Icon.Check /> Guest List
-          </button>
-          <button className={`view-tab ${view === "tables" ? "active" : ""}`} onClick={() => setView("tables")}>
-            <Icon.Table /> Tables
-          </button>
-          {ANGBAO_ENABLED && (
-            <button className={`view-tab ${view === "angbao" ? "active" : ""}`} onClick={() => setView("angbao")}>
-              <Icon.Gift /> Angbao Tracker
-            </button>
-          )}
-          {ANGBAO_ENABLED && !isDemoMode && (
-            <button className={`view-tab ${view === "submissions" ? "active" : ""}`} onClick={() => setView("submissions")}>
-              <Icon.Upload /> Submissions
-              {pendingSubs > 0 && <span className="sub-pill">{pendingSubs}</span>}
-            </button>
+          {mode === "planning" ? (
+            <>
+              <button className={`view-tab ${view === "rsvp" ? "active" : ""}`} onClick={() => setView("rsvp")}>
+                <Icon.Mail /> RSVP
+              </button>
+              <button className={`view-tab ${view === "seating" ? "active" : ""}`} onClick={() => setView("seating")}>
+                <Icon.Users /> Seating Plan
+              </button>
+            </>
+          ) : (
+            <>
+              <button className={`view-tab ${view === "guests" ? "active" : ""}`} onClick={() => setView("guests")}>
+                <Icon.Check /> Guest List
+              </button>
+              <button className={`view-tab ${view === "tables" ? "active" : ""}`} onClick={() => setView("tables")}>
+                <Icon.Table /> Tables
+              </button>
+              {ANGBAO_ENABLED && (
+                <button className={`view-tab ${view === "angbao" ? "active" : ""}`} onClick={() => setView("angbao")}>
+                  <Icon.Gift /> Angbao Tracker
+                </button>
+              )}
+              {ANGBAO_ENABLED && !isDemoMode && (
+                <button className={`view-tab ${view === "submissions" ? "active" : ""}`} onClick={() => setView("submissions")}>
+                  <Icon.Upload /> Submissions
+                  {pendingSubs > 0 && <span className="sub-pill">{pendingSubs}</span>}
+                </button>
+              )}
+            </>
           )}
         </div>
 
         {/* TOOLBAR */}
         <div className="toolbar">
-          <div className="search-wrap">
-            <Icon.Search />
-            <input className="search-input" placeholder="Search guests or table…" value={search} onChange={(e) => setSearch(e.target.value)} />
-          </div>
-          <div className="filter-tabs">
-            {[["all","All"],["arrived","Arrived"],["pending","Pending"],...(ANGBAO_ENABLED ? [["angbao","🧧 Gave"]] : [])].map(([k,l]) => (
-              <button key={k} className={`filter-tab ${filter === k ? "active" : ""}`} onClick={() => setFilter(k)}>{l}</button>
-            ))}
-          </div>
+          {mode === "dday" && (
+            <>
+              <div className="search-wrap">
+                <Icon.Search />
+                <input className="search-input" placeholder="Search guests or table…" value={search} onChange={(e) => setSearch(e.target.value)} />
+              </div>
+              <div className="filter-tabs">
+                {[["all","All"],["arrived","Arrived"],["pending","Pending"],...(ANGBAO_ENABLED ? [["angbao","🧧 Gave"]] : [])].map(([k,l]) => (
+                  <button key={k} className={`filter-tab ${filter === k ? "active" : ""}`} onClick={() => setFilter(k)}>{l}</button>
+                ))}
+              </div>
+            </>
+          )}
           <button className="btn btn-outline" onClick={() => { setModal("upload"); }}>
             <Icon.Upload /> Import CSV
           </button>
           <button className="btn btn-gold" onClick={() => { setEditGuest(null); setForm({ name: "", table_number: "", notes: "", party: "", is_vip: false }); setModal("add"); }}>
             <Icon.Plus /> Add Guest
           </button>
-          <button className="btn btn-outline btn-sm" onClick={exportCSV} title="Export CSV"><Icon.Download /></button>
-          <button className="btn btn-outline btn-sm" onClick={backupJSON} title="Backup (JSON)">Backup</button>
-          <button className="btn btn-outline btn-sm" onClick={loadGuests} title="Refresh"><Icon.Refresh /></button>
+          {mode === "dday" && (
+            <>
+              <button className="btn btn-outline btn-sm" onClick={exportCSV} title="Export CSV"><Icon.Download /></button>
+              <button className="btn btn-outline btn-sm" onClick={backupJSON} title="Backup (JSON)">Backup</button>
+              <button className="btn btn-outline btn-sm" onClick={loadGuests} title="Refresh"><Icon.Refresh /></button>
+            </>
+          )}
         </div>
 
         {/* CONTENT */}
@@ -1551,6 +1543,10 @@ export default function WeddingTracker() {
                 <div className="empty"><div className="empty-icon">🪑</div><div className="empty-text">No tables yet</div><div className="empty-sub">Add guests with table numbers</div></div>
               )}
             </div>
+          ) : view === "rsvp" ? (
+            <RsvpTab guests={guests} onUpdate={updateGuest} showToast={showToast} />
+          ) : view === "seating" ? (
+            <SeatingTab guests={guests} onUpdate={updateGuest} showToast={showToast} />
           ) : ANGBAO_ENABLED && view === "angbao" ? (
             /* ANGBAO VIEW */
             <>
