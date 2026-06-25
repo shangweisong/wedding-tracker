@@ -4,7 +4,8 @@
 export const MAX_NAME = 120,
   MAX_NOTES = 500,
   MAX_TABLE = 20,
-  MAX_ANGBAO = 10_000_000;
+  MAX_ANGBAO = 10_000_000,
+  MAX_EMAIL = 254;
 export const PARTIES = ["", "bride", "groom"];
 export const RELATIONSHIP_GROUPS = ["", "family", "colleagues", "friends", "other"];
 export const FRIEND_SUBGROUPS = [
@@ -25,6 +26,11 @@ export const cleanRelationshipGroup = (v) => {
 export const cleanFriendSubgroup = (v) => {
   const s = String(v ?? "").toLowerCase().trim();
   return FRIEND_SUBGROUPS.includes(s) ? s : "";
+};
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const cleanEmail = (v) => {
+  const e = String(v ?? "").trim().slice(0, MAX_EMAIL);
+  return EMAIL_RE.test(e) ? e : "";
 };
 export const cleanAmount = (v) => {
   const n = parseFloat(v);

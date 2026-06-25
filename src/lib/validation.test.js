@@ -5,9 +5,11 @@ import {
   cleanTable,
   cleanParty,
   cleanAmount,
+  cleanEmail,
   MAX_NAME,
   MAX_NOTES,
   MAX_ANGBAO,
+  MAX_EMAIL,
 } from "./validation.js";
 
 describe("cleanAmount", () => {
@@ -41,6 +43,24 @@ describe("cleanParty", () => {
     expect(cleanParty(" Bride ")).toBe("bride");
     expect(cleanParty("cousin")).toBe("");
     expect(cleanParty(null)).toBe("");
+  });
+});
+
+describe("cleanEmail", () => {
+  it("accepts well-formed addresses, trimmed", () => {
+    expect(cleanEmail("  guest@example.com  ")).toBe("guest@example.com");
+  });
+
+  it("rejects malformed input", () => {
+    expect(cleanEmail("not-an-email")).toBe("");
+    expect(cleanEmail("missing@domain")).toBe("");
+    expect(cleanEmail("")).toBe("");
+    expect(cleanEmail(null)).toBe("");
+  });
+
+  it("rejects input longer than MAX_EMAIL even if otherwise valid-shaped", () => {
+    const long = "a".repeat(MAX_EMAIL) + "@example.com";
+    expect(cleanEmail(long)).toBe("");
   });
 });
 

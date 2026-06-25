@@ -107,6 +107,7 @@ export default function RsvpTab({ guests, onUpdate, showToast }) {
       relationship_group: g.relationship_group || "",
       friend_subgroup: g.friend_subgroup || "",
       party: g.party || "",
+      email: g.email || "",
     });
   };
 
@@ -119,6 +120,7 @@ export default function RsvpTab({ guests, onUpdate, showToast }) {
       relationship_group: editForm.relationship_group,
       friend_subgroup: editForm.relationship_group === "friends" ? editForm.friend_subgroup : "",
       party: editForm.party,
+      email: editForm.email.trim(),
     };
     if (editForm.rsvp_status !== (g.rsvp_status || "pending")) {
       patch.rsvp_at = new Date().toISOString();
@@ -230,6 +232,7 @@ export default function RsvpTab({ guests, onUpdate, showToast }) {
                           : null,
                         g.plus_one_name?.trim() ? `+1: ${g.plus_one_name}` : null,
                         g.dietary_notes?.trim() || null,
+                        g.email?.trim() || null,
                       ]
                         .filter(Boolean)
                         .join(" · ")}
@@ -294,6 +297,18 @@ export default function RsvpTab({ guests, onUpdate, showToast }) {
                           </option>
                         ))}
                       </select>
+                    </div>
+                    <div className="rsvp-edit-group">
+                      <label className="rsvp-edit-label">Email</label>
+                      <input
+                        className="rsvp-edit-input"
+                        type="email"
+                        value={editForm.email}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, email: e.target.value })
+                        }
+                        placeholder="guest@example.com"
+                      />
                     </div>
                     <div className="rsvp-edit-group">
                       <label className="rsvp-edit-label">Plus One Name</label>

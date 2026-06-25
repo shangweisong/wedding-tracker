@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { sb, isDemoMode } from "../lib/supabase.js";
 import { theme } from "../shared/theme.js";
-import { cleanName, cleanNotes, cleanParty, cleanRelationshipGroup, cleanFriendSubgroup } from "../lib/validation.js";
+import { cleanName, cleanNotes, cleanParty, cleanRelationshipGroup, cleanFriendSubgroup, cleanEmail } from "../lib/validation.js";
 
 const MEAL_OPTIONS = ["Halal", "Vegetarian", "Normal"];
 
@@ -144,6 +144,7 @@ function ConfirmationView({ name, attending }) {
 
 export default function RsvpPage() {
   const [name, setName]               = useState("");
+  const [email, setEmail]             = useState("");
   const [attending, setAttending]     = useState(null);
   const [mealChoice, setMealChoice]   = useState("");
   const [dietary, setDietary]         = useState("");
@@ -159,6 +160,7 @@ export default function RsvpPage() {
     e.preventDefault();
     if (!name.trim()) { setError("Please enter your name."); return; }
     if (attending === null) { setError("Please select whether you'll be attending."); return; }
+    if (!cleanEmail(email)) { setError("Please enter a valid email address."); return; }
     setError("");
     setSubmitting(true);
 
@@ -179,6 +181,7 @@ export default function RsvpPage() {
         p_relationship_group: cleanRelationshipGroup(relationshipGroup),
         p_friend_subgroup:    relationshipGroup === "friends" ? cleanFriendSubgroup(friendSubgroup) : "",
         p_party:              cleanParty(closerTo),
+        p_email:              cleanEmail(email),
       });
       setDone(true);
     } catch (err) {
@@ -222,6 +225,18 @@ export default function RsvpPage() {
                   value={name}
                   onChange={(e) => { setName(e.target.value); setError(""); }}
                   autoFocus
+                />
+              </div>
+
+              {/* Email — used to send confirmation + reminder emails */}
+              <div className="rsvp-field">
+                <label className="rsvp-label">Your Email</label>
+                <input
+                  className="rsvp-input"
+                  type="email"
+                  placeholder="So we can send your confirmation"
+                  value={email}
+                  onChange={(e) => { setEmail(e.target.value); setError(""); }}
                 />
               </div>
 
