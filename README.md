@@ -9,7 +9,8 @@ A two-phase wedding management app — pre-wedding RSVP collection and seating p
 ### 📋 Planning Mode (pre-wedding)
 - **RSVP collection** — guests go to `/rsvp`, fill in their name + choices, submit. Fuzzy name matching verifies them against your guest list without exposing it.
 - **RSVP dashboard** — see confirmed / declined / pending counts, headcount (including response rate), meal breakdown; filter by status or bride/groom side; edit any RSVP field inline
-- **Seating plan** — create tables with capacity limits, assign confirmed guests, lock tables when done, export as CSV, print-ready layout
+- **Seating plan** — create tables with capacity limits, assign confirmed guests by dropdown or drag-and-drop, lock tables when done, export as CSV, print-ready layout
+- **Draft seating suggestion** — one click groups unassigned confirmed guests by side / relationship / friend group and packs them into open tables as a starting draft to rearrange by hand — no AI involved, just deterministic clustering
 
 ### 💒 D-Day Mode (wedding day)
 - **Check-in** — tap to mark guests arrived, with timestamp
