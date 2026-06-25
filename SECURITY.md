@@ -30,6 +30,13 @@ This project is configured so that:
    **disable public sign-ups** so strangers can't self-register an account.
 3. Set `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and `VITE_HELPER_EMAIL`
    in your deployment environment. Never commit `.env`.
+4. For email automation (Phase 3, optional): run
+   `supabase/migrations/0006_email_automation.sql`, then create the two
+   Supabase Vault secrets it documents (`rsvp_email_webhook_url`,
+   `rsvp_email_webhook_secret`), and set the server-only env vars listed in
+   `.env.example` (`SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`,
+   `RSVP_WEBHOOK_SECRET`, `CRON_SECRET`, etc.) on the Vercel project. **Never**
+   give these a `VITE_` prefix.
 
 ## Residual risks (by design)
 
@@ -47,6 +54,16 @@ This project is configured so that:
   [`0002_draw_and_submissions.sql`](supabase/migrations/0002_draw_and_submissions.sql)
   still exist server-side. If you need those endpoints fully closed (not just
   hidden), drop or tighten the corresponding policies in Supabase as well.
+
+- **Email automation introduces a second trust boundary** (`api/` serverless
+  functions on Vercel, separate from the browser/RLS boundary above). The
+  `SUPABASE_SERVICE_ROLE_KEY` there bypasses RLS entirely, so it must only
+  ever live as a server-only Vercel env var. `api/send-rsvp-email.js` is
+  reachable by anyone who knows the URL — it's gated by the
+  `RSVP_WEBHOOK_SECRET` shared secret (checked against the `x-webhook-secret`
+  header), not by Supabase auth, since the caller is a Postgres trigger, not
+  a logged-in helper. `api/send-reminders.js` is gated the same way via
+  Vercel's `CRON_SECRET` mechanism.
 
 ## Reporting a vulnerability
 
