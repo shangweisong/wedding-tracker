@@ -1,6 +1,18 @@
 import { useState, useEffect } from "react";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  closestCenter,
+  pointerWithin,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
 import { sb, supabase, isDemoMode } from "../lib/supabase.js";
 import { csvCell } from "../lib/csv.js";
+import { suggestSeating } from "./seatingSuggestion.js";
 
 const DEMO_TABLES = [
   { id: "t1", table_number: "1", label: "Family", capacity: 10, is_locked: false },
@@ -9,6 +21,18 @@ const DEMO_TABLES = [
 ];
 
 const BLANK_FORM = { table_number: "", label: "", capacity: 10 };
+
+// closestCenter alone picks whichever droppable's *center* is nearest the
+// dragged item, regardless of whether the pointer is actually over it. The
+// unassigned pool is one large single-column droppable sitting right above
+// the table grid, so its center can beat a table card you're visibly
+// hovering over (especially the leftmost column). Prefer whatever droppable
+// the pointer is actually within, and only fall back to closestCenter if
+// the pointer has overshot every droppable.
+function collisionDetection(args) {
+  const pointerCollisions = pointerWithin(args);
+  return pointerCollisions.length > 0 ? pointerCollisions : closestCenter(args);
+}
 
 const styles = `
   .seat-tab { display: flex; flex-direction: column; gap: 20px; }
@@ -45,6 +69,12 @@ const styles = `
   .seat-remove-btn:hover { background: var(--red-soft); color: var(--red); opacity: 1; }
   .seat-empty-table { padding: 10px 16px; font-size: 13px; color: var(--brown); opacity: 0.4; font-style: italic; }
 
+  .seat-drag-handle { cursor: grab; color: var(--brown); opacity: 0.35; font-size: 14px; flex-shrink: 0; touch-action: none; }
+  .seat-drag-handle:hover { opacity: 0.7; }
+  .seat-unassigned-list.drop-over { background: rgba(201,168,76,0.08); border-radius: 8px; outline: 2px dashed rgba(201,168,76,0.4); outline-offset: 4px; }
+  .seat-table-card.drop-over { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,76,0.2); }
+  .seat-drag-overlay { background: white; box-shadow: var(--shadow); border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 500; color: var(--charcoal); border-left: 3px solid var(--gold); }
+
   @media (max-width: 600px) {
     .seat-tables-grid { grid-template-columns: 1fr; }
     .seat-unassigned-row { flex-wrap: wrap; }
@@ -56,6 +86,155 @@ const styles = `
   }
 `;
 
+function UnassignedGuestRow({ guest, tables, assignedAt, onAssign }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `guest-${guest.id}`,
+    data: { guestId: guest.id },
+  });
+  return (
+    <div
+      ref={setNodeRef}
+      className="seat-unassigned-row"
+      style={{ opacity: isDragging ? 0.4 : 1 }}
+    >
+      <span className="seat-drag-handle" {...attributes} {...listeners} title="Drag to a table">
+        ⠿
+      </span>
+      <span className="seat-ua-name">{guest.name}</span>
+      {guest.meal_choice?.trim() && (
+        <span className="seat-meal-tag">{guest.meal_choice}</span>
+      )}
+      <select
+        className="seat-assign-select"
+        value=""
+        onChange={(e) => {
+          if (e.target.value) onAssign(guest.id, e.target.value);
+        }}
+      >
+        <option value="">Assign to table…</option>
+        {tables
+          .filter((t) => !t.is_locked)
+          .map((t) => {
+            const count = assignedAt(t.id).length;
+            const full = count >= t.capacity;
+            return (
+              <option key={t.id} value={t.id} disabled={full}>
+                Table {t.table_number}
+                {t.label ? ` — ${t.label}` : ""} ({count}/{t.capacity}
+                {full ? ", full" : ""})
+              </option>
+            );
+          })}
+      </select>
+    </div>
+  );
+}
+
+function UnassignedDropZone({ children }) {
+  const { setNodeRef, isOver } = useDroppable({ id: "unassigned" });
+  return (
+    <div ref={setNodeRef} className={`seat-unassigned-list ${isOver ? "drop-over" : ""}`}>
+      {children}
+    </div>
+  );
+}
+
+function SeatedGuestRow({ guest, locked, onRemove }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `guest-${guest.id}`,
+    data: { guestId: guest.id },
+  });
+  return (
+    <div ref={setNodeRef} className="seat-guest-row" style={{ opacity: isDragging ? 0.4 : 1 }}>
+      {!locked && (
+        <span className="seat-drag-handle" {...attributes} {...listeners} title="Drag to move">
+          ⠿
+        </span>
+      )}
+      <span className="seat-guest-name">{guest.name}</span>
+      {guest.meal_choice?.trim() && <span className="seat-meal-mini">{guest.meal_choice}</span>}
+      {!locked && (
+        <button
+          className="seat-remove-btn"
+          onClick={() => onRemove(guest.id)}
+          title="Remove from table"
+        >
+          ×
+        </button>
+      )}
+    </div>
+  );
+}
+
+function TableCard({ table, seated, onToggleLock, onEdit, onDelete, onRemoveGuest }) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `table-${table.id}`,
+    disabled: table.is_locked,
+  });
+  const pct = table.capacity > 0 ? (seated.length / table.capacity) * 100 : 0;
+  const fillColor = pct >= 100 ? "var(--red)" : "var(--green)";
+  return (
+    <div
+      ref={setNodeRef}
+      className={`seat-table-card ${table.is_locked ? "locked" : ""} ${
+        isOver && !table.is_locked ? "drop-over" : ""
+      }`}
+    >
+      <div className="seat-card-header">
+        <div>
+          <div className="seat-table-name">
+            Table {table.table_number}
+            {table.is_locked && (
+              <span style={{ fontSize: 11, color: "var(--red)", marginLeft: 6, fontWeight: 400 }}>
+                locked
+              </span>
+            )}
+          </div>
+          {table.label && <div className="seat-table-label">{table.label}</div>}
+        </div>
+        <div className="seat-card-actions">
+          <button
+            className="seat-icon-btn"
+            onClick={() => onToggleLock(table)}
+            title={table.is_locked ? "Unlock table" : "Lock table"}
+          >
+            {table.is_locked ? "🔒" : "🔓"}
+          </button>
+          <button className="seat-icon-btn" onClick={() => onEdit(table)} title="Edit table">
+            ✏️
+          </button>
+          <button className="seat-icon-btn" onClick={() => onDelete(table)} title="Delete table">
+            🗑
+          </button>
+        </div>
+      </div>
+      <div className="seat-capacity-bar">
+        <div
+          className="seat-capacity-fill"
+          style={{ width: `${Math.min(pct, 100)}%`, background: fillColor }}
+        />
+      </div>
+      <div className="seat-capacity-label">
+        {seated.length} / {table.capacity} seats
+      </div>
+      <div className="seat-guest-list">
+        {seated.length === 0 ? (
+          <div className="seat-empty-table">No guests assigned</div>
+        ) : (
+          seated.map((g) => (
+            <SeatedGuestRow
+              key={g.id}
+              guest={g}
+              locked={table.is_locked}
+              onRemove={onRemoveGuest}
+            />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function SeatingTab({ guests, onUpdate, showToast }) {
   const [tables, setTables] = useState(() => (isDemoMode ? DEMO_TABLES : []));
   const [loading, setLoading] = useState(!isDemoMode);
@@ -63,6 +242,10 @@ export default function SeatingTab({ guests, onUpdate, showToast }) {
   const [editTable, setEditTable] = useState(null);
   const [form, setForm] = useState(BLANK_FORM);
   const [saving, setSaving] = useState(false);
+  const [activeGuestId, setActiveGuestId] = useState(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
+  );
 
   useEffect(() => {
     if (isDemoMode) return;
@@ -189,6 +372,54 @@ export default function SeatingTab({ guests, onUpdate, showToast }) {
     await onUpdate(guestId, { table_id: null, table_number: "" });
   };
 
+  const handleDragStart = (event) => {
+    setActiveGuestId(event.active.data.current?.guestId ?? null);
+  };
+
+  const handleDragEnd = (event) => {
+    setActiveGuestId(null);
+    const { active, over } = event;
+    if (!over) return;
+    const guestId = active.data.current?.guestId;
+    if (!guestId) return;
+    const guest = guests.find((g) => g.id === guestId);
+    if (over.id === "unassigned") {
+      if (guest?.table_id) unassignGuest(guestId);
+      return;
+    }
+    if (typeof over.id === "string" && over.id.startsWith("table-")) {
+      const tableId = over.id.slice("table-".length);
+      if (guest?.table_id === tableId) return;
+      assignGuest(guestId, tableId);
+    }
+  };
+
+  const generateSuggestion = async () => {
+    const { assignments, unplacedGuestIds } = suggestSeating(guests, tables);
+    if (assignments.length === 0) {
+      showToast(
+        unplacedGuestIds.length
+          ? "Not enough table capacity for the unassigned guests"
+          : "No unassigned confirmed guests to seat"
+      );
+      return;
+    }
+    await Promise.all(
+      assignments.map((a) => {
+        const t = tables.find((x) => x.id === a.tableId);
+        return onUpdate(a.guestId, {
+          table_id: a.tableId,
+          table_number: t?.table_number || "",
+        });
+      })
+    );
+    showToast(
+      unplacedGuestIds.length
+        ? `Seated ${assignments.length} guests — ${unplacedGuestIds.length} left unassigned (no capacity left)`
+        : `Seated ${assignments.length} guests — review and adjust as needed`
+    );
+  };
+
   const exportCSV = () => {
     const rows = tables.flatMap((t) =>
       assignedAt(t.id).map((g) => ({
@@ -218,175 +449,89 @@ export default function SeatingTab({ guests, onUpdate, showToast }) {
     URL.revokeObjectURL(url);
   };
 
+  const activeGuest = activeGuestId ? guests.find((g) => g.id === activeGuestId) : null;
+
   return (
     <>
       <style>{styles}</style>
-      <div className="seat-tab">
-        {/* Toolbar */}
-        <div className="seat-toolbar">
-          <button className="btn btn-gold" onClick={openAdd}>
-            + Add Table
-          </button>
-          <button className="btn btn-outline" onClick={exportCSV}>
-            ⬇ Export CSV
-          </button>
-          <button className="btn btn-outline" onClick={() => window.print()}>
-            🖨 Print
-          </button>
-        </div>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={collisionDetection}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
+        <div className="seat-tab">
+          {/* Toolbar */}
+          <div className="seat-toolbar">
+            <button className="btn btn-gold" onClick={openAdd}>
+              + Add Table
+            </button>
+            <button className="btn btn-outline" onClick={generateSuggestion}>
+              ✨ Generate Draft Seating
+            </button>
+            <button className="btn btn-outline" onClick={exportCSV}>
+              ⬇ Export CSV
+            </button>
+            <button className="btn btn-outline" onClick={() => window.print()}>
+              🖨 Print
+            </button>
+          </div>
 
-        {/* Unassigned pool */}
-        {unassigned.length > 0 && (
-          <div>
-            <div className="seat-section-title">
-              Unassigned Confirmed Guests ({unassigned.length})
+          {/* Unassigned pool */}
+          {unassigned.length > 0 && (
+            <div>
+              <div className="seat-section-title">
+                Unassigned Confirmed Guests ({unassigned.length})
+              </div>
+              <UnassignedDropZone>
+                {unassigned.map((g) => (
+                  <UnassignedGuestRow
+                    key={g.id}
+                    guest={g}
+                    tables={tables}
+                    assignedAt={assignedAt}
+                    onAssign={assignGuest}
+                  />
+                ))}
+              </UnassignedDropZone>
             </div>
-            <div className="seat-unassigned-list">
-              {unassigned.map((g) => (
-                <div key={g.id} className="seat-unassigned-row">
-                  <span className="seat-ua-name">{g.name}</span>
-                  {g.meal_choice?.trim() && (
-                    <span className="seat-meal-tag">{g.meal_choice}</span>
-                  )}
-                  <select
-                    className="seat-assign-select"
-                    value=""
-                    onChange={(e) => {
-                      if (e.target.value) assignGuest(g.id, e.target.value);
-                    }}
-                  >
-                    <option value="">Assign to table…</option>
-                    {tables
-                      .filter((t) => !t.is_locked)
-                      .map((t) => {
-                        const count = assignedAt(t.id).length;
-                        const full = count >= t.capacity;
-                        return (
-                          <option key={t.id} value={t.id} disabled={full}>
-                            Table {t.table_number}
-                            {t.label ? ` — ${t.label}` : ""} ({count}/{t.capacity}
-                            {full ? ", full" : ""})
-                          </option>
-                        );
-                      })}
-                  </select>
-                </div>
+          )}
+
+          {/* Table cards */}
+          {loading ? (
+            <div className="empty">
+              <div className="empty-icon">⏳</div>
+              <div className="empty-text">Loading tables…</div>
+            </div>
+          ) : tables.length === 0 ? (
+            <div className="empty">
+              <div className="empty-icon">🪑</div>
+              <div className="empty-text">No tables yet</div>
+              <div className="empty-sub">
+                Create tables above to start planning your seating
+              </div>
+            </div>
+          ) : (
+            <div className="seat-tables-grid">
+              {tables.map((t) => (
+                <TableCard
+                  key={t.id}
+                  table={t}
+                  seated={assignedAt(t.id)}
+                  onToggleLock={toggleLock}
+                  onEdit={openEdit}
+                  onDelete={deleteTable}
+                  onRemoveGuest={unassignGuest}
+                />
               ))}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
-        {/* Table cards */}
-        {loading ? (
-          <div className="empty">
-            <div className="empty-icon">⏳</div>
-            <div className="empty-text">Loading tables…</div>
-          </div>
-        ) : tables.length === 0 ? (
-          <div className="empty">
-            <div className="empty-icon">🪑</div>
-            <div className="empty-text">No tables yet</div>
-            <div className="empty-sub">
-              Create tables above to start planning your seating
-            </div>
-          </div>
-        ) : (
-          <div className="seat-tables-grid">
-            {tables.map((t) => {
-              const seated = assignedAt(t.id);
-              const pct = t.capacity > 0 ? (seated.length / t.capacity) * 100 : 0;
-              const fillColor = pct >= 100 ? "var(--red)" : "var(--green)";
-              return (
-                <div
-                  key={t.id}
-                  className={`seat-table-card ${t.is_locked ? "locked" : ""}`}
-                >
-                  <div className="seat-card-header">
-                    <div>
-                      <div className="seat-table-name">
-                        Table {t.table_number}
-                        {t.is_locked && (
-                          <span
-                            style={{
-                              fontSize: 11,
-                              color: "var(--red)",
-                              marginLeft: 6,
-                              fontWeight: 400,
-                            }}
-                          >
-                            locked
-                          </span>
-                        )}
-                      </div>
-                      {t.label && (
-                        <div className="seat-table-label">{t.label}</div>
-                      )}
-                    </div>
-                    <div className="seat-card-actions">
-                      <button
-                        className="seat-icon-btn"
-                        onClick={() => toggleLock(t)}
-                        title={t.is_locked ? "Unlock table" : "Lock table"}
-                      >
-                        {t.is_locked ? "🔒" : "🔓"}
-                      </button>
-                      <button
-                        className="seat-icon-btn"
-                        onClick={() => openEdit(t)}
-                        title="Edit table"
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        className="seat-icon-btn"
-                        onClick={() => deleteTable(t)}
-                        title="Delete table"
-                      >
-                        🗑
-                      </button>
-                    </div>
-                  </div>
-                  <div className="seat-capacity-bar">
-                    <div
-                      className="seat-capacity-fill"
-                      style={{
-                        width: `${Math.min(pct, 100)}%`,
-                        background: fillColor,
-                      }}
-                    />
-                  </div>
-                  <div className="seat-capacity-label">
-                    {seated.length} / {t.capacity} seats
-                  </div>
-                  <div className="seat-guest-list">
-                    {seated.length === 0 ? (
-                      <div className="seat-empty-table">No guests assigned</div>
-                    ) : (
-                      seated.map((g) => (
-                        <div key={g.id} className="seat-guest-row">
-                          <span className="seat-guest-name">{g.name}</span>
-                          {g.meal_choice?.trim() && (
-                            <span className="seat-meal-mini">{g.meal_choice}</span>
-                          )}
-                          {!t.is_locked && (
-                            <button
-                              className="seat-remove-btn"
-                              onClick={() => unassignGuest(g.id)}
-                              title="Remove from table"
-                            >
-                              ×
-                            </button>
-                          )}
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+        <DragOverlay>
+          {activeGuest ? <div className="seat-drag-overlay">{activeGuest.name}</div> : null}
+        </DragOverlay>
+      </DndContext>
 
       {/* Add / Edit table modal */}
       {(modal === "add" || modal === "edit") && (
