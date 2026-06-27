@@ -10,6 +10,7 @@ import { theme } from "../shared/theme.js";
 import RsvpTab from "./RsvpTab.jsx";
 import SeatingTab from "./SeatingTab.jsx";
 import WeddingSetupTab from "./WeddingSetupTab.jsx";
+import WeddingPageTab from "../wedding/WeddingPageTab.jsx";
 
 // ─── PAYNOW CONFIG ────────────────────────────────────────────────────────────
 // The host's PayNow-linked mobile number and display name. These are NOT secret
@@ -970,6 +971,32 @@ export default function WeddingTracker() {
     }
   };
 
+  const saveWeddingPage = async (form) => {
+    if (isDemoMode) {
+      setWedding((w) => ({ ...(w || {}), ...form }));
+      showToast("Wedding page saved");
+      return true;
+    }
+    try {
+      await sb.rpc("upsert_wedding_page", {
+        p_slug:           form.slug,
+        p_love_story:     form.love_story,
+        p_dress_code:     form.dress_code,
+        p_hero_image_url: form.hero_image_url,
+        p_fun_qa:         form.fun_qa,
+        p_rsvp_deadline:  form.rsvp_deadline,
+        p_is_published:   form.is_published,
+        p_meal_options:   form.meal_options,
+      });
+      await loadWedding();
+      showToast("Wedding page saved");
+      return true;
+    } catch {
+      showToast("Could not save wedding page — check connection");
+      return false;
+    }
+  };
+
   // Auto-open setup modal on first launch (no wedding row yet).
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -1466,6 +1493,9 @@ export default function WeddingTracker() {
               <button className={`view-tab ${view === "seating" ? "active" : ""}`} onClick={() => setView("seating")}>
                 <Icon.Users /> Seating Plan
               </button>
+              <button className={`view-tab ${view === "wedding-page" ? "active" : ""}`} onClick={() => setView("wedding-page")}>
+                <Icon.Star /> Wedding Page
+              </button>
             </>
           ) : (
             <>
@@ -1684,6 +1714,8 @@ export default function WeddingTracker() {
             <RsvpTab guests={guests} onUpdate={updateGuest} showToast={showToast} />
           ) : view === "seating" ? (
             <SeatingTab guests={guests} onUpdate={updateGuest} showToast={showToast} />
+          ) : view === "wedding-page" ? (
+            <WeddingPageTab wedding={wedding} onSave={saveWeddingPage} showToast={showToast} />
           ) : ANGBAO_ENABLED && view === "angbao" ? (
             /* ANGBAO VIEW */
             <>
