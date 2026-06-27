@@ -149,6 +149,8 @@ REQUIRED_VARS=(
   "EMAIL_PROVIDER"
   "RSVP_WEBHOOK_SECRET"
   "CRON_SECRET"
+  "HOST_EMAIL"
+  "SITE_URL"
 )
 
 # Provider-specific vars
