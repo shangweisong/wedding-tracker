@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { sb, isDemoMode } from "../lib/supabase.js";
 import { theme } from "../shared/theme.js";
 import { cleanName, cleanNotes, cleanParty, cleanRelationshipGroup, cleanFriendSubgroup, cleanEmail } from "../lib/validation.js";
@@ -150,6 +151,9 @@ function formatDate(dateStr) {
 }
 
 export default function RsvpPage() {
+  const [searchParams] = useSearchParams();
+  const token = searchParams.get("token") || "";
+
   const [wedding, setWedding]         = useState(null);
   const [name, setName]               = useState("");
   const [email, setEmail]             = useState("");
@@ -163,6 +167,7 @@ export default function RsvpPage() {
   const [error, setError]             = useState("");
   const [submitting, setSubmitting]   = useState(false);
   const [done, setDone]               = useState(false);
+  const [tokenLoading, setTokenLoading] = useState(!!token);
 
   useEffect(() => {
     if (isDemoMode) return;
@@ -174,6 +179,27 @@ export default function RsvpPage() {
       }
     }).catch(() => {});
   }, []);
+
+  // Pre-fill form from token when arriving via an "Update RSVP" link.
+  useEffect(() => {
+    if (!token || isDemoMode) return;
+    sb.rpc("get_guest_by_rsvp_token", { p_token: token })
+      .then((rows) => {
+        const g = Array.isArray(rows) ? rows[0] : rows;
+        if (!g) return;
+        setName(g.name ?? "");
+        setEmail(g.email ?? "");
+        setAttending(g.rsvp_status === "confirmed" ? true : g.rsvp_status === "declined" ? false : null);
+        setMealChoice(g.meal_choice ?? "");
+        setDietary(g.dietary_notes ?? "");
+        setRelationshipGroup(g.relationship_group ?? "");
+        setFriendSubgroup(g.friend_subgroup ?? "");
+        setCloserTo(g.party ?? "");
+        setMessage(g.rsvp_message ?? "");
+      })
+      .catch(() => {})
+      .finally(() => setTokenLoading(false));
+  }, [token]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -191,17 +217,31 @@ export default function RsvpPage() {
     }
 
     try {
-      await sb.rpc("submit_rsvp_by_name", {
-        p_name:               cleanName(name),
-        p_status:             attending ? "confirmed" : "declined",
-        p_meal_choice:        attending ? mealChoice : "",
-        p_dietary_notes:      cleanNotes(dietary),
-        p_message:            cleanNotes(message),
-        p_relationship_group: cleanRelationshipGroup(relationshipGroup),
-        p_friend_subgroup:    relationshipGroup === "friends" ? cleanFriendSubgroup(friendSubgroup) : "",
-        p_party:              cleanParty(closerTo),
-        p_email:              cleanEmail(email),
-      });
+      if (token) {
+        await sb.rpc("submit_rsvp", {
+          p_token:             token,
+          p_status:            attending ? "confirmed" : "declined",
+          p_meal_choice:       attending ? mealChoice : "",
+          p_dietary_notes:     cleanNotes(dietary),
+          p_message:           cleanNotes(message),
+          p_relationship_group: cleanRelationshipGroup(relationshipGroup),
+          p_friend_subgroup:   relationshipGroup === "friends" ? cleanFriendSubgroup(friendSubgroup) : "",
+          p_party:             cleanParty(closerTo),
+          p_email:             cleanEmail(email),
+        });
+      } else {
+        await sb.rpc("submit_rsvp_by_name", {
+          p_name:               cleanName(name),
+          p_status:             attending ? "confirmed" : "declined",
+          p_meal_choice:        attending ? mealChoice : "",
+          p_dietary_notes:      cleanNotes(dietary),
+          p_message:            cleanNotes(message),
+          p_relationship_group: cleanRelationshipGroup(relationshipGroup),
+          p_friend_subgroup:    relationshipGroup === "friends" ? cleanFriendSubgroup(friendSubgroup) : "",
+          p_party:              cleanParty(closerTo),
+          p_email:              cleanEmail(email),
+        });
+      }
       setDone(true);
     } catch (err) {
       const msg = (err?.message ?? "").toLowerCase();
@@ -238,21 +278,25 @@ export default function RsvpPage() {
           <div className="rsvp-eyebrow">RSVP</div>
           <div className="rsvp-divider" />
 
-          {done ? (
+          {tokenLoading ? (
+            <p style={{ textAlign: "center", color: "var(--brown)", opacity: 0.6, fontSize: 14 }}>Loading your details…</p>
+          ) : done ? (
             <ConfirmationView name={cleanName(name)} attending={attending} wedding={wedding} />
           ) : (
             <form onSubmit={submit}>
               {isDemoMode && <div className="demo-badge">Demo Mode</div>}
 
-              {/* Name — used for verification on submit */}
+              {/* Name — locked when arriving via token link */}
               <div className="rsvp-field">
                 <label className="rsvp-label">Your Full Name</label>
                 <input
                   className="rsvp-input"
                   placeholder="As written on your invitation"
                   value={name}
-                  onChange={(e) => { setName(e.target.value); setError(""); }}
-                  autoFocus
+                  onChange={(e) => { if (!token) { setName(e.target.value); setError(""); } }}
+                  readOnly={!!token}
+                  style={token ? { opacity: 0.7, cursor: "default" } : {}}
+                  autoFocus={!token}
                 />
               </div>
 
