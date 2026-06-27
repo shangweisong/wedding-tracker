@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { cleanName, cleanVenueName, cleanVenueAddress } from "../lib/validation.js";
 
 const styles = `
-  .setup-tab { display: flex; flex-direction: column; gap: 20px; max-width: 640px; margin: 0 auto; }
+  .setup-tab { display: flex; flex-direction: column; gap: 20px; }
   .setup-card { background: white; border-radius: var(--radius); padding: 28px; box-shadow: var(--shadow); }
   .setup-hint-banner {
     background: var(--warm-white); border: 1px solid rgba(201,168,76,0.25); border-radius: 10px;

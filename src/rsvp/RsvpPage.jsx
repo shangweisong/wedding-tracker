@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { sb, isDemoMode } from "../lib/supabase.js";
 import { theme } from "../shared/theme.js";
 import { cleanName, cleanNotes, cleanParty, cleanRelationshipGroup, cleanFriendSubgroup, cleanEmail } from "../lib/validation.js";
@@ -21,10 +21,6 @@ const FRIEND_SUBGROUP_OPTIONS = [
   { value: "other", label: "Other" },
 ];
 
-const PARTY_OPTIONS = [
-  { value: "bride", label: "Bride" },
-  { value: "groom", label: "Groom" },
-];
 
 const styles = theme + `
   .rsvp-wrap {
@@ -112,6 +108,7 @@ const styles = theme + `
     color: var(--charcoal); margin-bottom: 10px;
   }
   .rsvp-confirm-msg { font-size: 14px; color: var(--brown); opacity: 0.8; line-height: 1.6; }
+  .rsvp-event-info { font-size: 13px; color: var(--brown); opacity: 0.65; text-align: center; margin-bottom: 6px; line-height: 1.5; }
 
   .demo-badge {
     display: inline-block; font-size: 11px; letter-spacing: 0.1em;
@@ -126,7 +123,10 @@ const styles = theme + `
   }
 `;
 
-function ConfirmationView({ name, attending }) {
+function ConfirmationView({ name, attending, wedding }) {
+  const couple = wedding?.bride_name && wedding?.groom_name
+    ? `${wedding.bride_name} & ${wedding.groom_name}`
+    : "the couple";
   return (
     <div className="rsvp-confirm">
       <div className="rsvp-confirm-icon">{attending ? "🎉" : "💌"}</div>
@@ -135,14 +135,22 @@ function ConfirmationView({ name, attending }) {
       </div>
       <div className="rsvp-confirm-msg">
         {attending
-          ? `Thanks ${name}, your RSVP is confirmed. We can't wait to celebrate with you!`
-          : `Thanks ${name} for letting us know. We'll miss you, but hope to see you soon.`}
+          ? `Thanks ${name}, your RSVP is confirmed. ${couple} can't wait to celebrate with you!`
+          : `Thanks ${name} for letting us know. ${couple} will miss you, but hope to see you soon.`}
       </div>
     </div>
   );
 }
 
+function formatDate(dateStr) {
+  if (!dateStr) return null;
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return `${d} ${months[m - 1]} ${y}`;
+}
+
 export default function RsvpPage() {
+  const [wedding, setWedding]         = useState(null);
   const [name, setName]               = useState("");
   const [email, setEmail]             = useState("");
   const [attending, setAttending]     = useState(null);
@@ -155,6 +163,17 @@ export default function RsvpPage() {
   const [error, setError]             = useState("");
   const [submitting, setSubmitting]   = useState(false);
   const [done, setDone]               = useState(false);
+
+  useEffect(() => {
+    if (isDemoMode) return;
+    sb.rpc("get_wedding_config", {}).then((rows) => {
+      if (Array.isArray(rows) && rows.length) {
+        setWedding(rows[0]);
+        const { bride_name, groom_name } = rows[0];
+        if (bride_name && groom_name) document.title = `RSVP · ${bride_name} & ${groom_name}'s Wedding`;
+      }
+    }).catch(() => {});
+  }, []);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -206,12 +225,21 @@ export default function RsvpPage() {
       <style>{styles}</style>
       <div className="rsvp-wrap">
         <div className="rsvp-card">
-          <div className="rsvp-logo">♡ You're Invited</div>
+          <div className="rsvp-logo">
+            {wedding?.bride_name && wedding?.groom_name
+              ? `♡ ${wedding.bride_name} & ${wedding.groom_name}`
+              : "♡ You're Invited"}
+          </div>
+          {wedding?.wedding_date || wedding?.venue_name ? (
+            <div className="rsvp-event-info">
+              {[formatDate(wedding.wedding_date), wedding.venue_name].filter(Boolean).join(" · ")}
+            </div>
+          ) : null}
           <div className="rsvp-eyebrow">RSVP</div>
           <div className="rsvp-divider" />
 
           {done ? (
-            <ConfirmationView name={cleanName(name)} attending={attending} />
+            <ConfirmationView name={cleanName(name)} attending={attending} wedding={wedding} />
           ) : (
             <form onSubmit={submit}>
               {isDemoMode && <div className="demo-badge">Demo Mode</div>}
@@ -296,9 +324,8 @@ export default function RsvpPage() {
                   onChange={(e) => setCloserTo(e.target.value)}
                 >
                   <option value="">Select one…</option>
-                  {PARTY_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
+                  <option value="bride">💐 {wedding?.bride_name || "Bride"}</option>
+                  <option value="groom">🤵 {wedding?.groom_name || "Groom"}</option>
                 </select>
               </div>
 

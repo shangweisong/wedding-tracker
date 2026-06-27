@@ -569,6 +569,40 @@ const styles = theme + `
   .toast-undo:hover { background: var(--gold); color: #1a1a1a; }
   @keyframes slideToast { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
 
+  /* GEAR BUTTON (header settings) */
+  .gear-btn {
+    width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0;
+    border: 1.5px solid rgba(201,168,76,0.3); background: rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.55); cursor: pointer;
+    display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+  }
+  .gear-btn svg { width: 16px; height: 16px; }
+  .gear-btn:hover { background: rgba(201,168,76,0.15); border-color: rgba(201,168,76,0.5); color: var(--gold-light); }
+
+  /* WEDDING SETUP MODAL */
+  .setup-modal-overlay {
+    position: fixed; inset: 0; background: rgba(44,36,22,0.75);
+    display: flex; align-items: flex-start; justify-content: center;
+    z-index: 1000; padding: 40px 20px 20px;
+    overflow-y: auto; animation: fadeOverlay 0.15s ease;
+  }
+  .setup-modal { width: 100%; max-width: 680px; animation: slideUp 0.2s ease; }
+  .setup-modal-hd {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-bottom: 14px;
+  }
+  .setup-modal-hd-title {
+    font-family: 'Cormorant Garamond', serif; font-size: 22px; color: white; font-weight: 400;
+  }
+  .setup-modal-close {
+    width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.18);
+    color: rgba(255,255,255,0.75); cursor: pointer;
+    display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+  }
+  .setup-modal-close svg { width: 14px; height: 14px; }
+  .setup-modal-close:hover { background: rgba(255,255,255,0.2); color: white; }
+
   /* RESPONSIVE */
   @media (max-width: 640px) {
     .header { padding: 16px; flex-wrap: wrap; gap: 12px; }
@@ -600,7 +634,7 @@ const QUICK_AMOUNTS = [20, 50, 88, 168, 288];
 const MAX_RECEIPT_BYTES = 5 * 1024 * 1024;
 const RECEIPT_TYPES = ["image/png", "image/jpeg", "image/webp", "image/heic", "image/heif", "application/pdf"];
 
-function PayNowPage({ onBack }) {
+function PayNowPage({ onBack, wedding }) {
   const [amountText, setAmountText] = useState("");
   const configured = !!normalizeMobile(PAYNOW_MOBILE);
   const rawAmount = parseFloat(amountText);
@@ -649,7 +683,11 @@ function PayNowPage({ onBack }) {
     <>
       <style>{styles}</style>
       <div className="pin-screen">
-        <div className="pin-logo">♡ Send an Ang-Bao</div>
+        <div className="pin-logo">
+          {wedding?.bride_name && wedding?.groom_name
+            ? `♡ ${wedding.bride_name} & ${wedding.groom_name}`
+            : "♡ Send a Gift"}
+        </div>
         <div className="pin-sub">PayNow · No app sign-in needed</div>
 
         <div className="pin-box">
@@ -785,6 +823,7 @@ export default function WeddingTracker() {
   const [approveSearch, setApproveSearch] = useState("");
   const [approveAmount, setApproveAmount] = useState("");
   const [wedding, setWedding] = useState(undefined); // undefined = not fetched, null = no row yet, object = configured
+  const [setupOpen, setSetupOpen] = useState(false);
 
   // Hash-based routing: "#pay" opens the public ang-bao QR page (no login needed).
   useEffect(() => {
@@ -908,9 +947,9 @@ export default function WeddingTracker() {
 
   const saveWedding = async (form) => {
     if (isDemoMode) {
-      setWedding((w) => ({ ...w, ...form }));
+      setWedding((w) => ({ ...(w || {}), ...form }));
       showToast("Wedding details saved");
-      return;
+      return true;
     }
     try {
       await sb.rpc("upsert_wedding_config", {
@@ -924,10 +963,25 @@ export default function WeddingTracker() {
       });
       await loadWedding();
       showToast("Wedding details saved");
+      return true;
     } catch {
       showToast("Could not save wedding details — check connection");
+      return false;
     }
   };
+
+  // Auto-open setup modal on first launch (no wedding row yet).
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (wedding === null) setSetupOpen(true);
+  }, [wedding]);
+
+  // Personalise the browser tab title once we know the couple's names.
+  useEffect(() => {
+    if (wedding?.bride_name && wedding?.groom_name) {
+      document.title = `${wedding.bride_name} & ${wedding.groom_name} · Wedding Planner`;
+    }
+  }, [wedding]);
 
   // Guest-uploaded receipts (only when signed in + a real database is present).
   const loadSubmissions = useCallback(async () => {
@@ -1225,7 +1279,10 @@ export default function WeddingTracker() {
 
   // Export CSV (cells are escaped against spreadsheet formula injection in toCSV).
   const exportCSV = () => {
-    download(toCSV(guests), "wedding-attendance.csv", "text/csv");
+    const prefix = wedding?.bride_name && wedding?.groom_name
+      ? `${wedding.bride_name}-${wedding.groom_name}`.toLowerCase().replace(/\s+/g, "-")
+      : "wedding";
+    download(toCSV(guests), `${prefix}-attendance.csv`, "text/csv");
   };
 
   // Lossless JSON backup of the raw guest rows — the safety net before/during
@@ -1272,11 +1329,22 @@ export default function WeddingTracker() {
     tableSide[tNum] = sideGuest ? sideGuest.party : null;
   });
 
+  // Days until (or since) the wedding, derived from the DB date string to avoid
+  // timezone shifts that Date() would introduce on a bare "YYYY-MM-DD".
+  const daysUntilWedding = (() => {
+    if (!wedding?.wedding_date) return null;
+    const [wy, wm, wd] = wedding.wedding_date.split("-").map(Number);
+    const today = new Date();
+    const todayUtc = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+    const weddingUtc = Date.UTC(wy, wm - 1, wd);
+    return Math.round((weddingUtc - todayUtc) / 86_400_000);
+  })();
+
   // Public ang-bao page — reachable without the helper login. When the angbao
   // feature is disabled it is never rendered; the route falls through to the
   // normal helper app instead.
   if (route === "pay" && ANGBAO_ENABLED) {
-    return <PayNowPage onBack={() => { window.location.hash = ""; }} />;
+    return <PayNowPage onBack={() => { window.location.hash = ""; }} wedding={wedding} />;
   }
 
   if (!unlocked) {
@@ -1321,7 +1389,9 @@ export default function WeddingTracker() {
         <header className="header">
           <div className="header-left">
             <div className="header-title">
-              {mode === "planning" ? "♡ Wedding Planner" : "♡ Wedding Day"}
+              {wedding?.bride_name && wedding?.groom_name
+                ? `♡ ${wedding.bride_name} & ${wedding.groom_name}`
+                : mode === "planning" ? "♡ Wedding Planner" : "♡ Wedding Day"}
             </div>
             <div className="header-subtitle">
               {mode === "planning" ? "RSVP & Seating Plan" : "Guest Attendance Tracker"}
@@ -1329,6 +1399,16 @@ export default function WeddingTracker() {
           </div>
           <div className="header-stats">
             {isDemoMode && <span className="demo-badge">Demo Mode</span>}
+            {daysUntilWedding !== null && (
+              <div className="stat-pill" style={daysUntilWedding === 0 ? { borderColor: "var(--gold)", background: "rgba(201,168,76,0.15)" } : {}}>
+                <span className="num">
+                  {daysUntilWedding === 0 ? "🎊" : daysUntilWedding > 0 ? daysUntilWedding : Math.abs(daysUntilWedding)}
+                </span>
+                <span className="lbl">
+                  {daysUntilWedding === 0 ? "Today!" : daysUntilWedding > 0 ? "Days to go" : "Days ago"}
+                </span>
+              </div>
+            )}
             {mode === "planning" ? (
               <>
                 <div className="stat-pill">
@@ -1362,6 +1442,9 @@ export default function WeddingTracker() {
                 )}
               </>
             )}
+            <button className="gear-btn" onClick={() => setSetupOpen(true)} title="Wedding Setup">
+              <Icon.Settings />
+            </button>
             <div className="mode-toggle">
               <button className={`mode-btn ${mode === "planning" ? "active" : ""}`} onClick={() => switchMode("planning")}>
                 📋 Planning
@@ -1405,9 +1488,6 @@ export default function WeddingTracker() {
               )}
             </>
           )}
-          <button className={`view-tab ${view === "setup" ? "active" : ""}`} onClick={() => setView("setup")}>
-            <Icon.Settings /> Wedding Setup
-          </button>
         </div>
 
         {/* TOOLBAR */}
@@ -1604,8 +1684,6 @@ export default function WeddingTracker() {
             <RsvpTab guests={guests} onUpdate={updateGuest} showToast={showToast} />
           ) : view === "seating" ? (
             <SeatingTab guests={guests} onUpdate={updateGuest} showToast={showToast} />
-          ) : view === "setup" ? (
-            <WeddingSetupTab wedding={wedding} onSave={saveWedding} showToast={showToast} />
           ) : ANGBAO_ENABLED && view === "angbao" ? (
             /* ANGBAO VIEW */
             <>
@@ -1766,6 +1844,27 @@ export default function WeddingTracker() {
                   {syncing ? "Importing…" : `Import Guests`}
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* WEDDING SETUP MODAL */}
+        {setupOpen && (
+          <div className="setup-modal-overlay" onClick={() => setSetupOpen(false)}>
+            <div className="setup-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="setup-modal-hd">
+                <div className="setup-modal-hd-title">
+                  {wedding === null ? "👋 Set up your wedding" : "Wedding Setup"}
+                </div>
+                <button className="setup-modal-close" onClick={() => setSetupOpen(false)}>
+                  <Icon.X />
+                </button>
+              </div>
+              <WeddingSetupTab
+                wedding={wedding}
+                onSave={async (form) => { const ok = await saveWedding(form); if (ok) setSetupOpen(false); }}
+                showToast={showToast}
+              />
             </div>
           </div>
         )}
