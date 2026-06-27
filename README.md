@@ -74,6 +74,9 @@ Open the **SQL Editor** in your Supabase dashboard and run the migrations **in o
 | [`0002_draw_and_submissions.sql`](supabase/migrations/0002_draw_and_submissions.sql) | **Lucky-draw number** (`draw_number`, minted when an ang-bao is confirmed), the **guest receipt-upload queue** (`submissions` table), and a private `receipts` storage bucket. Guests can only *insert* a pending submission / *upload* a file — never read, list, or approve; helpers review from the **Submissions** tab. |
 | [`0003_phase2_rsvp_seating.sql`](supabase/migrations/0003_phase2_rsvp_seating.sql) | `tables` table; RSVP columns on guests (`rsvp_status`, `rsvp_token`, `meal_choice`, etc.); 3 public RPC functions for the RSVP form |
 | [`0004_fuzzy_rsvp_by_name.sql`](supabase/migrations/0004_fuzzy_rsvp_by_name.sql) | `pg_trgm` extension; `submit_rsvp_by_name` RPC for fuzzy name-based RSVP submission |
+| [`0005_phase3_relationship_taxonomy.sql`](supabase/migrations/0005_phase3_relationship_taxonomy.sql) | `relationship_group`/`friend_subgroup` columns on guests for the 3-tier side/category/friend-subtype taxonomy used by RSVP + draft seating |
+| [`0006_email_automation.sql`](supabase/migrations/0006_email_automation.sql) | `email`/`last_reminder_sent_at` columns on guests; RSVP confirmation-email webhook trigger; updated RPCs to accept `email` |
+| [`0007_wedding_setup.sql`](supabase/migrations/0007_wedding_setup.sql) | Singleton `weddings` table + `get_wedding_config`/`upsert_wedding_config` RPCs, replacing the old wedding-detail env vars (`WEDDING_DATE`, `CEREMONY_TIME`, `DINNER_TIME`, `VENUE_NAME`, `VENUE_ADDRESS`, `COUPLE_NAMES`) with the **Wedding Setup** admin tab |
 
 All migrations are idempotent (`CREATE OR REPLACE`, `IF NOT EXISTS`) — safe to re-run.
 
@@ -169,11 +172,12 @@ Priya Nair,2,,false,bride
 ## Workflow
 
 ### Before the wedding
-1. Import your guest list via CSV (or add guests one by one)
-2. Share `https://your-app.vercel.app/rsvp` in your wedding group chat
-3. Guests fill in the RSVP form — responses appear in the **RSVP tab** in real time
-4. Once RSVPs are in, open the **Seating Plan tab** to assign confirmed guests to tables
-5. Export the seating plan as CSV or print it
+1. Fill in your wedding details in the **Wedding Setup tab** (couple names, date, venue, ceremony/dinner time) — do this first, since the RSVP confirmation email and calendar invite read from it
+2. Import your guest list via CSV (or add guests one by one)
+3. Share `https://your-app.vercel.app/rsvp` in your wedding group chat
+4. Guests fill in the RSVP form — responses appear in the **RSVP tab** in real time
+5. Once RSVPs are in, open the **Seating Plan tab** to assign confirmed guests to tables
+6. Export the seating plan as CSV or print it
 
 ### On the wedding day
 1. Switch to **💒 D-Day** mode in the header

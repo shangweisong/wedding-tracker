@@ -9,6 +9,7 @@ import { Icon } from "../shared/icons.jsx";
 import { theme } from "../shared/theme.js";
 import RsvpTab from "./RsvpTab.jsx";
 import SeatingTab from "./SeatingTab.jsx";
+import WeddingSetupTab from "./WeddingSetupTab.jsx";
 
 // ─── PAYNOW CONFIG ────────────────────────────────────────────────────────────
 // The host's PayNow-linked mobile number and display name. These are NOT secret
@@ -35,6 +36,16 @@ const DEMO_GUESTS = [
   { id: 7, name: "Siti Rahimah", party: "groom", table_number: "4", table_id: null, checked_in: false, checked_in_at: null, angbao_given: false, angbao_amount: 0, draw_number: null, notes: "", is_vip: false, rsvp_status: "pending", rsvp_at: null, meal_choice: "", plus_one_name: "", dietary_notes: "Halal only", rsvp_message: "", rsvp_token: "07a8b9c0-e1f2-3456-abcd-456789012346", email: "" },
   { id: 8, name: "David Koh", party: "groom", table_number: "4", table_id: "t2", checked_in: true, checked_in_at: "2024-06-15T18:50:00", angbao_given: true, angbao_amount: 300, draw_number: 4, notes: "Boss", is_vip: true, rsvp_status: "confirmed", rsvp_at: "2024-04-15T08:00:00", meal_choice: "Fish", plus_one_name: "Karen Koh", dietary_notes: "", rsvp_message: "Looking forward to it!", rsvp_token: "18b9c0d1-f2a3-4567-bcde-567890123457", email: "david.koh@example.com" },
 ];
+
+const DEMO_WEDDING = {
+  bride_name: "Siew Yong",
+  groom_name: "Wei Ming",
+  wedding_date: "2026-12-12",
+  venue_name: "The Grand Ballroom",
+  venue_address: "123 Wedding Ave, Singapore",
+  ceremony_time: "14:00",
+  dinner_time: "18:30",
+};
 
 // ─── STYLES ───────────────────────────────────────────────────────────────────
 const styles = theme + `
@@ -773,6 +784,7 @@ export default function WeddingTracker() {
   const [approveSub, setApproveSub] = useState(null); // submission being reviewed
   const [approveSearch, setApproveSearch] = useState("");
   const [approveAmount, setApproveAmount] = useState("");
+  const [wedding, setWedding] = useState(undefined); // undefined = not fetched, null = no row yet, object = configured
 
   // Hash-based routing: "#pay" opens the public ang-bao QR page (no login needed).
   useEffect(() => {
@@ -875,6 +887,47 @@ export default function WeddingTracker() {
     const unsub = sb.subscribeToChanges("guests", loadGuests);
     return unsub;
   }, [loadGuests]);
+
+  const loadWedding = useCallback(async () => {
+    if (isDemoMode) {
+      setWedding(DEMO_WEDDING);
+      return;
+    }
+    try {
+      const rows = await sb.rpc("get_wedding_config", {});
+      setWedding(Array.isArray(rows) && rows.length ? rows[0] : null);
+    } catch {
+      showToast("Failed to load wedding details");
+    }
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadWedding();
+  }, [loadWedding]);
+
+  const saveWedding = async (form) => {
+    if (isDemoMode) {
+      setWedding((w) => ({ ...w, ...form }));
+      showToast("Wedding details saved");
+      return;
+    }
+    try {
+      await sb.rpc("upsert_wedding_config", {
+        p_bride_name: form.bride_name,
+        p_groom_name: form.groom_name,
+        p_wedding_date: form.wedding_date,
+        p_venue_name: form.venue_name,
+        p_venue_address: form.venue_address,
+        p_ceremony_time: form.ceremony_time,
+        p_dinner_time: form.dinner_time,
+      });
+      await loadWedding();
+      showToast("Wedding details saved");
+    } catch {
+      showToast("Could not save wedding details — check connection");
+    }
+  };
 
   // Guest-uploaded receipts (only when signed in + a real database is present).
   const loadSubmissions = useCallback(async () => {
@@ -1352,6 +1405,9 @@ export default function WeddingTracker() {
               )}
             </>
           )}
+          <button className={`view-tab ${view === "setup" ? "active" : ""}`} onClick={() => setView("setup")}>
+            <Icon.Settings /> Wedding Setup
+          </button>
         </div>
 
         {/* TOOLBAR */}
@@ -1548,6 +1604,8 @@ export default function WeddingTracker() {
             <RsvpTab guests={guests} onUpdate={updateGuest} showToast={showToast} />
           ) : view === "seating" ? (
             <SeatingTab guests={guests} onUpdate={updateGuest} showToast={showToast} />
+          ) : view === "setup" ? (
+            <WeddingSetupTab wedding={wedding} onSave={saveWedding} showToast={showToast} />
           ) : ANGBAO_ENABLED && view === "angbao" ? (
             /* ANGBAO VIEW */
             <>

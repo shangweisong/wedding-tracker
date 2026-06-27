@@ -5,7 +5,9 @@ export const MAX_NAME = 120,
   MAX_NOTES = 500,
   MAX_TABLE = 20,
   MAX_ANGBAO = 10_000_000,
-  MAX_EMAIL = 254;
+  MAX_EMAIL = 254,
+  MAX_VENUE_NAME = 200,
+  MAX_VENUE_ADDRESS = 500;
 export const PARTIES = ["", "bride", "groom"];
 export const RELATIONSHIP_GROUPS = ["", "family", "colleagues", "friends", "other"];
 export const FRIEND_SUBGROUPS = [
@@ -32,6 +34,8 @@ export const cleanEmail = (v) => {
   const e = String(v ?? "").trim().slice(0, MAX_EMAIL);
   return EMAIL_RE.test(e) ? e : "";
 };
+export const cleanVenueName = (v) => String(v ?? "").trim().slice(0, MAX_VENUE_NAME);
+export const cleanVenueAddress = (v) => String(v ?? "").trim().slice(0, MAX_VENUE_ADDRESS);
 export const cleanAmount = (v) => {
   const n = parseFloat(v);
   return Number.isFinite(n) && n > 0 ? Math.min(n, MAX_ANGBAO) : 0;
