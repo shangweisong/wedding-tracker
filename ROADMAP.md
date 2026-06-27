@@ -7,7 +7,7 @@ This document outlines the planned development for Phase 2 and Phase 3 of the We
 ```
 Phase 1 ✅  Wedding Day Attendance + Angbao Tracking
 Phase 2 ✅  RSVP Collection + Table Assignment Planning
-Phase 3 🔨  Personalised Wedding Page  (seating ✅, emails ✅, setup ✅, public page pending)
+Phase 3 ✅  Personalised Wedding Page  (seating ✅, emails ✅, setup ✅, public page ✅)
 ```
 
 ---
@@ -354,50 +354,58 @@ The `weddings` singleton table and admin UI replace the old server env vars.
 - PayNow ang-bao page — shows couple names in header
 - CSV export — filename uses couple names
 
-**Still pending (Phase 3.3 continued):**
+**Public wedding page ✅ (implemented — `supabase/migrations/0008_wedding_page.sql`, `src/wedding/WeddingPage.jsx`, `src/wedding/WeddingPageTab.jsx`):**
 
 Each couple gets a public wedding page at:
 ```
 https://your-app.vercel.app/wedding/wei-ming-and-siew-yong
 ```
 
-**Page sections:**
-- Hero — couple names, wedding date, countdown timer
-- Couple photo
-- Love story / about us (free text, couple fills in)
-- Event schedule (ceremony time, dinner time, venue address + map link)
-- RSVP button → links to the RSVP form
-- Dress code note
+**Page sections (all live):**
+- Hero — couple names, wedding date, countdown timer, hero photo
+- Love story / about us (free text)
+- Fun Q&A — playful questions with couple's answers
+- Event schedule — tea ceremony (optional) + solemnisation + dinner reception + venue + Google Maps link
+- Getting There — freetext directions + Google Maps button (`0010_getting_there.sql`)
+- RSVP CTA → links to the RSVP form
+- Dress code badge
 
-**Customisation:**
-- Template selection (3–5 options to start):
-  - `Minimal` — clean white, serif fonts, gold accents
-  - `Floral` — soft botanical illustrations, pastel tones
-  - `Modern` — bold typography, dark background
-  - `Traditional` — red and gold, Chinese-inspired motifs
-  - `Garden` — sage green, watercolour style
-- Couple uploads hero photo
-- Accent colour picker
-- Toggle sections on/off
+**Admin tab — "Wedding Page" (`WeddingPageTab.jsx`):**
+- Slug, love story, dress code, hero photo upload, fun Q&A editor
+- Getting There textarea (2000 chars)
+- RSVP deadline, publish toggle
+- Live preview link
 
-**Additional columns needed for the public page (future migration):**
+**Wedding Setup modal (`WeddingSetupTab.jsx`):**
+- "Ceremony time" renamed to "Solemnisation time" (9 AM–6 PM range)
+- "Tea ceremony time" optional field added (8 AM–1 PM range, `0009_tea_ceremony.sql`)
+- "Meal time" split into Lunch (12–4 PM) and Dinner (5–10 PM) optgroups
 
+**Columns added (`0008_wedding_page.sql` + `0009` + `0010`):**
 ```sql
-alter table weddings add column slug text unique;         -- e.g. 'wei-ming-and-siew-yong'
-alter table weddings add column love_story text;
-alter table weddings add column dress_code text;
-alter table weddings add column template text default 'minimal';
-alter table weddings add column accent_color text default '#c9a84c';
-alter table weddings add column hero_image_url text;
-alter table weddings add column meal_options text;        -- comma-separated e.g. 'Chicken,Fish,Vegetarian'
+alter table weddings add column slug text unique;
+alter table weddings add column love_story text default '';
+alter table weddings add column dress_code text default '';
+alter table weddings add column hero_image_url text default '';
+alter table weddings add column fun_qa jsonb default '[]';
 alter table weddings add column rsvp_deadline date;
 alter table weddings add column is_published boolean default false;
+alter table weddings add column tea_ceremony_time time;      -- 0009
+alter table weddings add column getting_there text default ''; -- 0010
 ```
 
-**App routing additions:**
+**RPCs:** `get_wedding_config()`, `upsert_wedding_config()`, `upsert_wedding_page()`, `get_public_wedding(p_slug)`
+
+**Mobile fix:** hero image on portrait mobile uses `background-size: contain` so full photo is visible (was cropped with `cover` on tall viewports)
+
+**App routing:**
 ```
-/wedding/:slug          → Public personalised wedding page
+/wedding/:slug          → Public personalised wedding page (live ✅)
 ```
+
+**Still pending:**
+- Additional templates (only Minimal dark-gold theme implemented)
+- Accent colour picker
 
 ---
 
@@ -423,11 +431,11 @@ Options:
 7. ✅ `.ics` calendar invite generator (attached to the confirmation email)
 8. ✅ Resend serverless function for RSVP confirmation email (with `.ics` attached)
 9. ✅ Vercel Cron job for 90/30-day pending-guest reminder emails
-10. Build public wedding page template system (start with Minimal template)
-11. Add remaining `weddings` columns (slug, love_story, template, hero_image_url…) via new migration
-12. Publish wedding page at `/wedding/:slug`
-13. Expand Wedding Setup modal — love story, dress code, hero photo upload, template picker
-14. Additional templates
+10. ✅ Build public wedding page (Minimal template — dark gold, Cormorant Garamond)
+11. ✅ Add remaining `weddings` columns (slug, love_story, dress_code, hero_image_url, fun_qa, rsvp_deadline, is_published) via `0008_wedding_page.sql`
+12. ✅ Publish wedding page at `/wedding/:slug`
+13. ✅ Expand Wedding Setup modal — love story, dress code, hero photo upload, fun Q&A, publish toggle
+14. Additional templates (Floral, Modern, Traditional, Garden)
 15. Multi-couple auth (if needed)
 
 ---

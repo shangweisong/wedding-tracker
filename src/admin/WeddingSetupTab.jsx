@@ -28,23 +28,27 @@ const styles = `
   }
 `;
 
-// Generate time options every 15 minutes, in 12-hour AM/PM format for display
-// but stored internally as "HH:MM" (24h) so the DB and .ics code stay unchanged.
-const TIME_OPTIONS = (() => {
+// Generates time options every 15 minutes in 12h format (stored as HH:MM 24h).
+function makeTimeOpts(startH, endH) {
   const opts = [{ label: "— not set —", value: "" }];
-  for (let h = 0; h < 24; h++) {
+  for (let h = startH; h <= endH; h++) {
     for (let m = 0; m < 60; m += 15) {
+      if (h === endH && m > 0) break;
       const hh = String(h).padStart(2, "0");
       const mm = String(m).padStart(2, "0");
-      const value = `${hh}:${mm}`;
       const period = h < 12 ? "AM" : "PM";
       const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-      const label = `${h12}:${mm} ${period}`;
-      opts.push({ label, value });
+      opts.push({ label: `${h12}:${mm} ${period}`, value: `${hh}:${mm}` });
     }
   }
   return opts;
-})();
+}
+
+// Solemnisation + tea ceremony: no constraint
+const ALL_TIME_OPTIONS = makeTimeOpts(0, 23);
+// Meal groups
+const LUNCH_TIME_OPTIONS = makeTimeOpts(12, 16);
+const DINNER_TIME_OPTIONS = makeTimeOpts(16, 22);
 
 const blankForm = {
   bride_name: "",
@@ -54,6 +58,7 @@ const blankForm = {
   venue_address: "",
   ceremony_time: "",
   dinner_time: "",
+  tea_ceremony_time: "",
 };
 
 export default function WeddingSetupTab({ wedding, onSave, showToast }) {
@@ -70,6 +75,7 @@ export default function WeddingSetupTab({ wedding, onSave, showToast }) {
         venue_address: wedding.venue_address || "",
         ceremony_time: wedding.ceremony_time || "",
         dinner_time: wedding.dinner_time || "",
+        tea_ceremony_time: wedding.tea_ceremony_time || "",
       });
     }
   }, [wedding]);
@@ -144,15 +150,27 @@ export default function WeddingSetupTab({ wedding, onSave, showToast }) {
             </div>
 
             <div className="setup-form-group">
-              <label className="setup-form-label">Ceremony time</label>
+              <label className="setup-form-label">Solemnisation time</label>
               <select className="setup-form-select" value={form.ceremony_time} onChange={set("ceremony_time")}>
-                {TIME_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                {ALL_TIME_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <div className="setup-form-group">
+              <label className="setup-form-label">Tea ceremony time <span style={{ color: "var(--brown)", fontWeight: 400 }}>(optional)</span></label>
+              <select className="setup-form-select" value={form.tea_ceremony_time} onChange={set("tea_ceremony_time")}>
+                {ALL_TIME_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>
             <div className="setup-form-group">
               <label className="setup-form-label">Meal time</label>
               <select className="setup-form-select" value={form.dinner_time} onChange={set("dinner_time")}>
-                {TIME_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                <option value="">— not set —</option>
+                <optgroup label="Lunch (12 PM – 4 PM)">
+                  {LUNCH_TIME_OPTIONS.slice(1).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </optgroup>
+                <optgroup label="Evening Reception (4 PM – 10 PM)">
+                  {DINNER_TIME_OPTIONS.slice(1).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </optgroup>
               </select>
             </div>
 

@@ -22,6 +22,7 @@ const DEMO_WEDDING = {
   venue_address: "123 Orchard Road, Singapore 238858",
   ceremony_time: "14:00",
   dinner_time: "19:00",
+  tea_ceremony_time: "10:00",
   slug: "wei-ming-and-siew-yong",
   love_story: "We met at a mutual friend's birthday party in 2019. Wei Ming spilled a drink on Siew Yong's dress and offered to buy her dinner to apologise. She said yes, mostly for the free food. Five years later, here we are.",
   dress_code: "Smart Casual — think garden party chic!",
@@ -35,6 +36,7 @@ const DEMO_WEDDING = {
   rsvp_deadline: "2026-10-31",
   is_published: true,
   meal_options: "Chicken,Fish,Vegetarian",
+  getting_there: "By MRT: Alight at Orchard MRT (NS22 / TE14), take Exit B and walk 5 minutes along Orchard Road.\n\nBy car: Parking available at the hotel basement. Enter via Orchard Road. First 2 hours complimentary for wedding guests.\n\nDrop-off: Use the main hotel entrance on Orchard Road — our wedding team will be there to welcome you.",
 };
 
 const styles = theme + `
@@ -53,7 +55,7 @@ const styles = theme + `
     min-height: 100vh; display: flex; flex-direction: column;
     align-items: center; justify-content: center;
     position: relative; overflow: hidden;
-    padding: 60px 24px;
+    padding: 60px 24px; background-color: #1a1008;
   }
   .wp-hero-content {
     position: relative; z-index: 10;
@@ -213,6 +215,13 @@ const styles = theme + `
     .wp-section { padding: 48px 0; }
     .wp-cta-btn { padding: 16px 40px; }
   }
+  @media (max-width: 560px) and (orientation: portrait) {
+    .wp-hero {
+      background-size: contain !important;
+      background-position: top center !important;
+      min-height: 100svh;
+    }
+  }
 `;
 
 function fmt12h(t) {
@@ -321,8 +330,8 @@ export default function WeddingPage() {
   }
 
   const { bride_name, groom_name, wedding_date, venue_name, venue_address,
-          ceremony_time, dinner_time, love_story, dress_code, hero_image_url,
-          rsvp_deadline, is_published } = wedding;
+          ceremony_time, dinner_time, tea_ceremony_time, love_story, dress_code,
+          hero_image_url, rsvp_deadline, is_published, getting_there } = wedding;
 
   const coupleNames = `${groom_name} & ${bride_name}`;
 
@@ -346,6 +355,7 @@ export default function WeddingPage() {
               : `linear-gradient(160deg, #2c2416 0%, #1a1008 60%, #3a2a10 100%)`,
             backgroundSize: "cover",
             backgroundPosition: "center",
+            backgroundColor: "#1a1008",
           }}
         >
 
@@ -412,13 +422,23 @@ export default function WeddingPage() {
             <div className="wp-section-eyebrow">The Big Day</div>
             <div className="wp-section-title">Event details</div>
             <div className="wp-events">
+              {tea_ceremony_time && (
+                <div className="wp-event">
+                  <div className="wp-event-icon">🍵</div>
+                  <div className="wp-event-body">
+                    <div className="wp-event-label">Tea Ceremony</div>
+                    <div className="wp-event-value">{fmt12h(tea_ceremony_time)}</div>
+                    {wedding_date && <div className="wp-event-sub">{formatLongDate(wedding_date)}</div>}
+                  </div>
+                </div>
+              )}
               {ceremony_time && (
                 <div className="wp-event">
                   <div className="wp-event-icon">💍</div>
                   <div className="wp-event-body">
-                    <div className="wp-event-label">Ceremony</div>
+                    <div className="wp-event-label">Solemnisation</div>
                     <div className="wp-event-value">{fmt12h(ceremony_time)}</div>
-                    {wedding_date && <div className="wp-event-sub">{formatLongDate(wedding_date)}</div>}
+                    {!tea_ceremony_time && wedding_date && <div className="wp-event-sub">{formatLongDate(wedding_date)}</div>}
                   </div>
                 </div>
               )}
@@ -458,6 +478,27 @@ export default function WeddingPage() {
               </div>
             )}
           </section>
+
+          {/* Getting There */}
+          {getting_there && (
+            <section className="wp-section">
+              <div className="wp-section-eyebrow">Getting There</div>
+              <div className="wp-section-title">Plan your journey</div>
+              <p className="wp-story-text">{getting_there}</p>
+              {venue_address && (
+                <div style={{ marginTop: 20 }}>
+                  <a
+                    href={`https://maps.google.com/?q=${encodeURIComponent(venue_address)}`}
+                    target="_blank" rel="noopener noreferrer"
+                    className="wp-rsvp-btn"
+                    style={{ fontSize: 13, padding: "12px 28px", letterSpacing: "0.06em" }}
+                  >
+                    Open in Google Maps ↗
+                  </a>
+                </div>
+              )}
+            </section>
+          )}
 
           {/* RSVP CTA */}
           <section className="wp-section wp-cta">

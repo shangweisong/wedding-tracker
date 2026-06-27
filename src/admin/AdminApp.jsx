@@ -46,6 +46,7 @@ const DEMO_WEDDING = {
   venue_address: "123 Wedding Ave, Singapore",
   ceremony_time: "14:00",
   dinner_time: "18:30",
+  tea_ceremony_time: "",
 };
 
 // ─── STYLES ───────────────────────────────────────────────────────────────────
@@ -961,6 +962,7 @@ export default function WeddingTracker() {
         p_venue_address: form.venue_address,
         p_ceremony_time: form.ceremony_time,
         p_dinner_time: form.dinner_time,
+        p_tea_ceremony_time: form.tea_ceremony_time || null,
       });
       await loadWedding();
       showToast("Wedding details saved");
@@ -987,6 +989,7 @@ export default function WeddingTracker() {
         p_rsvp_deadline:  form.rsvp_deadline,
         p_is_published:   form.is_published,
         p_meal_options:   form.meal_options,
+        p_getting_there:  form.getting_there,
       });
       await loadWedding();
       showToast("Wedding page saved");
