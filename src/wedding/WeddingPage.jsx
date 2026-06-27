@@ -483,7 +483,7 @@ export default function WeddingPage() {
           {getting_there && (
             <section className="wp-section">
               <div className="wp-section-eyebrow">Getting There</div>
-              <div className="wp-section-title">Finding us</div>
+              <div className="wp-section-title">Plan your journey</div>
               <p className="wp-story-text">{getting_there}</p>
               {venue_address && (
                 <div style={{ marginTop: 20 }}>
