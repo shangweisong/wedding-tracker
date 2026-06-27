@@ -493,7 +493,13 @@ Options:
 
 - Vercel env var setup is manual/one-at-a-time (`vercel env add` per variable) — see [issue #17](https://github.com/shangweisong/wedding-tracker/issues/17), which also covers the Resend sandbox-sender → verified-domain decision still pending.
 - The Supabase Vault `vault.create_secret(...)` step for the RSVP email webhook is a manual SQL step with no UI — also tracked in issue #17.
-- `supabase/migrations/` has grown to 6 files (895 lines) with some pure follow-up-fix files (e.g. `0004` exists only to patch a function from `0003`) — consider consolidating once the schema settles. See [issue #19](https://github.com/shangweisong/wedding-tracker/issues/19).
+- ✅ `supabase/migrations/` consolidated from 10 files → 5 files ([PR #25](https://github.com/shangweisong/wedding-tracker/pull/25), closes [issue #19](https://github.com/shangweisong/wedding-tracker/issues/19)). New structure:
+  - `0001_init.sql` — guests table + trigger (unchanged)
+  - `0002_draw_and_submissions.sql` — draw numbers + submissions (unchanged)
+  - `0003_rsvp_seating.sql` — all RSVP/seating columns + final-form RPCs
+  - `0004_weddings.sql` — weddings table (all columns) + page RPCs + photo bucket
+  - `0005_email_automation.sql` — **optional**, apply after Resend + Vercel are configured
+  - `reconcile_remote_db.sql` — run once in Supabase SQL Editor on existing projects to sync migration tracking
 
 ---
 
