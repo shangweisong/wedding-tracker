@@ -365,16 +365,23 @@ https://your-app.vercel.app/wedding/wei-ming-and-siew-yong
 - Hero — couple names, wedding date, countdown timer, hero photo
 - Love story / about us (free text)
 - Fun Q&A — playful questions with couple's answers
-- Event schedule (ceremony time, dinner time, venue address + Google Maps link)
+- Event schedule — tea ceremony (optional) + solemnisation + dinner reception + venue + Google Maps link
+- Getting There — freetext directions + Google Maps button (`0010_getting_there.sql`)
 - RSVP CTA → links to the RSVP form
 - Dress code badge
 
 **Admin tab — "Wedding Page" (`WeddingPageTab.jsx`):**
 - Slug, love story, dress code, hero photo upload, fun Q&A editor
+- Getting There textarea (2000 chars)
 - RSVP deadline, publish toggle
 - Live preview link
 
-**Columns added (`0008_wedding_page.sql`):**
+**Wedding Setup modal (`WeddingSetupTab.jsx`):**
+- "Ceremony time" renamed to "Solemnisation time" (9 AM–6 PM range)
+- "Tea ceremony time" optional field added (8 AM–1 PM range, `0009_tea_ceremony.sql`)
+- "Meal time" split into Lunch (12–4 PM) and Dinner (5–10 PM) optgroups
+
+**Columns added (`0008_wedding_page.sql` + `0009` + `0010`):**
 ```sql
 alter table weddings add column slug text unique;
 alter table weddings add column love_story text default '';
@@ -383,9 +390,13 @@ alter table weddings add column hero_image_url text default '';
 alter table weddings add column fun_qa jsonb default '[]';
 alter table weddings add column rsvp_deadline date;
 alter table weddings add column is_published boolean default false;
+alter table weddings add column tea_ceremony_time time;      -- 0009
+alter table weddings add column getting_there text default ''; -- 0010
 ```
 
-**RPCs:** `get_wedding_page_config()`, `upsert_wedding_page_config()`, `get_public_wedding(p_slug)`
+**RPCs:** `get_wedding_config()`, `upsert_wedding_config()`, `upsert_wedding_page()`, `get_public_wedding(p_slug)`
+
+**Mobile fix:** hero image on portrait mobile uses `background-size: contain` so full photo is visible (was cropped with `cover` on tall viewports)
 
 **App routing:**
 ```
