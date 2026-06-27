@@ -53,7 +53,7 @@ const styles = theme + `
     min-height: 100vh; display: flex; flex-direction: column;
     align-items: center; justify-content: center;
     position: relative; overflow: hidden;
-    padding: 60px 24px;
+    padding: 60px 24px; background-color: #1a1008;
   }
   .wp-hero-content {
     position: relative; z-index: 10;
@@ -213,6 +213,13 @@ const styles = theme + `
     .wp-section { padding: 48px 0; }
     .wp-cta-btn { padding: 16px 40px; }
   }
+  @media (max-width: 560px) and (orientation: portrait) {
+    .wp-hero {
+      background-size: contain !important;
+      background-position: top center !important;
+      min-height: 100svh;
+    }
+  }
 `;
 
 function fmt12h(t) {
@@ -346,6 +353,7 @@ export default function WeddingPage() {
               : `linear-gradient(160deg, #2c2416 0%, #1a1008 60%, #3a2a10 100%)`,
             backgroundSize: "cover",
             backgroundPosition: "center",
+            backgroundColor: "#1a1008",
           }}
         >
 
