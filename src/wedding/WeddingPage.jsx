@@ -36,6 +36,7 @@ const DEMO_WEDDING = {
   rsvp_deadline: "2026-10-31",
   is_published: true,
   meal_options: "Chicken,Fish,Vegetarian",
+  getting_there: "By MRT: Alight at Orchard MRT (NS22 / TE14), take Exit B and walk 5 minutes along Orchard Road.\n\nBy car: Parking available at the hotel basement. Enter via Orchard Road. First 2 hours complimentary for wedding guests.\n\nDrop-off: Use the main hotel entrance on Orchard Road — our wedding team will be there to welcome you.",
 };
 
 const styles = theme + `
@@ -330,7 +331,7 @@ export default function WeddingPage() {
 
   const { bride_name, groom_name, wedding_date, venue_name, venue_address,
           ceremony_time, dinner_time, tea_ceremony_time, love_story, dress_code,
-          hero_image_url, rsvp_deadline, is_published } = wedding;
+          hero_image_url, rsvp_deadline, is_published, getting_there } = wedding;
 
   const coupleNames = `${groom_name} & ${bride_name}`;
 
@@ -477,6 +478,27 @@ export default function WeddingPage() {
               </div>
             )}
           </section>
+
+          {/* Getting There */}
+          {getting_there && (
+            <section className="wp-section">
+              <div className="wp-section-eyebrow">Getting There</div>
+              <div className="wp-section-title">Finding us</div>
+              <p className="wp-story-text">{getting_there}</p>
+              {venue_address && (
+                <div style={{ marginTop: 20 }}>
+                  <a
+                    href={`https://maps.google.com/?q=${encodeURIComponent(venue_address)}`}
+                    target="_blank" rel="noopener noreferrer"
+                    className="wp-rsvp-btn"
+                    style={{ fontSize: 13, padding: "12px 28px", letterSpacing: "0.06em" }}
+                  >
+                    Open in Google Maps ↗
+                  </a>
+                </div>
+              )}
+            </section>
+          )}
 
           {/* RSVP CTA */}
           <section className="wp-section wp-cta">

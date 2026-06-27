@@ -989,6 +989,7 @@ export default function WeddingTracker() {
         p_rsvp_deadline:  form.rsvp_deadline,
         p_is_published:   form.is_published,
         p_meal_options:   form.meal_options,
+        p_getting_there:  form.getting_there,
       });
       await loadWedding();
       showToast("Wedding page saved");

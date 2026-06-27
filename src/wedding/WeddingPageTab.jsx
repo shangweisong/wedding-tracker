@@ -185,6 +185,7 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
   const [heroUrl, setHeroUrl]      = useState("");
   const [rsvpDeadline, setRsvpDeadline] = useState("");
   const [mealOptions, setMealOptions]   = useState("");
+  const [gettingThere, setGettingThere] = useState("");
   const [isPublished, setIsPublished]   = useState(false);
   const [qaAnswers, setQaAnswers]  = useState({});
 
@@ -203,6 +204,8 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
     setRsvpDeadline(wedding.rsvp_deadline || "");
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMealOptions(wedding.meal_options || "");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setGettingThere(wedding.getting_there || "");
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsPublished(wedding.is_published || false);
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -273,6 +276,7 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
       rsvp_deadline:   rsvpDeadline || null,
       is_published:    isPublished,
       meal_options:    mealOptions.trim(),
+      getting_there:   gettingThere.trim(),
     });
     setSaving(false);
   };
@@ -394,6 +398,26 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
           />
           <div style={{ fontSize: 11, color: "var(--brown)", opacity: 0.4, textAlign: "right", marginTop: 4 }}>
             {loveStory.length} / 5000
+          </div>
+        </div>
+
+        {/* ── GETTING THERE ── */}
+        <div className="wpt-card">
+          <div className="wpt-card-title">Getting There</div>
+          <div className="wpt-card-sub">
+            Help guests find the venue — MRT stops, bus routes, parking, or any special entry notes.
+            Leave blank to hide this section.
+          </div>
+          <textarea
+            className="wpt-textarea"
+            style={{ minHeight: 120 }}
+            value={gettingThere}
+            onChange={(e) => setGettingThere(e.target.value)}
+            placeholder={"By MRT: Alight at Orchard station (NS22), take Exit B and walk 5 minutes.\nBy car: Parking is available at [Car Park Name]. Enter via [Street Name].\nDrop-off: Use the main entrance on [Street]."}
+            maxLength={2000}
+          />
+          <div style={{ fontSize: 11, color: "var(--brown)", opacity: 0.4, textAlign: "right", marginTop: 4 }}>
+            {gettingThere.length} / 2000
           </div>
         </div>
 
