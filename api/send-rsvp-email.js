@@ -28,8 +28,11 @@ export default async function handler(req, res) {
   if (error || !guest) return res.status(404).json({ error: "guest not found" });
   if (!guest.email) return res.status(200).json({ skipped: "no email on file" });
 
+  const { data: wedding } = await supabase.from("weddings").select("*").limit(1).single();
+  if (!wedding) return res.status(200).json({ skipped: "wedding not configured" });
+
   const resend = new Resend(process.env.RESEND_API_KEY);
-  const coupleNames = process.env.COUPLE_NAMES || "The Happy Couple";
+  const coupleNames = `${wedding.bride_name} & ${wedding.groom_name}`;
   // RESEND_FROM_EMAIL lets you override with Resend's sandbox sender
   // (onboarding@resend.dev) before a domain is verified — see .env.example.
   const fromAddress = process.env.RESEND_FROM_EMAIL || `rsvp@${process.env.RESEND_SENDING_DOMAIN}`;
@@ -37,18 +40,18 @@ export default async function handler(req, res) {
   if (guest.rsvp_status === "confirmed") {
     const ics = buildIcs({
       coupleNames,
-      date: process.env.WEDDING_DATE,
-      ceremonyTime: process.env.CEREMONY_TIME,
-      dinnerTime: process.env.DINNER_TIME,
-      venueName: process.env.VENUE_NAME,
-      venueAddress: process.env.VENUE_ADDRESS,
+      date: wedding.wedding_date,
+      ceremonyTime: wedding.ceremony_time.slice(0, 5),
+      dinnerTime: wedding.dinner_time.slice(0, 5),
+      venueName: wedding.venue_name,
+      venueAddress: wedding.venue_address,
     });
 
     await resend.emails.send({
       from: `${coupleNames} <${fromAddress}>`,
       to: guest.email,
       subject: `You're confirmed! ${coupleNames}'s Wedding`,
-      html: `<p>Hi ${guest.name},</p><p>Thanks for confirming — we can't wait to celebrate with you!</p><p>${process.env.VENUE_NAME}, ${process.env.VENUE_ADDRESS}<br>${process.env.WEDDING_DATE}</p>`,
+      html: `<p>Hi ${guest.name},</p><p>Thanks for confirming — we can't wait to celebrate with you!</p><p>${wedding.venue_name}, ${wedding.venue_address}<br>${wedding.wedding_date}</p>`,
       attachments: [
         { filename: "wedding.ics", content: Buffer.from(ics).toString("base64") },
       ],

@@ -20,13 +20,14 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: "unauthorized" });
   }
 
-  const weddingDate = process.env.WEDDING_DATE;
-  if (!weddingDate) return res.status(500).json({ error: "WEDDING_DATE not configured" });
+  const supabase = supabaseAdmin();
+  const { data: wedding } = await supabase.from("weddings").select("*").limit(1).single();
+  if (!wedding?.wedding_date) return res.status(200).json({ sent: 0, reason: "wedding not configured yet" });
 
+  const weddingDate = wedding.wedding_date;
   const days = daysUntil(weddingDate);
   if (days > 90) return res.status(200).json({ sent: 0, reason: "more than 90 days out" });
 
-  const supabase = supabaseAdmin();
   const { data: guests, error } = await supabase
     .from("guests")
     .select("id, name, email, last_reminder_sent_at")
@@ -36,7 +37,7 @@ export default async function handler(req, res) {
   if (error) return res.status(500).json({ error: error.message });
 
   const resend = new Resend(process.env.RESEND_API_KEY);
-  const coupleNames = process.env.COUPLE_NAMES || "The Happy Couple";
+  const coupleNames = `${wedding.bride_name} & ${wedding.groom_name}`;
   const fromAddress = process.env.RESEND_FROM_EMAIL || `rsvp@${process.env.RESEND_SENDING_DOMAIN}`;
   let sent = 0;
 
