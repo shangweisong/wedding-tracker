@@ -118,6 +118,32 @@ const styles = theme + `
     border: 1px solid rgba(192,57,43,0.2); margin-bottom: 16px;
   }
 
+  /* Name search dropdown */
+  .rsvp-name-wrap { position: relative; }
+  .rsvp-suggestions {
+    position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+    background: white; border: 1.5px solid rgba(201,168,76,0.3);
+    border-radius: 8px; box-shadow: var(--shadow-lg); z-index: 10;
+    overflow: hidden;
+  }
+  .rsvp-suggestion-item {
+    padding: 11px 14px; font-size: 14px; color: var(--charcoal);
+    cursor: pointer; transition: background 0.1s;
+    border-bottom: 1px solid rgba(201,168,76,0.1);
+  }
+  .rsvp-suggestion-item:last-child { border-bottom: none; }
+  .rsvp-suggestion-item:hover { background: rgba(201,168,76,0.07); }
+  .rsvp-suggestion-empty {
+    padding: 11px 14px; font-size: 13px; color: var(--brown); opacity: 0.5;
+  }
+  .rsvp-name-selected { position: relative; }
+  .rsvp-name-clear {
+    position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; cursor: pointer;
+    color: var(--brown); opacity: 0.4; font-size: 20px; line-height: 1; padding: 2px 4px;
+  }
+  .rsvp-name-clear:hover { opacity: 0.75; }
+
   @media (max-width: 560px) {
     .rsvp-card { padding: 28px 20px; }
     .attend-btns { grid-template-columns: 1fr; }
@@ -152,9 +178,10 @@ function formatDate(dateStr) {
 
 export default function RsvpPage() {
   const [searchParams] = useSearchParams();
-  const token = searchParams.get("token") || "";
+  const urlToken = searchParams.get("token") || "";
 
   const [wedding, setWedding]         = useState(null);
+  // name: confirmed display name (set by token pre-fill or by guest selecting from list)
   const [name, setName]               = useState("");
   const [email, setEmail]             = useState("");
   const [attending, setAttending]     = useState(null);
@@ -167,7 +194,16 @@ export default function RsvpPage() {
   const [error, setError]             = useState("");
   const [submitting, setSubmitting]   = useState(false);
   const [done, setDone]               = useState(false);
-  const [tokenLoading, setTokenLoading] = useState(!!token);
+  const [tokenLoading, setTokenLoading] = useState(!!urlToken);
+
+  // No-token name search state
+  const [nameQuery, setNameQuery]       = useState("");
+  const [nameResults, setNameResults]   = useState([]);
+  const [nameSearching, setNameSearching] = useState(false);
+  const [selectedToken, setSelectedToken] = useState("");
+
+  // activeToken: URL token takes precedence, then one selected from the name dropdown
+  const activeToken = urlToken || selectedToken;
 
   useEffect(() => {
     if (isDemoMode) return;
@@ -180,10 +216,10 @@ export default function RsvpPage() {
     }).catch(() => {});
   }, []);
 
-  // Pre-fill form from token when arriving via an "Update RSVP" link.
+  // Pre-fill form from URL token when arriving via an "Update RSVP" link.
   useEffect(() => {
-    if (!token || isDemoMode) return;
-    sb.rpc("get_guest_by_rsvp_token", { p_token: token })
+    if (!urlToken || isDemoMode) return;
+    sb.rpc("get_guest_by_rsvp_token", { p_token: urlToken })
       .then((rows) => {
         const g = Array.isArray(rows) ? rows[0] : rows;
         if (!g) return;
@@ -199,11 +235,50 @@ export default function RsvpPage() {
       })
       .catch(() => {})
       .finally(() => setTokenLoading(false));
-  }, [token]);
+  }, [urlToken]);
+
+  // Debounced name search — fires when guest types in the no-token name field.
+  useEffect(() => {
+    if (activeToken || isDemoMode || nameQuery.trim().length < 2) {
+      setNameResults([]);
+      return;
+    }
+    const t = setTimeout(async () => {
+      setNameSearching(true);
+      try {
+        const rows = await sb.rpc("find_guest_by_name", { p_name: nameQuery.trim() });
+        setNameResults(Array.isArray(rows) ? rows : []);
+      } catch {
+        setNameResults([]);
+      } finally {
+        setNameSearching(false);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [nameQuery, activeToken]);
+
+  function selectGuest(guest) {
+    setName(guest.name);
+    setSelectedToken(guest.rsvp_token);
+    setNameQuery(guest.name);
+    setNameResults([]);
+    setError("");
+  }
+
+  function clearNameSelection() {
+    setName("");
+    setSelectedToken("");
+    setNameQuery("");
+    setNameResults([]);
+  }
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!name.trim()) { setError("Please enter your name."); return; }
+    if (!isDemoMode && !activeToken) {
+      setError("Please type your name above and select it from the list.");
+      return;
+    }
+    if (isDemoMode && !name.trim()) { setError("Please enter your name."); return; }
     if (attending === null) { setError("Please select whether you'll be attending."); return; }
     if (!cleanEmail(email)) { setError("Please enter a valid email address."); return; }
     setError("");
@@ -217,41 +292,25 @@ export default function RsvpPage() {
     }
 
     try {
-      if (token) {
-        await sb.rpc("submit_rsvp", {
-          p_token:             token,
-          p_status:            attending ? "confirmed" : "declined",
-          p_meal_choice:       attending ? mealChoice : "",
-          p_dietary_notes:     cleanNotes(dietary),
-          p_message:           cleanNotes(message),
-          p_relationship_group: cleanRelationshipGroup(relationshipGroup),
-          p_friend_subgroup:   relationshipGroup === "friends" ? cleanFriendSubgroup(friendSubgroup) : "",
-          p_party:             cleanParty(closerTo),
-          p_email:             cleanEmail(email),
-        });
-      } else {
-        await sb.rpc("submit_rsvp_by_name", {
-          p_name:               cleanName(name),
-          p_status:             attending ? "confirmed" : "declined",
-          p_meal_choice:        attending ? mealChoice : "",
-          p_dietary_notes:      cleanNotes(dietary),
-          p_message:            cleanNotes(message),
-          p_relationship_group: cleanRelationshipGroup(relationshipGroup),
-          p_friend_subgroup:    relationshipGroup === "friends" ? cleanFriendSubgroup(friendSubgroup) : "",
-          p_party:              cleanParty(closerTo),
-          p_email:              cleanEmail(email),
-        });
-      }
+      await sb.rpc("submit_rsvp", {
+        p_token:              activeToken,
+        p_status:             attending ? "confirmed" : "declined",
+        p_meal_choice:        attending ? mealChoice : "",
+        p_dietary_notes:      cleanNotes(dietary),
+        p_message:            cleanNotes(message),
+        p_relationship_group: cleanRelationshipGroup(relationshipGroup),
+        p_friend_subgroup:    relationshipGroup === "friends" ? cleanFriendSubgroup(friendSubgroup) : "",
+        p_party:              cleanParty(closerTo),
+        p_email:              cleanEmail(email),
+      });
       setDone(true);
     } catch (err) {
       const msg = (err?.message ?? "").toLowerCase();
       console.error("[RSVP] submit error:", err);
-      if (msg.includes("not_found")) {
-        setError("We couldn't find your name on the guest list. Please check the spelling or contact us.");
-      } else if (msg.includes("ambiguous")) {
-        setError("We found more than one match for that name. Please enter your full name.");
-      } else if (msg.includes("function") || msg.includes("does not exist") || msg.includes("pgrst")) {
+      if (msg.includes("function") || msg.includes("does not exist") || msg.includes("pgrst")) {
         setError("RSVP is not set up yet — the database migration hasn't been run. Contact the couple.");
+      } else if (msg.includes("invalid rsvp token")) {
+        setError("Your RSVP link has expired. Please contact the couple for a new link.");
       } else {
         setError(`Something went wrong: ${err?.message ?? "unknown error"}`);
       }
@@ -286,18 +345,71 @@ export default function RsvpPage() {
             <form onSubmit={submit}>
               {isDemoMode && <div className="demo-badge">Demo Mode</div>}
 
-              {/* Name — locked when arriving via token link */}
+              {/* Name — three modes:
+                  1. urlToken present → read-only pre-filled from DB (same as before)
+                  2. selectedToken set → read-only after guest picks from search list; × to re-search
+                  3. Neither → search-and-select dropdown (no-token flow) */}
               <div className="rsvp-field">
                 <label className="rsvp-label">Your Full Name</label>
-                <input
-                  className="rsvp-input"
-                  placeholder="As written on your invitation"
-                  value={name}
-                  onChange={(e) => { if (!token) { setName(e.target.value); setError(""); } }}
-                  readOnly={!!token}
-                  style={token ? { opacity: 0.7, cursor: "default" } : {}}
-                  autoFocus={!token}
-                />
+
+                {isDemoMode ? (
+                  <input
+                    className="rsvp-input"
+                    placeholder="As written on your invitation"
+                    value={name}
+                    onChange={(e) => { setName(e.target.value); setError(""); }}
+                    autoFocus
+                  />
+                ) : activeToken ? (
+                  <div className={selectedToken ? "rsvp-name-selected" : ""}>
+                    <input
+                      className="rsvp-input"
+                      value={name}
+                      readOnly
+                      style={{ opacity: 0.7, cursor: "default", paddingRight: selectedToken ? 36 : undefined }}
+                    />
+                    {/* Only show clear button for list-selected tokens, not URL tokens */}
+                    {selectedToken && (
+                      <button type="button" className="rsvp-name-clear" onClick={clearNameSelection} aria-label="Clear name selection">
+                        ×
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="rsvp-name-wrap">
+                    <input
+                      className="rsvp-input"
+                      placeholder="Start typing your name…"
+                      value={nameQuery}
+                      onChange={(e) => { setNameQuery(e.target.value); setError(""); }}
+                      autoFocus
+                      autoComplete="off"
+                    />
+                    {nameSearching && (
+                      <div className="rsvp-suggestions">
+                        <div className="rsvp-suggestion-empty">Searching…</div>
+                      </div>
+                    )}
+                    {!nameSearching && nameResults.length > 0 && (
+                      <div className="rsvp-suggestions">
+                        {nameResults.map((r) => (
+                          <div
+                            key={r.id}
+                            className="rsvp-suggestion-item"
+                            onMouseDown={(e) => { e.preventDefault(); selectGuest(r); }}
+                          >
+                            {r.name}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {!nameSearching && nameQuery.trim().length >= 2 && nameResults.length === 0 && (
+                      <div className="rsvp-suggestions">
+                        <div className="rsvp-suggestion-empty">No match found — check spelling or contact the couple</div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Email — used to send confirmation + reminder emails */}
