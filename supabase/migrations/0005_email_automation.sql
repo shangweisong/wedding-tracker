@@ -31,6 +31,11 @@ create extension if not exists pg_net;
 -- and the guest has an email address. Calls the Vercel serverless function
 -- which sends the confirmation email (+ .ics calendar invite if confirmed).
 -- Reads URL + secret from Supabase Vault — no-ops if either secret is absent.
+--
+-- old_rsvp_status is included in the payload so the API handler can
+-- distinguish a first-time RSVP (pending → confirmed/declined) from a genuine
+-- change of mind (confirmed ↔ declined) and only send host notifications for
+-- the latter.
 
 create or replace function public.notify_rsvp_status_change()
 returns trigger
@@ -58,7 +63,10 @@ begin
           'Content-Type',    'application/json',
           'x-webhook-secret', v_secret
         ),
-        body    := jsonb_build_object('guest_id', new.id)
+        body    := jsonb_build_object(
+          'guest_id',        new.id,
+          'old_rsvp_status', old.rsvp_status
+        )
       );
     end if;
   end if;
@@ -72,3 +80,11 @@ drop trigger if exists guests_rsvp_status_webhook on public.guests;
 create trigger guests_rsvp_status_webhook
   after update on public.guests
   for each row execute function public.notify_rsvp_status_change();
+
+-- ── 3. REMINDER TRACKING COLUMN ──────────────────────────────────────────────
+-- Tracks the 30-day reminder independently from last_reminder_sent_at (which
+-- covers the 90-day reminder in 0003_rsvp_seating.sql) so both thresholds
+-- can fire without interfering with each other.
+
+alter table public.guests
+  add column if not exists second_reminder_sent_at timestamptz;

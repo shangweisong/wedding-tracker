@@ -19,10 +19,10 @@ A quick-scan list of known bugs, deferred work, and housekeeping. Details live i
 | # | Area | Summary | Section |
 |---|---|---|---|
 | 1 | RSVP | ~~**Fuzzy name match false-positive**~~ ✅ — no-token RSVP flow now uses search-and-select + token-based submit; `submit_rsvp_by_name` is no longer called at submission time. [Issue #18](https://github.com/shangweisong/wedding-tracker/issues/18) | §3.1 |
-| 2 | Email | **Supabase Vault webhook setup is manual** — `vault.create_secret(...)` cannot be scripted; must be done once in the SQL Editor. [Issue #17](https://github.com/shangweisong/wedding-tracker/issues/17) | §Housekeeping |
+| 2 | Email | ~~**Supabase Vault webhook setup is manual**~~ ✅ — `scripts/setup-vault-secrets.sh` reads `.env` and either runs the SQL via the Supabase CLI or prints a pre-filled snippet to paste into the SQL Editor. [Issue #17](https://github.com/shangweisong/wedding-tracker/issues/17) | §Housekeeping |
 | 3 | Wedding Page | **Single template only** — only the Minimal dark-gold theme exists. Additional templates (Floral, Modern, Traditional, Garden) and accent colour picker are pending. | §3.3 |
 | 4 | Docs | ~~**README → User Guide split**~~ ✅ — `docs/USER_GUIDE.md` created; README is now a 1-page overview + quick-start. | §Housekeeping |
-| 5 | Migrations | **Migration consolidation** — `0006_rsvp_host_notify.sql` patches the trigger from `0005`. Both should be consolidated for clean new deployments, and the README setup table updated. | §Housekeeping |
+| 5 | Migrations | ~~**Migration consolidation**~~ ✅ — `0006` and `0007` content merged into `0005`; both files deleted. Migration table is back to a clean 5-file structure. CLI users: see USER_GUIDE §1a for the one-time tracking cleanup. | §Housekeeping |
 | 6 | Security | ~~**Admin PIN disabled**~~ ✅ — `unlocked` restored to `useState(isDemoMode)`; `VITE_HELPER_PASSWORD` removed (was exposing Supabase password in JS bundle). [PR #31](https://github.com/shangweisong/wedding-tracker/pull/31) | §Security |
 | 7 | Security | ~~**`CRON_SECRET` not enforced**~~ ✅ — now mandatory; returns 500 if env var absent, 401 if header mismatch. | §Security |
 | 8 | Email | ~~**RSVP email buttons undersized**~~ ✅ — reminder CTA bumped to `16px 36px`; "Update RSVP" promoted to outlined button in confirmation/declined emails. | §Security |
@@ -584,7 +584,7 @@ Explicit "intentionally no auth check" comment added in `AdminApp.jsx` near the 
 
 - ✅ Vercel env var setup automated via `scripts/setup-vercel-env.sh` — reads `.env`, detects provider, pushes all server-only vars to Vercel in one command ([PR #26](https://github.com/shangweisong/wedding-tracker/pull/26), closes [issue #17](https://github.com/shangweisong/wedding-tracker/issues/17) setup-script part).
 - ✅ Pluggable email provider — `EMAIL_PROVIDER=gmail` (default, no domain needed) or `EMAIL_PROVIDER=resend` (custom domain). Brevo removed due to incompatibility with Vercel's dynamic IPs ([PR #26](https://github.com/shangweisong/wedding-tracker/pull/26)).
-- The Supabase Vault `vault.create_secret(...)` step for the RSVP email webhook remains a manual one-time SQL step — documented in README step 6 and tracked in [issue #17](https://github.com/shangweisong/wedding-tracker/issues/17).
+- ✅ **Supabase Vault setup semi-automated** — `scripts/setup-vault-secrets.sh` reads `.env` and either runs the SQL via the Supabase CLI or prints a pre-filled snippet to paste into the SQL Editor. Closes the remaining part of [issue #17](https://github.com/shangweisong/wedding-tracker/issues/17).
 - ✅ Two new server-only env vars added for RSVP update links and host notifications: `SITE_URL` (base URL for token links) and `HOST_EMAIL` (destination for change-of-mind alerts). Neither uses a `VITE_` prefix.
 - ✅ `supabase/migrations/` consolidated from 10 files → 5 files ([PR #25](https://github.com/shangweisong/wedding-tracker/pull/25), closes [issue #19](https://github.com/shangweisong/wedding-tracker/issues/19)). New structure:
   - `0001_init.sql` — guests table + trigger (unchanged)
@@ -593,7 +593,7 @@ Explicit "intentionally no auth check" comment added in `AdminApp.jsx` near the 
   - `0004_weddings.sql` — weddings table (all columns) + page RPCs + photo bucket
   - `0005_email_automation.sql` — **optional**, apply after Resend + Vercel are configured
   - `reconcile_remote_db.sql` — run once in Supabase SQL Editor on existing projects to sync migration tracking
-- **Migration consolidation needed** — `0006_rsvp_host_notify.sql` is a small patch that updates the trigger from `0005`. For a clean new-deployment experience, `0005` and `0006` should be merged into a single file. Also: the README setup table currently only lists `0001`–`0005` and needs updating. Do this as a dedicated housekeeping pass so existing deployments aren't disrupted.
+- ✅ **Migration consolidation** — `0006` (`old_rsvp_status` in webhook payload) and `0007` (`second_reminder_sent_at` column) both merged into `0005` and deleted. Migration folder is back to a clean 5-file structure. CLI users on existing deployments: see USER_GUIDE §1a for the one-time tracking cleanup SQL.
 - ✅ **README → User Guide split** — detailed setup instructions (Supabase, email, Vercel, CSV, PayNow, angbao) extracted to [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md). README is now a 1-page overview + quick-start that links to the guide for depth.
 
 ---
