@@ -120,6 +120,14 @@ export default async function handler(req, res) {
   return res.status(200).json({ sent });
 }
 
+function heroRow(heroImageUrl, coupleNames) {
+  if (!heroImageUrl) return "";
+  return `<tr><td style="padding:0;line-height:0;">
+    <img src="${heroImageUrl}" alt="${coupleNames}" width="520"
+      style="display:block;width:100%;max-width:520px;height:auto;" />
+  </td></tr>`;
+}
+
 function firstReminderHtml({ guest, wedding, coupleNames, weddingPageUrl }) {
   const weddingPageButton = weddingPageUrl
     ? `<p style="margin:24px 0 0;">
@@ -139,6 +147,7 @@ function firstReminderHtml({ guest, wedding, coupleNames, weddingPageUrl }) {
     <tr><td align="center" style="padding:32px 16px;">
       <table width="520" cellpadding="0" cellspacing="0"
         style="max-width:520px;width:100%;background:#fffdf9;border-radius:4px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08);">
+        ${heroRow(wedding.hero_image_url, coupleNames)}
         <tr><td style="padding:40px 40px 32px;">
           <p style="margin:0 0 6px;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#9c836a;font-family:Georgia,serif;">
             ${coupleNames}
@@ -232,6 +241,7 @@ function secondReminderHtml({ guest, wedding, coupleNames, rsvpUrl }) {
     <tr><td align="center" style="padding:32px 16px;">
       <table width="520" cellpadding="0" cellspacing="0"
         style="max-width:520px;width:100%;background:#fffdf9;border-radius:4px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08);">
+        ${heroRow(wedding.hero_image_url, coupleNames)}
         <tr><td style="padding:40px 40px 8px;">
           <p style="margin:0 0 6px;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#9c836a;font-family:Georgia,serif;">
             ${coupleNames}
