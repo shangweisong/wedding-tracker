@@ -5,7 +5,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [Unreleased]
+## [2026-06-28]
 
 ### Fixed
 
@@ -15,38 +15,60 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## Previous releases
+## [2026-06-27]
 
-### Phase 3 — Personalised Wedding Page ✅
+### Added
 
 - Public wedding page at `/wedding/:slug` — hero, love story, Q&A, schedule, Getting There, RSVP CTA
 - Wedding Setup modal (onboarding gate + gear icon) — couple names, dates, venue, slug, dress code, hero photo, fun Q&A, publish toggle
-- Tea ceremony time field (`0009_tea_ceremony.sql`)
-- Getting There directions section (`0010_getting_there.sql`)
+- Tea ceremony time field
+- Getting There directions section
 - Personalised RSVP update links in all guest emails (`SITE_URL` env var)
-- Host change-of-mind notifications when a guest flips confirmed ↔ declined (`HOST_EMAIL` env var, `0006_rsvp_host_notify.sql`)
-- RSVP form pre-fill from token; token-based submit replaces fuzzy-name submit when link is available
+- Host change-of-mind notifications when a guest flips confirmed ↔ declined (`HOST_EMAIL` env var)
+- RSVP form pre-fill from token; token-based submit when link is available
 - `.ics` calendar invite attached to RSVP confirmation email
 - Vercel Cron 90/30-day reminder emails for pending guests
 - Deterministic seating suggestion algorithm (bin-packing, no LLM)
 - App personalisation — header title, countdown pill, tab title, CSV filename
 
-### Phase 3 housekeeping ✅
+### Changed
 
-- Migrations consolidated from 10 files → 5 clean files (PR #25, closes issue #19)
-- Vercel env var setup automated via `scripts/setup-vercel-env.sh` (PR #26, closes issue #17 setup-script part)
+- Migrations consolidated from 10 files → 5 clean files (PR #25)
+- Vercel env var setup automated via `scripts/setup-vercel-env.sh` (PR #26)
 - Pluggable email provider — `EMAIL_PROVIDER=gmail` (default) or `EMAIL_PROVIDER=resend`
-- README → User Guide split: detailed setup moved to `docs/USER_GUIDE.md`
+- README split: detailed setup moved to `docs/USER_GUIDE.md`
 
-### Phase 2 — RSVP Collection + Table Assignment Planning ✅
+### Fixed
+
+- Mobile portrait hero image crop (background-size: contain on tall viewports)
+- Solemnisation and meal time picker ranges corrected
+
+---
+
+## [2026-06-25]
+
+### Added
+
+- Resend email integration for RSVP confirmation and declined emails
+- Vercel Cron job for 90/30-day pending-guest reminder emails
+- RSVP update links and host change-of-mind notification emails
+
+---
+
+## [2026-06-23]
+
+### Added
 
 - Public RSVP form at `/rsvp?token=<uuid>` — meal choice, dietary notes, relationship group, message
 - Admin RSVP dashboard — summary stats, filter by status/party, inline edit, resend email button
 - Table management + seating plan with drag-and-drop assignment
-- Resend email integration for RSVP confirmation emails
 - Guest relationship taxonomy — two-tier side/category/friend-subtype model
 
-### Phase 1 — Wedding Day Attendance + Angbao Tracking ✅
+---
+
+## [2026-06-21]
+
+### Added
 
 - PIN-protected admin app at `/`
 - Guest list management with CSV import/export
