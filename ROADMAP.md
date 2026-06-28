@@ -23,7 +23,7 @@ A quick-scan list of known bugs, deferred work, and housekeeping. Details live i
 | 3 | Wedding Page | **Single template only** — only the Minimal dark-gold theme exists. Additional templates (Floral, Modern, Traditional, Garden) and accent colour picker are pending. | §3.3 |
 | 4 | Docs | ~~**README → User Guide split**~~ ✅ — `docs/USER_GUIDE.md` created; README is now a 1-page overview + quick-start. | §Housekeeping |
 | 5 | Migrations | **Migration consolidation** — `0006_rsvp_host_notify.sql` patches the trigger from `0005`. Both should be consolidated for clean new deployments, and the README setup table updated. | §Housekeeping |
-| 6 | Security | **Admin PIN disabled** — `AdminApp.jsx` `unlocked` initialises to `true`; the PIN screen is never shown in production. Any visitor to `/` sees the full admin dashboard. | §Security |
+| 6 | Security | ~~**Admin PIN disabled**~~ ✅ — `unlocked` restored to `useState(isDemoMode)`; `VITE_HELPER_PASSWORD` removed (was exposing Supabase password in JS bundle). [PR #31](https://github.com/shangweisong/wedding-tracker/pull/31) | §Security |
 | 7 | Security | **`CRON_SECRET` not enforced** — `send-reminders.js` only validates the secret when the env var is set; if omitted, anyone can POST to `/api/send-reminders` and spam reminder emails to all guests. | §Security |
 | 8 | Email | **RSVP email buttons undersized** — reminder email CTA uses modest padding; confirmation email "update your RSVP" is a plain text link, not a button. | §Security |
 | 9 | Security | **PayNow `/#pay` page is fully public** — no auth check; anyone with the URL can access it. Intentional for guest use but worth documenting explicitly. | §Security |
@@ -559,11 +559,9 @@ Options:
 
 ## Security (issues #6–#9)
 
-### #6 — Re-enable Admin PIN
+### #6 — Re-enable Admin PIN ✅ Fixed (PR #31)
 
-`AdminApp.jsx:805` sets `unlocked = useState(true)`, bypassing the PIN screen entirely. Changing it to `useState(isDemoMode)` restores the original flow: demo mode stays unlocked, production requires Supabase Auth sign-in. The auto-sign-in path (`VITE_HELPER_PASSWORD`) still works — it will just show the PIN screen briefly while the auth request resolves.
-
-**Fix:** one-line change in `AdminApp.jsx`. Low risk.
+`unlocked` restored to `useState(isDemoMode)`. `VITE_HELPER_PASSWORD` also removed — it was embedding the Supabase Auth password in the JS bundle (all `VITE_` vars are bundled and publicly visible). The auto-sign-in block that read it was deleted; correct flow is helper types PIN → Supabase verifies server-side → session persists in localStorage. `SECURITY.md` and `USER_GUIDE.md` updated to warn against `VITE_HELPER_PASSWORD`.
 
 ---
 

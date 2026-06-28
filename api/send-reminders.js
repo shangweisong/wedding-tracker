@@ -10,18 +10,24 @@ function daysUntil(dateStr) {
 }
 
 // Vercel Cron target (see vercel.json `crons`), runs daily. Sends a one-time
-// 90-day-out nudge, then a one-time 30-day-out nudge, to guests still
-// `rsvp_status = 'pending'`. `last_reminder_sent_at` is the single dedupe
-// column per the roadmap: the 90-day branch only fires while it's still
-// null; the 30-day branch is reachable again afterward.
+// 90-day-out nudge (tracked via last_reminder_sent_at) then a one-time 30-day-out
+// nudge (tracked via second_reminder_sent_at) to guests still `rsvp_status = 'pending'`.
+//
+// Local testing: pass ?override_days=<n> to simulate any days-out value without
+// touching the DB wedding date. Ignored in production (NODE_ENV=production).
 export default async function handler(req, res) {
   const missing = missingEmailEnvVars();
   if (missing.length > 0) {
     return res.status(500).json({ error: `Missing env vars: ${missing.join(", ")}` });
   }
 
+  // CRON_SECRET is mandatory — fail loudly if missing so misconfiguration is
+  // obvious rather than silently leaving the endpoint open.
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && req.headers.authorization !== `Bearer ${cronSecret}`) {
+  if (!cronSecret) {
+    return res.status(500).json({ error: "CRON_SECRET env var is not set" });
+  }
+  if (req.headers.authorization !== `Bearer ${cronSecret}`) {
     return res.status(401).json({ error: "unauthorized" });
   }
 
@@ -30,12 +36,20 @@ export default async function handler(req, res) {
   if (!wedding?.wedding_date) return res.status(200).json({ sent: 0, reason: "wedding not configured yet" });
 
   const weddingDate = wedding.wedding_date;
-  const days = daysUntil(weddingDate);
+
+  // Allow days override for local testing (ignored in production).
+  let days;
+  if (process.env.NODE_ENV !== "production" && req.query?.override_days !== undefined) {
+    days = parseInt(req.query.override_days, 10);
+  } else {
+    days = daysUntil(weddingDate);
+  }
+
   if (days > 90) return res.status(200).json({ sent: 0, reason: "more than 90 days out" });
 
   const { data: guests, error } = await supabase
     .from("guests")
-    .select("id, name, email, rsvp_token, last_reminder_sent_at")
+    .select("id, name, email, rsvp_token, last_reminder_sent_at, second_reminder_sent_at")
     .eq("rsvp_status", "pending")
     .neq("email", "");
 
@@ -53,16 +67,20 @@ export default async function handler(req, res) {
   let sent = 0;
 
   for (const guest of guests) {
+    // 90-day nudge: only if never reminded before.
     const isFirstReminder = days <= 90 && !guest.last_reminder_sent_at;
-    const isSecondReminder = days <= 30 && !isFirstReminder;
+    // 30-day nudge: only if first reminder was already sent but second hasn't been.
+    const isSecondReminder = days <= 30 && guest.last_reminder_sent_at && !guest.second_reminder_sent_at;
+
     if (!isFirstReminder && !isSecondReminder) continue;
 
     const rsvpUrl = siteUrl && guest.rsvp_token ? `${siteUrl}/rsvp?token=${guest.rsvp_token}` : "";
     const rsvpButton = rsvpUrl
       ? `<p style="margin:24px 0 0;">
            <a href="${rsvpUrl}"
-              style="display:inline-block;padding:12px 28px;background:#c9a97a;color:#fff;
-                     font-family:Georgia,serif;font-size:15px;text-decoration:none;border-radius:2px;">
+              style="display:inline-block;padding:16px 36px;background:#c9a97a;color:#fff;
+                     font-family:Georgia,serif;font-size:16px;text-decoration:none;border-radius:2px;
+                     letter-spacing:0.04em;">
              RSVP Now
            </a>
          </p>`
@@ -92,10 +110,12 @@ export default async function handler(req, res) {
 </body></html>`,
     });
 
-    await supabase
-      .from("guests")
-      .update({ last_reminder_sent_at: new Date().toISOString() })
-      .eq("id", guest.id);
+    // Write to the correct tracking column so each nudge fires exactly once.
+    const updatePatch = isFirstReminder
+      ? { last_reminder_sent_at: new Date().toISOString() }
+      : { second_reminder_sent_at: new Date().toISOString() };
+
+    await supabase.from("guests").update(updatePatch).eq("id", guest.id);
 
     sent += 1;
   }

@@ -1363,7 +1363,8 @@ export default function WeddingTracker() {
     return Math.round((weddingUtc - todayUtc) / 86_400_000);
   })();
 
-  // Public ang-bao page — reachable without the helper login. When the angbao
+  // Public ang-bao page — intentionally no auth check. Guests need to reach
+  // this page to send an ang-bao without a helper account. When the angbao
   // feature is disabled it is never rendered; the route falls through to the
   // normal helper app instead.
   if (route === "pay" && ANGBAO_ENABLED) {
