@@ -21,10 +21,15 @@ function updateRsvpButton(rsvpUrl) {
   if (!rsvpUrl) return "";
   return `
     <tr><td style="padding:24px 48px 0;">
-      <p style="margin:0;font-size:13px;color:#9c836a;font-family:Georgia,serif;">
+      <p style="margin:0 0 10px;font-size:13px;color:#9c836a;font-family:Georgia,serif;">
         Need to update your response?
-        <a href="${rsvpUrl}" style="color:#9c836a;">Click here to change your RSVP.</a>
       </p>
+      <a href="${rsvpUrl}"
+         style="display:inline-block;padding:10px 24px;border:1px solid #c9a97a;color:#9c836a;
+                font-family:Georgia,serif;font-size:13px;text-decoration:none;border-radius:2px;
+                letter-spacing:0.04em;">
+        Update RSVP
+      </a>
     </td></tr>`;
 }
 

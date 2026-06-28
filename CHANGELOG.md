@@ -5,6 +5,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2026-06-29] — fix/reminders-cron-secret-polish
+
+### Security
+
+- **`CRON_SECRET` now mandatory** — `send-reminders.js` previously only validated the `Authorization` header when `CRON_SECRET` was set; if the env var was missing the endpoint was open to anyone. Now returns 500 if the env var is absent, 401 if the header doesn't match.
+
+### Fixed
+
+- **Reminder double-send bug** — the 30-day nudge used to overwrite `last_reminder_sent_at`, causing it to re-fire every day from day 30 to the wedding. Added `second_reminder_sent_at` column (`0007_second_reminder.sql`) so each send is tracked independently and fires exactly once.
+- **"Update RSVP" promoted to button** — was a plain inline text link in confirmation/declined emails; now a proper outlined button matching the email design system.
+- **Reminder CTA button padding bumped** — `12px 28px` → `16px 36px`, font size `15px` → `16px`.
+- **PayNow page intent documented** — added explicit "intentionally no auth check" comment in `AdminApp.jsx` near the `/#pay` route.
+
+### Changed
+
+- **Reminder emails retargeted to confirmed guests** — previously sent RSVP nudges to pending guests; now sends wedding countdown reminders to confirmed attendees.
+  - **90-day email** — warm, excited tone: date, venue name, dress code, link to published wedding page.
+  - **30-day email** — full logistics: schedule (tea ceremony, solemnisation, dinner), venue + address + Google Maps link, dress code, getting there directions, "Update RSVP" button.
+  - Both emails include the hero image if set.
+- **Local test escape hatch** — `?override_days=<n>` query param accepted in non-production so the endpoint can be tested without touching the DB wedding date.
+
+---
+
 ## [2026-06-28] — security/restore-admin-pin
 
 ### Security

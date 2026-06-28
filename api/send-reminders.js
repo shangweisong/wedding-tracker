@@ -9,19 +9,46 @@ function daysUntil(dateStr) {
   return Math.round((wedding - today) / DAY_MS);
 }
 
-// Vercel Cron target (see vercel.json `crons`), runs daily. Sends a one-time
-// 90-day-out nudge, then a one-time 30-day-out nudge, to guests still
-// `rsvp_status = 'pending'`. `last_reminder_sent_at` is the single dedupe
-// column per the roadmap: the 90-day branch only fires while it's still
-// null; the 30-day branch is reachable again afterward.
+function formatDate(dateStr) {
+  if (!dateStr) return "";
+  return new Intl.DateTimeFormat("en-GB", {
+    weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC",
+  }).format(new Date(dateStr));
+}
+
+function formatTime(timeStr) {
+  if (!timeStr) return "";
+  const [h, m] = timeStr.split(":");
+  const hour = parseInt(h, 10);
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const display = hour % 12 || 12;
+  return `${display}:${m} ${suffix}`;
+}
+
+function mapsUrl(address) {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+}
+
+// Vercel Cron target (see vercel.json `crons`), runs daily.
+// Sends confirmed guests a warm 90-day heads-up, then a practical 30-day
+// logistics email with schedule, venue, dress code, and directions.
+// Deduped via last_reminder_sent_at (90-day) and second_reminder_sent_at (30-day).
+//
+// Local testing: pass ?override_days=<n> to simulate any days-out value without
+// touching the DB wedding date. Ignored in production (NODE_ENV=production).
 export default async function handler(req, res) {
   const missing = missingEmailEnvVars();
   if (missing.length > 0) {
     return res.status(500).json({ error: `Missing env vars: ${missing.join(", ")}` });
   }
 
+  // CRON_SECRET is mandatory — fail loudly if missing so misconfiguration is
+  // obvious rather than silently leaving the endpoint open.
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && req.headers.authorization !== `Bearer ${cronSecret}`) {
+  if (!cronSecret) {
+    return res.status(500).json({ error: "CRON_SECRET env var is not set" });
+  }
+  if (req.headers.authorization !== `Bearer ${cronSecret}`) {
     return res.status(401).json({ error: "unauthorized" });
   }
 
@@ -29,14 +56,20 @@ export default async function handler(req, res) {
   const { data: wedding } = await supabase.from("weddings").select("*").limit(1).single();
   if (!wedding?.wedding_date) return res.status(200).json({ sent: 0, reason: "wedding not configured yet" });
 
-  const weddingDate = wedding.wedding_date;
-  const days = daysUntil(weddingDate);
+  // Allow days override for local testing (ignored in production).
+  let days;
+  if (process.env.NODE_ENV !== "production" && req.query?.override_days !== undefined) {
+    days = parseInt(req.query.override_days, 10);
+  } else {
+    days = daysUntil(wedding.wedding_date);
+  }
+
   if (days > 90) return res.status(200).json({ sent: 0, reason: "more than 90 days out" });
 
   const { data: guests, error } = await supabase
     .from("guests")
-    .select("id, name, email, rsvp_token, last_reminder_sent_at")
-    .eq("rsvp_status", "pending")
+    .select("id, name, email, rsvp_token, last_reminder_sent_at, second_reminder_sent_at")
+    .eq("rsvp_status", "confirmed")
     .neq("email", "");
 
   if (error) return res.status(500).json({ error: error.message });
@@ -50,55 +83,215 @@ export default async function handler(req, res) {
 
   const coupleNames = `${wedding.bride_name} & ${wedding.groom_name}`;
   const siteUrl = (process.env.SITE_URL || "").replace(/\/$/, "");
+  const weddingPageUrl = siteUrl && wedding.slug && wedding.is_published
+    ? `${siteUrl}/wedding/${wedding.slug}`
+    : "";
   let sent = 0;
 
   for (const guest of guests) {
+    // 90-day: warm heads-up, only if never reminded.
     const isFirstReminder = days <= 90 && !guest.last_reminder_sent_at;
-    const isSecondReminder = days <= 30 && !isFirstReminder;
+    // 30-day: full logistics, only if first reminder already sent.
+    const isSecondReminder = days <= 30 && guest.last_reminder_sent_at && !guest.second_reminder_sent_at;
+
     if (!isFirstReminder && !isSecondReminder) continue;
 
     const rsvpUrl = siteUrl && guest.rsvp_token ? `${siteUrl}/rsvp?token=${guest.rsvp_token}` : "";
-    const rsvpButton = rsvpUrl
-      ? `<p style="margin:24px 0 0;">
-           <a href="${rsvpUrl}"
-              style="display:inline-block;padding:12px 28px;background:#c9a97a;color:#fff;
-                     font-family:Georgia,serif;font-size:15px;text-decoration:none;border-radius:2px;">
-             RSVP Now
-           </a>
-         </p>`
-      : "";
 
-    await sendEmail({
-      from: coupleNames,
-      fromAddress,
-      to: guest.email,
-      subject: `Reminder: RSVP for ${coupleNames}'s Wedding`,
-      html: `<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"></head>
-<body style="margin:0;padding:24px;background:#f9f6f1;font-family:Georgia,'Times New Roman',serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;">
-    <tr><td style="background:#fffdf9;border-radius:4px;padding:32px 36px;box-shadow:0 1px 4px rgba(0,0,0,.08);">
-      <p style="margin:0 0 6px;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#9c836a;font-family:Georgia,serif;">${coupleNames}</p>
-      <h1 style="margin:0 0 16px;font-size:22px;font-weight:normal;color:#3d2e22;font-family:Georgia,serif;">
-        ${isFirstReminder ? "We'd love to know if you can make it." : "Last chance to RSVP."}
-      </h1>
-      <p style="margin:0;font-size:15px;line-height:1.75;color:#5c4a39;font-family:Georgia,serif;">
-        Hi ${guest.name}, just a friendly reminder — our wedding is coming up on
-        <strong>${weddingDate}</strong> and we'd love to have your RSVP.
-      </p>
-      ${rsvpButton}
-    </td></tr>
-  </table>
-</body></html>`,
-    });
+    const subject = isFirstReminder
+      ? `90 days to go — we can't wait to celebrate with you!`
+      : `One month to go — everything you need for our wedding`;
 
-    await supabase
-      .from("guests")
-      .update({ last_reminder_sent_at: new Date().toISOString() })
-      .eq("id", guest.id);
+    const html = isFirstReminder
+      ? firstReminderHtml({ guest, wedding, coupleNames, weddingPageUrl })
+      : secondReminderHtml({ guest, wedding, coupleNames, rsvpUrl });
+
+    await sendEmail({ from: coupleNames, fromAddress, to: guest.email, subject, html });
+
+    const updatePatch = isFirstReminder
+      ? { last_reminder_sent_at: new Date().toISOString() }
+      : { second_reminder_sent_at: new Date().toISOString() };
+
+    await supabase.from("guests").update(updatePatch).eq("id", guest.id);
 
     sent += 1;
   }
 
   return res.status(200).json({ sent });
+}
+
+function heroRow(heroImageUrl, coupleNames) {
+  if (!heroImageUrl) return "";
+  return `<tr><td style="padding:0;line-height:0;">
+    <img src="${heroImageUrl}" alt="${coupleNames}" width="520"
+      style="display:block;width:100%;max-width:520px;height:auto;" />
+  </td></tr>`;
+}
+
+function firstReminderHtml({ guest, wedding, coupleNames, weddingPageUrl }) {
+  const weddingPageButton = weddingPageUrl
+    ? `<p style="margin:24px 0 0;">
+         <a href="${weddingPageUrl}"
+            style="display:inline-block;padding:16px 36px;background:#c9a97a;color:#fff;
+                   font-family:Georgia,serif;font-size:16px;text-decoration:none;border-radius:2px;
+                   letter-spacing:0.04em;">
+           View Wedding Details
+         </a>
+       </p>`
+    : "";
+
+  return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f9f6f1;font-family:Georgia,'Times New Roman',serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9f6f1;">
+    <tr><td align="center" style="padding:32px 16px;">
+      <table width="520" cellpadding="0" cellspacing="0"
+        style="max-width:520px;width:100%;background:#fffdf9;border-radius:4px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08);">
+        ${heroRow(wedding.hero_image_url, coupleNames)}
+        <tr><td style="padding:40px 40px 32px;">
+          <p style="margin:0 0 6px;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#9c836a;font-family:Georgia,serif;">
+            ${coupleNames}
+          </p>
+          <h1 style="margin:0 0 20px;font-size:24px;font-weight:normal;line-height:1.4;color:#3d2e22;font-family:Georgia,serif;">
+            90 days to go, ${guest.name} —<br>we're so excited to see you!
+          </h1>
+          <p style="margin:0 0 20px;font-size:15px;line-height:1.8;color:#5c4a39;font-family:Georgia,serif;">
+            Can you believe it's almost time? We're counting down the days and
+            couldn't be more thrilled to have you there to share this moment with us.
+          </p>
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr><td style="background:#f9f5ef;border-left:3px solid #c9a97a;padding:16px 20px;border-radius:2px;">
+              <p style="margin:0;font-size:14px;line-height:1.85;color:#3d2e22;font-family:Georgia,serif;">
+                <strong>${formatDate(wedding.wedding_date)}</strong><br>
+                ${wedding.venue_name}${wedding.dress_code ? `<br><em>Dress code: ${wedding.dress_code}</em>` : ""}
+              </p>
+            </td></tr>
+          </table>
+          ${weddingPageButton}
+          <p style="margin:28px 0 0;font-size:13px;line-height:1.7;color:#9c836a;font-family:Georgia,serif;font-style:italic;">
+            Full schedule and details will be in your next reminder — one month out.
+          </p>
+        </td></tr>
+        <tr><td style="padding:16px 40px;background:#f2ede6;border-top:1px solid #e8e0d5;">
+          <p style="margin:0;font-size:12px;color:#a89380;text-align:center;font-family:Georgia,serif;font-style:italic;">
+            With love, ${coupleNames}
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+function secondReminderHtml({ guest, wedding, coupleNames, rsvpUrl }) {
+  const teaLine = wedding.tea_ceremony_time
+    ? `<tr>
+         <td style="padding:6px 0;font-size:14px;color:#9c836a;font-family:Georgia,serif;white-space:nowrap;padding-right:16px;">Tea Ceremony</td>
+         <td style="padding:6px 0;font-size:14px;color:#3d2e22;font-family:Georgia,serif;">${formatTime(wedding.tea_ceremony_time)}</td>
+       </tr>`
+    : "";
+
+  const schedule = `
+    <table cellpadding="0" cellspacing="0" style="width:100%;">
+      ${teaLine}
+      <tr>
+        <td style="padding:6px 0;font-size:14px;color:#9c836a;font-family:Georgia,serif;white-space:nowrap;padding-right:16px;">Solemnisation</td>
+        <td style="padding:6px 0;font-size:14px;color:#3d2e22;font-family:Georgia,serif;">${formatTime(wedding.ceremony_time)}</td>
+      </tr>
+      <tr>
+        <td style="padding:6px 0;font-size:14px;color:#9c836a;font-family:Georgia,serif;white-space:nowrap;padding-right:16px;">Dinner Reception</td>
+        <td style="padding:6px 0;font-size:14px;color:#3d2e22;font-family:Georgia,serif;">${formatTime(wedding.dinner_time)}</td>
+      </tr>
+    </table>`;
+
+  const mapsButton = wedding.venue_address
+    ? `<a href="${mapsUrl(wedding.venue_address)}"
+          style="display:inline-block;margin-top:12px;padding:8px 18px;border:1px solid #c9a97a;
+                 color:#9c836a;font-family:Georgia,serif;font-size:13px;text-decoration:none;
+                 border-radius:2px;letter-spacing:0.04em;">
+         Get Directions
+       </a>`
+    : "";
+
+  const gettingThere = wedding.getting_there
+    ? `<tr><td style="padding:24px 40px 0;">
+         <p style="margin:0 0 8px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#9c836a;font-family:Georgia,serif;">Getting There</p>
+         <p style="margin:0;font-size:14px;line-height:1.75;color:#5c4a39;font-family:Georgia,serif;white-space:pre-line;">${wedding.getting_there}</p>
+       </td></tr>`
+    : "";
+
+  const updateRsvp = rsvpUrl
+    ? `<tr><td style="padding:24px 40px 0;">
+         <p style="margin:0 0 10px;font-size:13px;color:#9c836a;font-family:Georgia,serif;">
+           Changed your plans?
+         </p>
+         <a href="${rsvpUrl}"
+            style="display:inline-block;padding:10px 24px;border:1px solid #c9a97a;color:#9c836a;
+                   font-family:Georgia,serif;font-size:13px;text-decoration:none;border-radius:2px;
+                   letter-spacing:0.04em;">
+           Update RSVP
+         </a>
+       </td></tr>`
+    : "";
+
+  return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f9f6f1;font-family:Georgia,'Times New Roman',serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9f6f1;">
+    <tr><td align="center" style="padding:32px 16px;">
+      <table width="520" cellpadding="0" cellspacing="0"
+        style="max-width:520px;width:100%;background:#fffdf9;border-radius:4px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08);">
+        ${heroRow(wedding.hero_image_url, coupleNames)}
+        <tr><td style="padding:40px 40px 8px;">
+          <p style="margin:0 0 6px;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#9c836a;font-family:Georgia,serif;">
+            ${coupleNames}
+          </p>
+          <h1 style="margin:0 0 16px;font-size:24px;font-weight:normal;line-height:1.4;color:#3d2e22;font-family:Georgia,serif;">
+            One month to go, ${guest.name}!<br>Here's everything you need.
+          </h1>
+          <p style="margin:0;font-size:15px;line-height:1.8;color:#5c4a39;font-family:Georgia,serif;">
+            It's almost here — and we're beyond excited to celebrate with you.
+            Everything you need for the day is below.
+          </p>
+        </td></tr>
+
+        <tr><td style="padding:24px 40px 0;">
+          <p style="margin:0 0 12px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#9c836a;font-family:Georgia,serif;">Schedule</p>
+          <table width="100%" cellpadding="0" cellspacing="0"
+            style="background:#f9f5ef;border-left:3px solid #c9a97a;padding:16px 20px;border-radius:2px;">
+            <tr><td style="padding:0 20px 0;">
+              ${schedule}
+            </td></tr>
+          </table>
+        </td></tr>
+
+        <tr><td style="padding:24px 40px 0;">
+          <p style="margin:0 0 8px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#9c836a;font-family:Georgia,serif;">Venue</p>
+          <p style="margin:0;font-size:14px;line-height:1.75;color:#3d2e22;font-family:Georgia,serif;">
+            <strong>${wedding.venue_name}</strong><br>
+            ${wedding.venue_address || ""}
+          </p>
+          ${mapsButton}
+        </td></tr>
+
+        ${wedding.dress_code ? `
+        <tr><td style="padding:24px 40px 0;">
+          <p style="margin:0 0 8px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#9c836a;font-family:Georgia,serif;">Dress Code</p>
+          <p style="margin:0;font-size:14px;color:#3d2e22;font-family:Georgia,serif;">${wedding.dress_code}</p>
+        </td></tr>` : ""}
+
+        ${gettingThere}
+        ${updateRsvp}
+
+        <tr><td style="padding:32px 40px 20px;">
+        </td></tr>
+        <tr><td style="padding:16px 40px;background:#f2ede6;border-top:1px solid #e8e0d5;">
+          <p style="margin:0;font-size:12px;color:#a89380;text-align:center;font-family:Georgia,serif;font-style:italic;">
+            With love, ${coupleNames}
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
 }
