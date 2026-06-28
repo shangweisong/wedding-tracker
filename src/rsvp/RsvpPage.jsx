@@ -239,10 +239,7 @@ export default function RsvpPage() {
 
   // Debounced name search — fires when guest types in the no-token name field.
   useEffect(() => {
-    if (activeToken || isDemoMode || nameQuery.trim().length < 2) {
-      setNameResults([]);
-      return;
-    }
+    if (activeToken || isDemoMode || nameQuery.trim().length < 2) return;
     const t = setTimeout(async () => {
       setNameSearching(true);
       try {
@@ -261,7 +258,6 @@ export default function RsvpPage() {
     setName(guest.name);
     setSelectedToken(guest.rsvp_token);
     setNameQuery(guest.name);
-    setNameResults([]);
     setError("");
   }
 
@@ -269,8 +265,11 @@ export default function RsvpPage() {
     setName("");
     setSelectedToken("");
     setNameQuery("");
-    setNameResults([]);
   }
+
+  // Dropdown is visible only when there is no active token, not in demo mode,
+  // and the query is long enough — derived, not stored in state.
+  const showSuggestions = !activeToken && !isDemoMode && nameQuery.trim().length >= 2;
 
   const submit = async (e) => {
     e.preventDefault();
@@ -385,12 +384,12 @@ export default function RsvpPage() {
                       autoFocus
                       autoComplete="off"
                     />
-                    {nameSearching && (
+                    {showSuggestions && nameSearching && (
                       <div className="rsvp-suggestions">
                         <div className="rsvp-suggestion-empty">Searching…</div>
                       </div>
                     )}
-                    {!nameSearching && nameResults.length > 0 && (
+                    {showSuggestions && !nameSearching && nameResults.length > 0 && (
                       <div className="rsvp-suggestions">
                         {nameResults.map((r) => (
                           <div
@@ -403,7 +402,7 @@ export default function RsvpPage() {
                         ))}
                       </div>
                     )}
-                    {!nameSearching && nameQuery.trim().length >= 2 && nameResults.length === 0 && (
+                    {showSuggestions && !nameSearching && nameResults.length === 0 && (
                       <div className="rsvp-suggestions">
                         <div className="rsvp-suggestion-empty">No match found — check spelling or contact the couple</div>
                       </div>
