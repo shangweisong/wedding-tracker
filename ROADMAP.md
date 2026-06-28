@@ -18,7 +18,7 @@ A quick-scan list of known bugs, deferred work, and housekeeping. Details live i
 
 | # | Area | Summary | Section |
 |---|---|---|---|
-| 1 | RSVP | **Fuzzy name match false-positive** — `submit_rsvp_by_name` reports "ambiguous" when one guest's name is a prefix of another's (e.g. `alice` vs `alice smith`). Token-based update flow bypasses this. [Issue #18](https://github.com/shangweisong/wedding-tracker/issues/18) | §3.1 |
+| 1 | RSVP | ~~**Fuzzy name match false-positive**~~ ✅ — no-token RSVP flow now uses search-and-select + token-based submit; `submit_rsvp_by_name` is no longer called at submission time. [Issue #18](https://github.com/shangweisong/wedding-tracker/issues/18) | §3.1 |
 | 2 | Email | **Supabase Vault webhook setup is manual** — `vault.create_secret(...)` cannot be scripted; must be done once in the SQL Editor. [Issue #17](https://github.com/shangweisong/wedding-tracker/issues/17) | §Housekeeping |
 | 3 | Wedding Page | **Single template only** — only the Minimal dark-gold theme exists. Additional templates (Floral, Modern, Traditional, Garden) and accent colour picker are pending. | §3.3 |
 | 4 | Docs | ~~**README → User Guide split**~~ ✅ — `docs/USER_GUIDE.md` created; README is now a 1-page overview + quick-start. | §Housekeeping |
@@ -258,7 +258,7 @@ This data maps to the existing `relationship_group` and `party` columns and feed
 
 Also collect the guest's **email address** on the RSVP form (see 3.1a below) — required for calendar invites and automated email reminders (3.1b, 3.1c).
 
-**Known bug (deferred):** the fuzzy name-matching RPC (`submit_rsvp_by_name`, `supabase/migrations/0004_fuzzy_rsvp_by_name.sql`) falsely reports "ambiguous" when a guest's full name is a prefix of another guest's name (e.g. `rsvptest` vs `rsvptest2`), because its substring fallback matches both rows with no exact-match short-circuit. See [issue #18](https://github.com/shangweisong/wedding-tracker/issues/18).
+~~**Known bug (deferred):** the fuzzy name-matching RPC (`submit_rsvp_by_name`) falsely reports "ambiguous" when a guest's full name is a prefix of another guest's name.~~ **Fixed ([PR #27](https://github.com/shangweisong/wedding-tracker/pull/27))** — the no-token RSVP flow now uses a search-and-select dropdown (`find_guest_by_name`) and submits via the token-based `submit_rsvp` RPC, bypassing `submit_rsvp_by_name` at submission time entirely. See [issue #18](https://github.com/shangweisong/wedding-tracker/issues/18).
 
 ---
 
