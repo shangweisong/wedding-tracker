@@ -2,6 +2,8 @@
 
 A two-phase wedding management app — pre-wedding RSVP collection and seating plan, then wedding-day check-in, table management, and red packet (angbao) tracking. Built with React + Vite, powered by Supabase.
 
+![Demo](docs/demo.gif)
+
 > The database is the trust boundary: Row Level Security locks all guest data to authenticated helpers. The public RSVP form accesses the DB only through narrow `security definer` RPC functions — the full guest list is never exposed. See [`SECURITY.md`](SECURITY.md) for the threat model.
 
 ---
@@ -27,6 +29,16 @@ A two-phase wedding management app — pre-wedding RSVP collection and seating p
 - **Real-time sync** — devices auto-sync every 5 seconds
 
 Switch between modes with the **📋 Planning / 💒 D-Day** toggle in the header.
+
+---
+
+## Screenshots
+
+<!-- Add static screenshots here after recording. Example:
+![RSVP form](docs/screenshot-rsvp.png)
+![Seating plan](docs/screenshot-seating.png)
+![D-Day check-in](docs/screenshot-checkin.png)
+-->
 
 ---
 

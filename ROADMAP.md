@@ -29,6 +29,7 @@ A quick-scan list of known bugs, deferred work, and housekeeping. Details live i
 | 8 | Email | ~~**RSVP email buttons undersized**~~ ✅ — reminder CTA bumped to `16px 36px`; "Update RSVP" promoted to outlined button in confirmation/declined emails. | §Security |
 | 9 | Security | ~~**PayNow `/#pay` page is fully public**~~ ✅ — documented with explicit "intentionally no auth check" comment in `AdminApp.jsx`. | §Security |
 | 10 | Wishes Wrapped | ~~**Not started**~~ ✅ — Phase 4 complete: pure-stats engine, Elegant + Vibrant themes, Hall of Silence MC callout, per-slide toggle, 114 unit tests. AI tier and keepsake export remain optional follow-ons. | §4 |
+| 11 | Docs | **README hero GIF + screenshots** — add a demo GIF right after the title (before any text), then a `## Screenshots` section after Features. Record ~15–20s covering: Planning/D-Day toggle → RSVP submission → seating auto-suggest → lock a table. Use [Kap](https://getkap.co/) (free, Mac), keep GIF under 5 MB. Store assets in `docs/` (e.g. `docs/demo.gif`, `docs/screenshot-rsvp.png`). | §Housekeeping |
 
 ---
 
@@ -597,6 +598,7 @@ Explicit "intentionally no auth check" comment added in `AdminApp.jsx` near the 
   - `reconcile_remote_db.sql` — run once in Supabase SQL Editor on existing projects to sync migration tracking
 - ✅ **Migration consolidation** — `0006` (`old_rsvp_status` in webhook payload) and `0007` (`second_reminder_sent_at` column) both merged into `0005` and deleted. Migration folder is back to a clean 5-file structure. CLI users on existing deployments: see USER_GUIDE §1a for the one-time tracking cleanup SQL.
 - ✅ **README → User Guide split** — detailed setup instructions (Supabase, email, Vercel, CSV, PayNow, angbao) extracted to [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md). README is now a 1-page overview + quick-start that links to the guide for depth.
+- **README hero GIF** — record a ~15–20s demo GIF (Planning/D-Day toggle → RSVP submit → seating suggest → lock table) with [Kap](https://getkap.co/); save to `docs/demo.gif` (keep under 5 MB). Place `![Demo](docs/demo.gif)` immediately after the title, before the security callout. Add a `## Screenshots` section after Features for static per-section images.
 
 ---
 
