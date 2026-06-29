@@ -1336,6 +1336,7 @@ export default function WeddingTracker() {
 
   // Filtered guests
   const filtered = guests.filter((g) => {
+    if (mode === "dday" && g.rsvp_status !== "confirmed") return false;
     const q = search.toLowerCase();
     const matchSearch = g.name.toLowerCase().includes(q) || String(g.table_number).includes(q);
     const matchFilter =
@@ -1356,9 +1357,10 @@ export default function WeddingTracker() {
   const rsvpPending = guests.filter((g) => g.rsvp_status === "pending").length;
   const rsvpHeadcount = rsvpConfirmed + guests.filter((g) => g.rsvp_status === "confirmed" && g.plus_one_name?.trim()).length;
 
-  // Table groups
+  // Table groups — only guests with an assignment; in d-day mode filtered already excludes non-confirmed
   const tables = {};
-  guests.forEach((g) => {
+  filtered.forEach((g) => {
+    if (!g.table_number) return;
     if (!tables[g.table_number]) tables[g.table_number] = [];
     tables[g.table_number].push(g);
   });

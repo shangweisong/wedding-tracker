@@ -3,7 +3,7 @@
 // packs each group into tables in order, spilling overflow into the next
 // table so a group stays in adjacent tables rather than scattering.
 
-const SIDE_ORDER = ["bride", "groom", ""];
+const SIDE_ORDER = ["groom", "bride", ""];
 const CATEGORY_ORDER = ["family", "friends", "colleagues", "other", ""];
 const SUBTYPE_ORDER = [
   "university",
@@ -49,7 +49,7 @@ export function suggestSeating(guests, tables) {
 
   const occupancy = new Map();
   for (const g of guests) {
-    if (g.table_id) occupancy.set(g.table_id, (occupancy.get(g.table_id) || 0) + 1);
+    if (g.table_id && g.rsvp_status === "confirmed") occupancy.set(g.table_id, (occupancy.get(g.table_id) || 0) + 1);
   }
 
   const slots = tables
@@ -64,30 +64,45 @@ export function suggestSeating(guests, tables) {
   const assignments = [];
   const unplacedGuestIds = [];
 
+  // slotIdx persists across groups so we never seat a later side into a table
+  // that is partially filled by an earlier side.
+  let slotIdx = 0;
+  let currentSide = null;
+
   for (const group of groups) {
+    // At a side boundary, advance slotIdx past any partial tables so the new
+    // side always starts on a clean, untouched table.
+    if (group.side !== currentSide) {
+      currentSide = group.side;
+      while (slotIdx < slots.length && slots[slotIdx].remaining < slots[slotIdx].capacity) {
+        slotIdx++;
+      }
+    }
+
     const queue = [...group.guests].sort((a, b) => {
       if (!!a.is_vip !== !!b.is_vip) return a.is_vip ? -1 : 1;
       return (a.name || "").localeCompare(b.name || "");
     });
 
-    let idx = slots.findIndex((s) => s.remaining === s.capacity);
-    if (idx === -1) idx = slots.findIndex((s) => s.remaining > 0);
+    // Within the side, prefer the next fully-empty table at or after slotIdx.
+    let idx = slots.findIndex((s, i) => i >= slotIdx && s.remaining === s.capacity);
+    if (idx === -1) idx = slotIdx; // fall back to current position (same-side overflow is fine)
 
     while (queue.length) {
-      if (idx === -1 || idx >= slots.length) {
+      if (idx >= slots.length) {
         unplacedGuestIds.push(...queue.map((g) => g.id));
         break;
       }
       const slot = slots[idx];
-      if (slot.remaining <= 0) {
-        idx += 1;
-        continue;
-      }
+      if (slot.remaining <= 0) { idx++; continue; }
       const take = queue.splice(0, slot.remaining);
       for (const g of take) assignments.push({ guestId: g.id, tableId: slot.id });
       slot.remaining -= take.length;
-      if (queue.length) idx += 1;
+      if (queue.length) idx++;
     }
+
+    // Never let slotIdx go backward.
+    if (idx > slotIdx) slotIdx = idx;
   }
 
   return { assignments, unplacedGuestIds };
