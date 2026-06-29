@@ -5,6 +5,36 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2026-06-29] — feat/wedding-wishes-wrapped
+
+### Added
+
+- **Wedding Wishes Wrapped (Phase 4 MVP)** — Spotify Wrapped–style presentation of guest well-wishes, built entirely from the existing `guests.rsvp_message` field with no new DB columns or AI calls.
+  - **`src/admin/wishesWrapped.js`** — pure stats engine: total wishes, total words, average length, top-30 word cloud (stop-word filtered), and up to 5 guest awards (Most Words, Most Enthusiastic, Emoji Champion, Most Poetic, Keeping It Short & Sweet). Fully unit-tested (`wishesWrapped.test.js`, 13 cases).
+  - **`src/admin/WishesWrappedTab.jsx`** — new "✨ Wishes Wrapped" tab in the Planning mode admin panel. Shows a Generate button, stat cards, top-word chips, and a scrollable message list. "Open Presentation" stores data in `localStorage` and opens the presentation page in a new tab.
+  - **`src/wishes-wrapped/WishesWrappedPage.jsx`** — fullscreen presentation at `/wishes-wrapped`. Slides: Title → By the Numbers → Word Cloud → Award slides → Thank You. Keyboard navigation (`←` `→` `Space`), 8-second auto-advance toggle, fullscreen API toggle.
+  - **`src/main.jsx`** — `/wishes-wrapped` route added.
+- **Phase 4 roadmap** — `ROADMAP.md` updated with the full Phase 4 spec (§4.1–§4.7 + build order).
+
+### Changed
+
+- **Demo data enriched** — four previously empty `rsvp_message` fields in `DEMO_GUESTS` now have realistic well-wish messages so the Wishes Wrapped tab is usable in demo mode without a real Supabase connection.
+
+---
+
+## [2026-06-29] — chore/vault-script-migration-consolidation
+
+### Added
+
+- **`scripts/setup-vault-secrets.sh`** — reads `SITE_URL` and `RSVP_WEBHOOK_SECRET` from `.env` and either runs the Vault SQL automatically via the Supabase CLI (`supabase db execute`) or prints a pre-filled copy-paste snippet for the SQL Editor. Closes the remaining manual step from issue #17.
+
+### Changed
+
+- **Migration consolidation** — `0006_rsvp_host_notify.sql` and `0007_second_reminder.sql` merged into `0005_email_automation.sql` and deleted. Migration folder is back to a clean 5-file structure (`0001`–`0005`). Existing deployments are unaffected (all SQL uses `CREATE OR REPLACE` / `IF NOT EXISTS`). Supabase CLI users on existing deployments: see USER_GUIDE §1a for the one-time tracking cleanup.
+- **`docs/USER_GUIDE.md`** — migration table updated to reflect the consolidated structure; email setup step now references the vault secrets script.
+
+---
+
 ## [2026-06-29] — fix/reminders-cron-secret-polish
 
 ### Security

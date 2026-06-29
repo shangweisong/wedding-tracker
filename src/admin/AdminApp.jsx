@@ -11,6 +11,7 @@ import RsvpTab from "./RsvpTab.jsx";
 import SeatingTab from "./SeatingTab.jsx";
 import WeddingSetupTab from "./WeddingSetupTab.jsx";
 import WeddingPageTab from "../wedding/WeddingPageTab.jsx";
+import WishesWrappedTab from "./WishesWrappedTab.jsx";
 
 // ─── PAYNOW CONFIG ────────────────────────────────────────────────────────────
 // The host's PayNow-linked mobile number and display name. These are NOT secret
@@ -29,12 +30,12 @@ const ANGBAO_ENABLED = import.meta.env.VITE_ENABLE_ANGBAO !== "false";
 // ─── DEMO MODE (no Supabase) ──────────────────────────────────────────────────
 const DEMO_GUESTS = [
   { id: 1, name: "Tan Wei Ming", party: "bride", table_number: "1", table_id: "t1", checked_in: true, checked_in_at: "2024-06-15T18:32:00", angbao_given: true, angbao_amount: 200, draw_number: 1, notes: "Best man", is_vip: true, rsvp_status: "confirmed", rsvp_at: "2024-05-01T10:00:00", meal_choice: "Chicken", plus_one_name: "Emily Tan", dietary_notes: "", rsvp_message: "Can't wait!", rsvp_token: "a1b2c3d4-e5f6-7890-abcd-ef1234567890", email: "wei.ming@example.com" },
-  { id: 2, name: "Lim Siew Yong", party: "groom", table_number: "1", table_id: "t1", checked_in: true, checked_in_at: "2024-06-15T18:45:00", angbao_given: true, angbao_amount: 150, draw_number: 2, notes: "", is_vip: false, rsvp_status: "confirmed", rsvp_at: "2024-05-03T14:20:00", meal_choice: "Fish", plus_one_name: "", dietary_notes: "No shellfish", rsvp_message: "", rsvp_token: "b2c3d4e5-f6a7-8901-bcde-f01234567891", email: "siew.yong@example.com" },
-  { id: 3, name: "Ahmad Razif", party: "groom", table_number: "2", table_id: null, checked_in: false, checked_in_at: null, angbao_given: false, angbao_amount: 0, draw_number: null, notes: "Vegetarian", is_vip: false, rsvp_status: "pending", rsvp_at: null, meal_choice: "", plus_one_name: "", dietary_notes: "", rsvp_message: "", rsvp_token: "c3d4e5f6-a7b8-9012-cdef-012345678902", email: "" },
+  { id: 2, name: "Lim Siew Yong", party: "groom", table_number: "1", table_id: "t1", checked_in: true, checked_in_at: "2024-06-15T18:45:00", angbao_given: true, angbao_amount: 150, draw_number: 2, notes: "", is_vip: false, rsvp_status: "confirmed", rsvp_at: "2024-05-03T14:20:00", meal_choice: "Fish", plus_one_name: "", dietary_notes: "No shellfish", rsvp_message: "Wishing you both a lifetime of joy, laughter, and endless adventures together! 🥂", rsvp_token: "b2c3d4e5-f6a7-8901-bcde-f01234567891", email: "siew.yong@example.com" },
+  { id: 3, name: "Ahmad Razif", party: "groom", table_number: "2", table_id: null, checked_in: false, checked_in_at: null, angbao_given: false, angbao_amount: 0, draw_number: null, notes: "Vegetarian", is_vip: false, rsvp_status: "pending", rsvp_at: null, meal_choice: "", plus_one_name: "", dietary_notes: "", rsvp_message: "So happy to celebrate this beautiful day with you. May your love grow stronger each year! ❤️", rsvp_token: "c3d4e5f6-a7b8-9012-cdef-012345678902", email: "" },
   { id: 4, name: "Priya Nair", party: "bride", table_number: "2", table_id: null, checked_in: true, checked_in_at: "2024-06-15T19:01:00", angbao_given: true, angbao_amount: 100, draw_number: 3, notes: "", is_vip: false, rsvp_status: "confirmed", rsvp_at: "2024-04-28T09:15:00", meal_choice: "Vegetarian", plus_one_name: "Raj Nair", dietary_notes: "Vegetarian only", rsvp_message: "Congratulations!", rsvp_token: "d4e5f6a7-b8c9-0123-defa-123456789013", email: "priya.nair@example.com" },
   { id: 5, name: "Chen Jing Wen", party: "bride", table_number: "3", table_id: null, checked_in: false, checked_in_at: null, angbao_given: false, angbao_amount: 0, draw_number: null, notes: "", is_vip: false, rsvp_status: "declined", rsvp_at: "2024-05-10T16:00:00", meal_choice: "", plus_one_name: "", dietary_notes: "", rsvp_message: "Sorry, will be overseas that week!", rsvp_token: "e5f6a7b8-c9d0-1234-efab-234567890124", email: "jing.wen@example.com" },
-  { id: 6, name: "Ng Boon Kiat", party: "groom", table_number: "3", table_id: null, checked_in: true, checked_in_at: "2024-06-15T19:15:00", angbao_given: false, angbao_amount: 0, draw_number: null, notes: "Uncle of groom", is_vip: true, rsvp_status: "confirmed", rsvp_at: "2024-04-20T11:30:00", meal_choice: "Chicken", plus_one_name: "", dietary_notes: "", rsvp_message: "", rsvp_token: "f6a7b8c9-d0e1-2345-fabc-345678901235", email: "boon.kiat@example.com" },
-  { id: 7, name: "Siti Rahimah", party: "groom", table_number: "4", table_id: null, checked_in: false, checked_in_at: null, angbao_given: false, angbao_amount: 0, draw_number: null, notes: "", is_vip: false, rsvp_status: "pending", rsvp_at: null, meal_choice: "", plus_one_name: "", dietary_notes: "Halal only", rsvp_message: "", rsvp_token: "07a8b9c0-e1f2-3456-abcd-456789012346", email: "" },
+  { id: 6, name: "Ng Boon Kiat", party: "groom", table_number: "3", table_id: null, checked_in: true, checked_in_at: "2024-06-15T19:15:00", angbao_given: false, angbao_amount: 0, draw_number: null, notes: "Uncle of groom", is_vip: true, rsvp_status: "confirmed", rsvp_at: "2024-04-20T11:30:00", meal_choice: "Chicken", plus_one_name: "", dietary_notes: "", rsvp_message: "Congratulations!! May your marriage be as beautiful and wonderful as this glorious day! 🎉🎊", rsvp_token: "f6a7b8c9-d0e1-2345-fabc-345678901235", email: "boon.kiat@example.com" },
+  { id: 7, name: "Siti Rahimah", party: "groom", table_number: "4", table_id: null, checked_in: false, checked_in_at: null, angbao_given: false, angbao_amount: 0, draw_number: null, notes: "", is_vip: false, rsvp_status: "pending", rsvp_at: null, meal_choice: "", plus_one_name: "", dietary_notes: "Halal only", rsvp_message: "The most wonderful couple I know! Wishing you all the happiness, love, and joy forever!! ❤️❤️❤️", rsvp_token: "07a8b9c0-e1f2-3456-abcd-456789012346", email: "" },
   { id: 8, name: "David Koh", party: "groom", table_number: "4", table_id: "t2", checked_in: true, checked_in_at: "2024-06-15T18:50:00", angbao_given: true, angbao_amount: 300, draw_number: 4, notes: "Boss", is_vip: true, rsvp_status: "confirmed", rsvp_at: "2024-04-15T08:00:00", meal_choice: "Fish", plus_one_name: "Karen Koh", dietary_notes: "", rsvp_message: "Looking forward to it!", rsvp_token: "18b9c0d1-f2a3-4567-bcde-567890123457", email: "david.koh@example.com" },
 ];
 
@@ -1098,6 +1099,7 @@ export default function WeddingTracker() {
 
   const switchMode = (newMode) => {
     setMode(newMode);
+    // Reset to a valid view for the chosen mode
     setView(newMode === "planning" ? "rsvp" : "guests");
   };
 
@@ -1493,6 +1495,9 @@ export default function WeddingTracker() {
               <button className={`view-tab ${view === "wedding-page" ? "active" : ""}`} onClick={() => setView("wedding-page")}>
                 <Icon.Star /> Wedding Page
               </button>
+              <button className={`view-tab ${view === "wishes-wrapped" ? "active" : ""}`} onClick={() => setView("wishes-wrapped")}>
+                ✨ Wishes Wrapped
+              </button>
             </>
           ) : (
             <>
@@ -1713,6 +1718,8 @@ export default function WeddingTracker() {
             <SeatingTab guests={guests} onUpdate={updateGuest} showToast={showToast} />
           ) : view === "wedding-page" ? (
             <WeddingPageTab wedding={wedding} onSave={saveWeddingPage} showToast={showToast} />
+          ) : view === "wishes-wrapped" ? (
+            <WishesWrappedTab guests={guests} wedding={wedding} />
           ) : ANGBAO_ENABLED && view === "angbao" ? (
             /* ANGBAO VIEW */
             <>

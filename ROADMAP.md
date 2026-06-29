@@ -8,6 +8,7 @@ This document outlines the planned development for Phase 2 and Phase 3 of the We
 Phase 1 ✅  Wedding Day Attendance + Angbao Tracking
 Phase 2 ✅  RSVP Collection + Table Assignment Planning
 Phase 3 ✅  Personalised Wedding Page  (seating ✅, emails ✅, setup ✅, public page ✅)
+Phase 4     Fun to Have — Wedding Wishes Wrapped
 ```
 
 ---
@@ -27,6 +28,7 @@ A quick-scan list of known bugs, deferred work, and housekeeping. Details live i
 | 7 | Security | ~~**`CRON_SECRET` not enforced**~~ ✅ — now mandatory; returns 500 if env var absent, 401 if header mismatch. | §Security |
 | 8 | Email | ~~**RSVP email buttons undersized**~~ ✅ — reminder CTA bumped to `16px 36px`; "Update RSVP" promoted to outlined button in confirmation/declined emails. | §Security |
 | 9 | Security | ~~**PayNow `/#pay` page is fully public**~~ ✅ — documented with explicit "intentionally no auth check" comment in `AdminApp.jsx`. | §Security |
+| 10 | Wishes Wrapped | **Not started** — Spotify Wrapped-style presentation of guest well wishes. MVP is pure stats (no AI); presentation mode + AI tier are follow-ons. | §4 |
 
 ---
 
@@ -595,6 +597,156 @@ Explicit "intentionally no auth check" comment added in `AdminApp.jsx` near the 
   - `reconcile_remote_db.sql` — run once in Supabase SQL Editor on existing projects to sync migration tracking
 - ✅ **Migration consolidation** — `0006` (`old_rsvp_status` in webhook payload) and `0007` (`second_reminder_sent_at` column) both merged into `0005` and deleted. Migration folder is back to a clean 5-file structure. CLI users on existing deployments: see USER_GUIDE §1a for the one-time tracking cleanup SQL.
 - ✅ **README → User Guide split** — detailed setup instructions (Supabase, email, Vercel, CSV, PayNow, angbao) extracted to [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md). README is now a 1-page overview + quick-start that links to the guide for depth.
+
+---
+
+## Phase 4 — Fun to Have: Wedding Wishes Wrapped
+
+### Goal
+
+Turn guest well-wishes (collected via the RSVP form) into a Spotify Wrapped–style presentation — a fun, visual recap the couple can run during the reception or keep as a digital keepsake. The feature is additive and self-contained; nothing in Phases 1–3 needs to change.
+
+---
+
+### 4.1 Data Source
+
+Guest well-wishes already live in `guests.message_to_couple` (free-text field collected on the RSVP form). No new DB columns are needed for the MVP.
+
+---
+
+### 4.2 MVP — Pure Stats (No AI)
+
+All computed client-side from the existing guest data; zero new infrastructure.
+
+**Stats to generate:**
+
+| Stat | How |
+|---|---|
+| Total wishes received | `count` of guests where `message_to_couple` is non-empty |
+| Total words written | tokenise all messages |
+| Average wish length | total words ÷ total wishes |
+| Longest wish | max word count |
+| Shortest wish | min word count (non-empty) |
+| Most emojis | emoji regex scan |
+| Most exclamation marks | `!` count per message |
+| Top words (word cloud) | frequency map, stop-words filtered |
+| Guest awards | computed from stats above — see §4.3 |
+
+**Implementation:** `src/admin/wishesWrapped.js` — pure functions, fully testable, no side effects.
+
+---
+
+### 4.3 Guest Awards
+
+Deterministic awards derived from the stats. Suggested set:
+
+| Award | Criteria |
+|---|---|
+| Most Enthusiastic | highest `!` count |
+| Most Emoji | highest emoji count |
+| Most Words | longest message by word count |
+| Fewest Words | shortest non-empty message |
+| Most Poetic | highest unique-word ratio |
+
+Awards are computed in `wishesWrapped.js` and passed as props into the slide components.
+
+---
+
+### 4.4 Admin Tab — Wishes Wrapped
+
+New tab in the admin app: **"Wishes Wrapped"** (appears after "Wedding Page").
+
+- **Generate** button — runs `wishesWrapped.js` over live guest data, stores result in component state
+- **Preview slides** — scrollable preview of all slides in the tab
+- **Enter Presentation** button — opens `/wishes-wrapped` in a new tab / fullscreen
+
+No new DB table needed for MVP; state is ephemeral (re-generated on demand). If persistence is needed later, store the JSON blob in `weddings.wishes_wrapped_json jsonb`.
+
+---
+
+### 4.5 Presentation Mode — `/wishes-wrapped`
+
+New public (or PIN-gated) route for the live projector display.
+
+**Slides (in order):**
+
+1. **Title** — "Wedding Wishes Wrapped ✨ — [Couple Names]"
+2. **By the Numbers** — total wishes, total words, average length
+3. **Word Cloud** — top 30 words, sized by frequency
+4. **Top Themes** *(Phase 4.2 AI tier)* — placeholder slide in MVP
+5. **Guest Awards** — one award per slide, animated reveal
+6. **AI Observations** *(Phase 4.2 AI tier)* — placeholder in MVP
+7. **Relationship Recipe** *(Phase 4.2 AI tier)* — placeholder in MVP
+8. **Collective Letter** *(Phase 4.2 AI tier)* — placeholder in MVP
+9. **One-Sentence Blessing** *(Phase 4.2 AI tier)* — placeholder in MVP
+10. **Thank You** — couple names + wedding date
+
+**UX requirements:**
+- Fullscreen via the Fullscreen API (`document.documentElement.requestFullscreen()`)
+- Keyboard navigation: `←` / `→` / `Space` to advance; `Esc` exits fullscreen
+- Auto-advance toggle (configurable interval, default 8 s)
+- Projector-friendly: dark background, large text, no scrollbars
+
+**Route:** `/wishes-wrapped` — add to `src/main.jsx` alongside existing routes.
+
+---
+
+### 4.6 AI Enhancement (Phase 4.2 — optional, gated)
+
+Call an LLM **only** through a Vercel Serverless Function — never expose the API key to the browser.
+
+**Endpoint:** `api/generate-wishes-wrapped.js`
+
+**Flow:**
+```
+Admin clicks "Generate AI Insights"
+        ↓
+POST /api/generate-wishes-wrapped  { guestMessages: [...] }
+        ↓
+Serverless function calls LLM API (OPENAI_API_KEY or ANTHROPIC_API_KEY)
+        ↓
+Returns structured JSON { themes, observations, recipe, letter, blessing }
+        ↓
+Stored in weddings.wishes_wrapped_json (upserted)
+        ↓
+Presentation reads from Supabase — no re-generation needed on reload
+```
+
+**Suggested LLM outputs:**
+
+| Output | Prompt goal |
+|---|---|
+| Theme classification | Group messages into 3–5 recurring emotional themes |
+| Funny observations | Light, humorous pattern spotted across all wishes |
+| Relationship recipe | "To make this marriage: 2 cups of laughter, 1 tablespoon of…" |
+| Collective letter | One synthesised letter from all guests to the couple |
+| One-sentence blessing | Single poetic line distilling all the wishes |
+
+**Env var required:**
+```
+OPENAI_API_KEY   # or ANTHROPIC_API_KEY — server-only, no VITE_ prefix
+```
+
+---
+
+### 4.7 Keepsake Export (Phase 4.3 — future)
+
+Allow exporting the Wrapped as:
+- **JSON** — raw stats + AI outputs (trivial, just download `wishes_wrapped_json`)
+- **PDF** — use `react-pdf` or `html2canvas` + `jsPDF`; one page per slide
+- **Images** — `html2canvas` per slide → PNG download
+- **Video** — pre-recorded screen capture guidance only; no automated video generation
+
+---
+
+### Phase 4 Build Order
+
+1. `src/admin/wishesWrapped.js` — pure stats + awards functions + unit tests
+2. Admin **Wishes Wrapped tab** — generate button, ephemeral preview, enter-presentation button
+3. `/wishes-wrapped` route — slide components, keyboard nav, fullscreen, auto-advance
+4. *(Optional)* `api/generate-wishes-wrapped.js` — AI tier (needs `OPENAI_API_KEY`)
+5. *(Optional)* Persist `wishes_wrapped_json` in `weddings` table — `0006_wishes_wrapped.sql`
+6. *(Optional)* Keepsake export — JSON first, then PDF/images
 
 ---
 
