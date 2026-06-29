@@ -5,6 +5,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2026-06-29] — feat/wedding-page-templates
+
+### Added
+
+- **Garden theme** — forest-green hero gradient, Libre Baskerville headings, sage-green accents, pale sage page background (`#f1f7ed`). Twelve scattered SVG leaf shapes frame the left and right page margins at low opacity.
+- **Traditional Chinese theme** — deep crimson hero gradient, gold accents on red, warm blush page background (`#fff5f5`). Repeating 喜 watermark pattern (180×180px SVG tile, two staggered gold characters per tile) on both the wedding page and RSVP page background.
+- **Theme picker** in the Wedding Page admin tab — three cards with gradient swatches (Minimal / Garden / Traditional). Selection saved to `weddings.theme` via `upsert_wedding_page`.
+- **`theme` column** added to the `weddings` table (default `'minimal'`); `get_wedding_config`, `upsert_wedding_page`, and `get_public_wedding` RPCs updated to carry the field. Themes affect only `/wedding/:slug` and `/rsvp` — admin UI untouched.
+- **Libre Baskerville + Nunito** added to the shared Google Fonts import in `theme.js` for the Garden theme.
+
+### Changed
+
+- `0006_themes.sql` merged into `0004_weddings.sql` (natural home for all weddings DDL); migrations folder stays at 5 files. `USER_GUIDE §1a` reconcile table updated.
+
+---
+
 ## [2026-06-29] — docs/readme-hero-gif
 
 ### Added
