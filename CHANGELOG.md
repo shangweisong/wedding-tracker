@@ -5,6 +5,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2026-06-29] — feat/delete-guest-reset-seating (PR #35)
+
+### Added
+
+- **Delete guest with safety confirmation** — trash button on every RSVP tab row opens a confirmation modal. Safe mode (default) requires typing `DELETE` before the button activates; quick mode is a one-click confirm. Toggle persists to `localStorage`. Deletion calls `sb.delete("guests", id)`; FK on `submissions.matched_guest_id` cascades to `SET NULL`, wiping the guest from all tables.
+- **Reset seating plan** — `↺ Reset Seating` button in seating toolbar. Confirmation modal before executing. On confirm, a single bulk `UPDATE` sets `table_id = NULL` and `table_number = ''` for every guest; table definitions are kept.
+- **Bulk add tables** — `+ Add Multiple` button in seating toolbar. Modal accepts count and capacity-per-table. Auto-numbers from the lowest available integers, filling gaps and skipping existing table numbers. Shows a live preview of which numbers will be created.
+
+### Changed
+
+- **Seating algorithm reworked** (`seatingSuggestion.js`) — within each side, sub-groups (relationship category × friend subtype) are sorted by size descending and packed greedily as one flat queue. Overflow from a larger sub-group blends with the next sub-group in the same table, keeping seats full. Only the groom/bride boundary remains hard — `slotIdx` advances past partial tables at every side transition so the two sides never share a table.
+- **D-day mode shows confirmed guests only** — guest list and table view exclude any guest whose `rsvp_status` is not `"confirmed"`.
+- **Seating tab excludes non-confirmed guests** — `assignedAt` and the occupancy counter filter to `rsvp_status === "confirmed"`; declined/pending guests with a lingering `table_id` are invisible in table cards and do not consume capacity for the suggestion.
+
+---
+
 ## [2026-06-29] — feat/wedding-wishes-wrapped (Phase 4 complete)
 
 ### Added
