@@ -5,6 +5,34 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2026-06-29] — improve/wishes-wrapped-ui
+
+### Changed
+
+- **Wishes Wrapped — segmented progress bar** — thin bar across the top of the presentation with one segment per slide; active segment fills over 8 s during autoplay, dimly lit at rest, solid for past slides.
+- **Wishes Wrapped — staggered word cloud** — each word cascades in with a 40 ms delay per index (`animation-delay: calc(var(--i) * 40ms)`) instead of all appearing simultaneously.
+- **Wishes Wrapped — exit animation** — 150 ms fade-up-out before each incoming slide's fade-in; all navigation paths (buttons, keyboard, autoplay) route through `navigate()`.
+- **Wishes Wrapped — tap-to-advance** — click left half of slide = previous, right half = next; controls bar excluded.
+- **Wishes Wrapped — Vibrant font consistency** — DM Sans extended to `.ww-award-name`, `.ww-award-quote`, `.ww-word`, `.ww-thanks-names`; previously only titles/numbers were overridden.
+- **Wishes Wrapped — Thank You closing line** — "Thank you for being part of our story" added below the date in the final slide.
+- **Wishes Wrapped — Hall of Silence muted cards** — softer background, reduced border, muted text colour to differentiate "gentle roast" from celebration stats.
+- **RSVP page — confirmation screen** — redesigned with pulsing `♡`, large 36 px heading, guest name in italic gold, and a date + venue keepsake card for attending guests.
+- **RSVP page — attending buttons** — Yes now highlights gold (warm/celebratory); No highlights muted charcoal (sympathetic, not alarming).
+- **RSVP page — meal/dietary expand animation** — smooth CSS grid `0fr → 1fr` transition replaces hard snap.
+- **RSVP page — card entrance** — 0.45 s fade-up animation on load.
+- **RSVP page — logo** — 32 px, pulsing heart span, tighter eyebrow tracking.
+- **RSVP page — submit button** — pill shape (`border-radius: 50 px`) matching the wedding page CTA; sticky on mobile with gradient fade.
+- **RSVP page — theme card backgrounds** — Garden card tinted `#f3f8f0`, Chinese card tinted `#fff8f8`.
+- **Wedding page — scroll entrance animations** — `IntersectionObserver` fades each `.wp-section` in as it enters the viewport.
+- **Wedding page — Big Day timeline** — vertical timeline with circular icon nodes and gold connector line replaces the flat event card list.
+- **Wedding page — closing CTA panel** — dark gradient panel (matching hero mood) with white title and gold pill button; Garden/Chinese variants use matching dark-green and dark-crimson gradients.
+- **Wedding page — Q&A cards** — larger answer text (`clamp(18–22 px)`), decorative `"` quote mark via `::before`, bolder question label.
+- **Wedding page — hero invite tag** — personalised with couple names when available.
+- **Wedding page — hero radial glow** — subtle gold/green/amber radial gradient behind couple names for depth.
+- **Wedding page — Getting There** — paragraphs split on `\n\n` with auto-detected transport icons (🚇 MRT, 🚗 car, 🚶 walking, 📍 default).
+
+---
+
 ## [2026-06-29] — fix/wishes-wrapped-confirmed-only (PR #41)
 
 ### Fixed

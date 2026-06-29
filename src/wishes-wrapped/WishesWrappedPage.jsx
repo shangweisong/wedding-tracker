@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { theme } from '../shared/theme.js';
 
 // ─── Vibrant gradient backgrounds (one per slide type) ────────────────────────
@@ -83,6 +83,10 @@ const wwStyles = theme + `
   .ww-page.vibrant .ww-btn.active    { background: rgba(255,255,255,0.15); border-color: white; color: white; }
   .ww-page.vibrant .ww-counter       { color: rgba(255,255,255,0.45); }
   .ww-page.vibrant .ww-sep           { background: rgba(255,255,255,0.14); }
+  .ww-page.vibrant .ww-award-name   { font-family: 'DM Sans', sans-serif; font-weight: 700; }
+  .ww-page.vibrant .ww-award-quote  { font-family: 'DM Sans', sans-serif; }
+  .ww-page.vibrant .ww-word         { font-family: 'DM Sans', sans-serif; font-weight: 600; }
+  .ww-page.vibrant .ww-thanks-names { font-family: 'DM Sans', sans-serif; font-weight: 700; }
 
   .ww-slide {
     flex: 1;
@@ -98,6 +102,12 @@ const wwStyles = theme + `
     from { opacity: 0; transform: translateY(22px); }
     to   { opacity: 1; transform: translateY(0); }
   }
+  @keyframes wwFadeOut {
+    from { opacity: 1; transform: translateY(0); }
+    to   { opacity: 0; transform: translateY(-14px); }
+  }
+  .ww-slide-wrapper { display: contents; }
+  .ww-slide-wrapper.ww-exiting .ww-slide { animation: wwFadeOut 0.15s ease forwards; }
 
   .ww-slide-emoji { font-size: 64px; margin-bottom: 24px; line-height: 1; }
   .ww-slide-label {
@@ -155,6 +165,8 @@ const wwStyles = theme + `
   .ww-word {
     font-family: 'Cormorant Garamond', serif;
     color: var(--ww-text); line-height: 1.2;
+    animation: wwFadeIn 0.5s ease both;
+    animation-delay: calc(var(--i, 0) * 40ms);
   }
 
   /* ── Award ── */
@@ -213,6 +225,13 @@ const wwStyles = theme + `
     font-size: clamp(18px, 2.8vw, 32px);
     color: var(--ww-accent); font-style: italic;
   }
+  .ww-thanks-closer {
+    font-family: 'DM Sans', sans-serif;
+    font-size: clamp(12px, 1.4vw, 15px);
+    color: var(--ww-muted);
+    letter-spacing: 0.14em; text-transform: uppercase;
+    margin-top: 24px;
+  }
 
   /* ── Controls ── */
   .ww-controls {
@@ -240,6 +259,29 @@ const wwStyles = theme + `
     letter-spacing: 0.1em; min-width: 50px; text-align: center;
   }
   .ww-sep { width: 1px; height: 20px; background: rgba(201,168,76,0.14); margin: 0 3px; }
+
+  /* ── Progress bar ── */
+  .ww-progress {
+    position: fixed; top: 0; left: 0; right: 0;
+    display: flex; gap: 4px;
+    padding: 10px 12px 6px;
+    z-index: 99; pointer-events: none;
+  }
+  .ww-progress-seg {
+    flex: 1; height: 3px; border-radius: 2px;
+    background: rgba(255,255,255,0.15); overflow: hidden;
+  }
+  .ww-progress-fill {
+    height: 100%; border-radius: 2px;
+    background: var(--ww-accent);
+  }
+  .ww-fill-done   { width: 100%; }
+  .ww-fill-active { width: 0%; animation: wwProgressFill 8s linear forwards; }
+  .ww-fill-static { width: 100%; opacity: 0.4; }
+  @keyframes wwProgressFill {
+    from { width: 0%; }
+    to   { width: 100%; }
+  }
 
   /* ── No-data ── */
   .ww-no-data {
@@ -352,11 +394,11 @@ function SilenceSlide({ silentGuests, bg }) {
       <div style={{ display: 'flex', gap: '18px', flexWrap: 'wrap', justifyContent: 'center', marginBottom: '40px' }}>
         {silentGuests.map((g, i) => (
           <div key={g.id ?? i} style={{
-            background: 'var(--ww-card)', border: '1px solid var(--ww-border)',
-            borderRadius: '16px', padding: '18px 28px',
+            background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: '10px', padding: '12px 22px',
             fontFamily: "'Cormorant Garamond', serif",
-            fontSize: 'clamp(22px, 3.5vw, 40px)',
-            color: 'var(--ww-text)', lineHeight: 1.2,
+            fontSize: 'clamp(18px, 2.8vw, 34px)',
+            color: 'var(--ww-muted)', lineHeight: 1.2,
           }}>
             {g.name}
           </div>
@@ -558,6 +600,7 @@ function WordCloudSlide({ topWords, vibrant, bg }) {
             key={word}
             className="ww-word"
             style={{
+              '--i':     i,
               fontSize:  `${scale(count)}px`,
               opacity:   vibrant ? undefined : opacity(count),
               color:     vibrant ? VIBRANT_WORD_COLORS[i % VIBRANT_WORD_COLORS.length] : undefined,
@@ -638,6 +681,7 @@ function ThankYouSlide({ wedding, bg }) {
       <div className="ww-thanks-from">From everyone who loves you</div>
       {names && <div className="ww-thanks-names">{names}</div>}
       {date && <div className="ww-thanks-date">{date}</div>}
+      <div className="ww-thanks-closer">Thank you for being part of our story</div>
     </div>
   );
 }
@@ -760,8 +804,10 @@ export default function WishesWrappedPage() {
   );
 
   const [idx, setIdx]           = useState(0);
+  const [exiting, setExiting]   = useState(false);
   const [autoPlay, setAutoPlay] = useState(false);
   const [isFullscreen, setFs]   = useState(false);
+  const exitTimer               = useRef(null);
 
   useEffect(() => { document.title = 'Wedding Wishes Wrapped ✨'; }, []);
 
@@ -770,10 +816,20 @@ export default function WishesWrappedPage() {
     [data, wedding, pageTheme, enabledSlides],
   );
 
-  const prev = useCallback(() => setIdx(i => Math.max(0, i - 1)), []);
+  const navigate = useCallback((newIdxFn) => {
+    if (exitTimer.current) return;
+    setExiting(true);
+    exitTimer.current = setTimeout(() => {
+      setIdx(newIdxFn);
+      setExiting(false);
+      exitTimer.current = null;
+    }, 150);
+  }, []);
+
+  const prev = useCallback(() => navigate(i => Math.max(0, i - 1)), [navigate]);
   const next = useCallback(
-    () => setIdx(i => (slides.length ? Math.min(slides.length - 1, i + 1) : i)),
-    [slides.length],
+    () => navigate(i => (slides.length ? Math.min(slides.length - 1, i + 1) : i)),
+    [navigate, slides.length],
   );
 
   useEffect(() => {
@@ -788,13 +844,15 @@ export default function WishesWrappedPage() {
   useEffect(() => {
     if (!autoPlay || !slides.length) return;
     const timer = setInterval(() => {
-      setIdx(i => {
+      navigate(i => {
         if (i >= slides.length - 1) { setAutoPlay(false); return i; }
         return i + 1;
       });
     }, 8000);
     return () => clearInterval(timer);
-  }, [autoPlay, slides.length]);
+  }, [autoPlay, slides.length, navigate]);
+
+  useEffect(() => () => { if (exitTimer.current) clearTimeout(exitTimer.current); }, []);
 
   useEffect(() => {
     const handler = () => setFs(!!document.fullscreenElement);
@@ -826,8 +884,26 @@ export default function WishesWrappedPage() {
   return (
     <>
       <style>{wwStyles}</style>
-      <div className={`ww-page${pageTheme === 'vibrant' ? ' vibrant' : ''}`}>
-        {slides[idx] ?? null}
+      <div
+        className={`ww-page${pageTheme === 'vibrant' ? ' vibrant' : ''}`}
+        onClick={(e) => {
+          if (e.target.closest?.('.ww-controls')) return;
+          if (e.clientX < window.innerWidth / 2) prev(); else next();
+        }}
+      >
+        <div className="ww-progress">
+          {slides.map((_, i) => (
+            <div key={i} className="ww-progress-seg">
+              {i < idx && <div className="ww-progress-fill ww-fill-done" />}
+              {i === idx && autoPlay && <div className="ww-progress-fill ww-fill-active" />}
+              {i === idx && !autoPlay && <div className="ww-progress-fill ww-fill-static" />}
+            </div>
+          ))}
+        </div>
+
+        <div className={`ww-slide-wrapper${exiting ? ' ww-exiting' : ''}`}>
+          {slides[idx] ?? null}
+        </div>
 
         <div className="ww-controls">
           <button className="ww-btn" onClick={prev} disabled={idx === 0} title="Previous (←)">←</button>
