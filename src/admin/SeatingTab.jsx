@@ -235,7 +235,7 @@ function TableCard({ table, seated, onToggleLock, onEdit, onDelete, onRemoveGues
   );
 }
 
-export default function SeatingTab({ guests, onUpdate, showToast }) {
+export default function SeatingTab({ guests, onUpdate, onResetSeating, showToast }) {
   const [tables, setTables] = useState(() => (isDemoMode ? DEMO_TABLES : []));
   const [loading, setLoading] = useState(!isDemoMode);
   const [modal, setModal] = useState(null);
@@ -243,6 +243,7 @@ export default function SeatingTab({ guests, onUpdate, showToast }) {
   const [form, setForm] = useState(BLANK_FORM);
   const [saving, setSaving] = useState(false);
   const [activeGuestId, setActiveGuestId] = useState(null);
+  const [resetConfirm, setResetConfirm] = useState(false);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
   );
@@ -475,6 +476,13 @@ export default function SeatingTab({ guests, onUpdate, showToast }) {
             <button className="btn btn-outline" onClick={() => window.print()}>
               🖨 Print
             </button>
+            <button
+              className="btn btn-outline"
+              style={{ color: "#c0392b", borderColor: "rgba(192,57,43,0.3)", marginLeft: "auto" }}
+              onClick={() => setResetConfirm(true)}
+            >
+              ↺ Reset Seating
+            </button>
           </div>
 
           {/* Unassigned pool */}
@@ -591,6 +599,28 @@ export default function SeatingTab({ guests, onUpdate, showToast }) {
                 disabled={saving}
               >
                 {saving ? "Saving…" : modal === "edit" ? "Save Changes" : "Add Table"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* RESET SEATING CONFIRMATION */}
+      {resetConfirm && (
+        <div className="modal-overlay" onClick={() => setResetConfirm(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-title">Reset Seating Plan?</div>
+            <p style={{ fontSize: 14, color: "var(--charcoal)", lineHeight: 1.6, marginBottom: 24 }}>
+              All seat assignments will be cleared — every guest moves back to the unassigned pool. Table definitions are kept.
+            </p>
+            <div className="modal-actions">
+              <button className="btn btn-outline" onClick={() => setResetConfirm(false)}>Cancel</button>
+              <button
+                className="btn"
+                style={{ background: "#c0392b", color: "white" }}
+                onClick={() => { setResetConfirm(false); onResetSeating(); }}
+              >
+                Reset All
               </button>
             </div>
           </div>

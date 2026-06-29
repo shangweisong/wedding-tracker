@@ -56,6 +56,8 @@ const styles = `
   .rsvp-btn-save { border-color: var(--green); background: var(--green); color: white; }
   .rsvp-btn-save:hover { background: #1e4d38; }
   .rsvp-btn-cancel { border-color: rgba(92,74,42,0.2); background: white; color: var(--brown); }
+  .rsvp-btn-delete { border-color: rgba(192,57,43,0.25); background: white; color: #c0392b; opacity: 0.7; }
+  .rsvp-btn-delete:hover { opacity: 1; border-color: #c0392b; background: rgba(192,57,43,0.05); }
 
   .rsvp-edit-panel { border-top: 1px solid rgba(201,168,76,0.15); padding: 14px 18px; background: var(--warm-white); display: grid; grid-template-columns: 1fr 1fr; gap: 12px; animation: fadeIn 0.15s ease; }
   .rsvp-edit-group { display: flex; flex-direction: column; gap: 4px; }
@@ -74,7 +76,7 @@ const styles = `
   }
 `;
 
-export default function RsvpTab({ guests, onUpdate, showToast }) {
+export default function RsvpTab({ guests, onUpdate, onDelete, showToast }) {
   const [statusFilter, setStatusFilter] = useState("all");
   const [partyFilter, setPartyFilter] = useState("all");
   const [editingId, setEditingId] = useState(null);
@@ -262,6 +264,13 @@ export default function RsvpTab({ guests, onUpdate, showToast }) {
                       }
                     >
                       {editingId === g.id ? "Cancel" : "Edit"}
+                    </button>
+                    <button
+                      className="rsvp-btn rsvp-btn-delete"
+                      onClick={() => onDelete(g)}
+                      title="Delete guest"
+                    >
+                      🗑 Delete
                     </button>
                   </div>
                 </div>
