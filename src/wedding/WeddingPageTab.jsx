@@ -138,6 +138,24 @@ const styles = `
     font-size: 12px; color: var(--green);
   }
 
+  /* Theme picker */
+  .wpt-theme-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-top: 4px; }
+  .wpt-theme-opt {
+    border: 1.5px solid rgba(201,168,76,0.2); border-radius: 12px;
+    padding: 14px 10px 12px; cursor: pointer; text-align: center;
+    background: white; transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .wpt-theme-opt:hover { border-color: var(--gold); }
+  .wpt-theme-opt.active {
+    border-color: var(--gold); background: rgba(201,168,76,0.06);
+    box-shadow: 0 0 0 2px rgba(201,168,76,0.2);
+  }
+  .wpt-theme-swatch {
+    width: 100%; height: 36px; border-radius: 8px; margin-bottom: 8px;
+  }
+  .wpt-theme-name { font-size: 12px; font-weight: 500; color: var(--charcoal); }
+  .wpt-theme-sub  { font-size: 11px; color: var(--brown); opacity: 0.6; margin-top: 2px; }
+
   /* Save button */
   .wpt-save-row { display: flex; justify-content: flex-end; padding-top: 4px; }
   .btn-gold {
@@ -187,6 +205,7 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
   const [mealOptions, setMealOptions]   = useState("");
   const [gettingThere, setGettingThere] = useState("");
   const [isPublished, setIsPublished]   = useState(false);
+  const [pageTheme, setPageTheme]       = useState("minimal");
   const [qaAnswers, setQaAnswers]  = useState({});
 
   useEffect(() => {
@@ -208,6 +227,8 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
     setGettingThere(wedding.getting_there || "");
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsPublished(wedding.is_published || false);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPageTheme(wedding.theme || "minimal");
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setQaAnswers(getQaAnswers(wedding.fun_qa));
   }, [wedding]);
@@ -277,6 +298,7 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
       is_published:    isPublished,
       meal_options:    mealOptions.trim(),
       getting_there:   gettingThere.trim(),
+      theme:           pageTheme,
     });
     setSaving(false);
   };
@@ -438,6 +460,32 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
                   placeholder="Your answer…"
                 />
               </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── THEME ── */}
+        <div className="wpt-card">
+          <div className="wpt-card-title">Page Theme</div>
+          <div className="wpt-card-sub">
+            Applies to your public wedding page and the RSVP form. The rest of the app is unaffected.
+          </div>
+          <div className="wpt-theme-grid">
+            {[
+              { id: "minimal", name: "Minimal",  sub: "Dark gold",     swatch: "linear-gradient(135deg,#2c2416 0%,#1a1008 60%,#3a2a10 100%)" },
+              { id: "garden",  name: "Garden",   sub: "Forest & sage", swatch: "linear-gradient(135deg,#1b3d13 0%,#0f2208 60%,#2a4a1c 100%)" },
+              { id: "chinese", name: "Traditional",sub: "Red & gold",  swatch: "linear-gradient(135deg,#7a0a0a 0%,#5c0000 60%,#8b1515 100%)" },
+            ].map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                className={`wpt-theme-opt${pageTheme === t.id ? " active" : ""}`}
+                onClick={() => setPageTheme(t.id)}
+              >
+                <div className="wpt-theme-swatch" style={{ background: t.swatch }} />
+                <div className="wpt-theme-name">{t.name}</div>
+                <div className="wpt-theme-sub">{t.sub}</div>
+              </button>
             ))}
           </div>
         </div>

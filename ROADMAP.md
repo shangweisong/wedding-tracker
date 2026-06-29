@@ -21,15 +21,15 @@ A quick-scan list of known bugs, deferred work, and housekeeping. Details live i
 |---|---|---|---|
 | 1 | RSVP | ~~**Fuzzy name match false-positive**~~ ✅ — no-token RSVP flow now uses search-and-select + token-based submit; `submit_rsvp_by_name` is no longer called at submission time. [Issue #18](https://github.com/shangweisong/wedding-tracker/issues/18) | §3.1 |
 | 2 | Email | ~~**Supabase Vault webhook setup is manual**~~ ✅ — `scripts/setup-vault-secrets.sh` reads `.env` and either runs the SQL via the Supabase CLI or prints a pre-filled snippet to paste into the SQL Editor. [Issue #17](https://github.com/shangweisong/wedding-tracker/issues/17) | §Housekeeping |
-| 3 | Wedding Page | **Single template only** — only the Minimal dark-gold theme exists. Additional templates (Floral, Modern, Traditional, Garden) and accent colour picker are pending. | §3.3 |
+| 3 | Wedding Page | ~~**Single template only**~~ ✅ — Garden (forest green) and Traditional Chinese (red & gold) themes added. Theme picker in Wedding Page tab. Applies to wedding page + RSVP form only. | §3.3 |
 | 4 | Docs | ~~**README → User Guide split**~~ ✅ — `docs/USER_GUIDE.md` created; README is now a 1-page overview + quick-start. | §Housekeeping |
-| 5 | Migrations | ~~**Migration consolidation**~~ ✅ — `0006` and `0007` content merged into `0005`; both files deleted. Migration table is back to a clean 5-file structure. CLI users: see USER_GUIDE §1a for the one-time tracking cleanup. | §Housekeeping |
+| 5 | Migrations | ~~**Migration consolidation**~~ ✅ — `0006`/`0007` merged into `0005`; `0006_themes` merged into `0004`. Migration table stays at 5 files. CLI users: see USER_GUIDE §1a for tracking cleanup. | §Housekeeping |
 | 6 | Security | ~~**Admin PIN disabled**~~ ✅ — `unlocked` restored to `useState(isDemoMode)`; `VITE_HELPER_PASSWORD` removed (was exposing Supabase password in JS bundle). [PR #31](https://github.com/shangweisong/wedding-tracker/pull/31) | §Security |
 | 7 | Security | ~~**`CRON_SECRET` not enforced**~~ ✅ — now mandatory; returns 500 if env var absent, 401 if header mismatch. | §Security |
 | 8 | Email | ~~**RSVP email buttons undersized**~~ ✅ — reminder CTA bumped to `16px 36px`; "Update RSVP" promoted to outlined button in confirmation/declined emails. | §Security |
 | 9 | Security | ~~**PayNow `/#pay` page is fully public**~~ ✅ — documented with explicit "intentionally no auth check" comment in `AdminApp.jsx`. | §Security |
 | 10 | Wishes Wrapped | ~~**Not started**~~ ✅ — Phase 4 complete: pure-stats engine, Elegant + Vibrant themes, Hall of Silence MC callout, per-slide toggle, 114 unit tests. AI tier and keepsake export remain optional follow-ons. | §4 |
-| 11 | Docs | **README hero GIF + screenshots** — add a demo GIF right after the title (before any text), then a `## Screenshots` section after Features. Record ~15–20s covering: Planning/D-Day toggle → RSVP submission → seating auto-suggest → lock a table. Use [Kap](https://getkap.co/) (free, Mac), keep GIF under 5 MB. Store assets in `docs/` (e.g. `docs/demo.gif`, `docs/screenshot-rsvp.png`). | §Housekeeping |
+| 11 | Docs | ~~**README hero GIF + screenshots**~~ ✅ — hero GIF added after title, `## Screenshots` section added after Features with per-section PNGs in `docs/`. | §Housekeeping |
 
 ---
 
@@ -506,7 +506,7 @@ Options:
 13. ✅ Expand Wedding Setup modal — love story, dress code, hero photo upload, fun Q&A, publish toggle
 14. ✅ Personalised RSVP update links in all guest emails (`SITE_URL` env var + token button in confirmation, declined, and reminder emails)
 15. ✅ Host change-of-mind notifications (`HOST_EMAIL` env var + `0006_rsvp_host_notify.sql` trigger update + `send-rsvp-email.js` host email)
-16. Additional templates (Floral, Modern, Traditional, Garden)
+16. ✅ Additional templates — Garden (forest green) and Traditional Chinese (red & gold) themes added via `0006_themes.sql`. Theme picker in Wedding Page tab; affects wedding page + RSVP page only.
 17. Multi-couple auth (if needed)
 
 ---
@@ -598,7 +598,7 @@ Explicit "intentionally no auth check" comment added in `AdminApp.jsx` near the 
   - `reconcile_remote_db.sql` — run once in Supabase SQL Editor on existing projects to sync migration tracking
 - ✅ **Migration consolidation** — `0006` (`old_rsvp_status` in webhook payload) and `0007` (`second_reminder_sent_at` column) both merged into `0005` and deleted. Migration folder is back to a clean 5-file structure. CLI users on existing deployments: see USER_GUIDE §1a for the one-time tracking cleanup SQL.
 - ✅ **README → User Guide split** — detailed setup instructions (Supabase, email, Vercel, CSV, PayNow, angbao) extracted to [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md). README is now a 1-page overview + quick-start that links to the guide for depth.
-- **README hero GIF** — record a ~15–20s demo GIF (Planning/D-Day toggle → RSVP submit → seating suggest → lock table) with [Kap](https://getkap.co/); save to `docs/demo.gif` (keep under 5 MB). Place `![Demo](docs/demo.gif)` immediately after the title, before the security callout. Add a `## Screenshots` section after Features for static per-section images.
+- ✅ **README hero GIF + screenshots** — `docs/demo.gif` added after title; `## Screenshots` section with per-section PNGs (`docs/screenshot-*.png`) added after Features. Branch `docs/readme-hero-gif`.
 
 ---
 

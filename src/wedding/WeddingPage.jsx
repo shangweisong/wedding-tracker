@@ -40,7 +40,16 @@ const DEMO_WEDDING = {
 };
 
 const styles = theme + `
-  .wp { min-height: 100vh; }
+  .wp { min-height: 100vh; position: relative; }
+
+  /* ── GARDEN LEAVES ── */
+  .wp-leaves-bg {
+    position: absolute; inset: 0; overflow: hidden;
+    pointer-events: none; z-index: 0;
+  }
+  .wp-leaf {
+    position: absolute; opacity: 0.13;
+  }
 
   /* ── PREVIEW BANNER ── */
   .wp-preview-banner {
@@ -54,7 +63,7 @@ const styles = theme + `
   .wp-hero {
     min-height: 100vh; display: flex; flex-direction: column;
     align-items: center; justify-content: center;
-    position: relative; overflow: hidden;
+    position: relative; overflow: hidden; z-index: 1;
     padding: 60px 24px; background-color: #1a1008;
   }
   .wp-hero-content {
@@ -113,7 +122,7 @@ const styles = theme + `
   }
 
   /* ── CONTENT SECTIONS ── */
-  .wp-content { max-width: 720px; margin: 0 auto; padding: 0 24px 80px; }
+  .wp-content { max-width: 720px; margin: 0 auto; padding: 0 24px 80px; position: relative; z-index: 1; }
 
   .wp-section { padding: 64px 0; border-bottom: 1px solid rgba(201,168,76,0.15); }
   .wp-section:last-child { border-bottom: none; }
@@ -222,7 +231,91 @@ const styles = theme + `
       min-height: 100svh;
     }
   }
+
+  /* ── GARDEN THEME ─────────────────────────────────────────────────────────── */
+  [data-theme="garden"].wp { background: #f1f7ed; }
+  [data-theme="garden"] {
+    --gold:       #6b9e4e;
+    --gold-light: #b8d9a0;
+    --gold-dark:  #3d6b2a;
+    --charcoal:   #1a3310;
+    --brown:      #4a6b35;
+    --warm-white: #f0f5ec;
+  }
+  [data-theme="garden"] .wp-couple,
+  [data-theme="garden"] .wp-section-title,
+  [data-theme="garden"] .wp-cta-title,
+  [data-theme="garden"] .wp-qa-a,
+  [data-theme="garden"] .wp-event-value {
+    font-family: 'Libre Baskerville', serif;
+  }
+  [data-theme="garden"] .wp-section   { border-bottom-color: rgba(107,158,78,0.2); }
+  [data-theme="garden"] .wp-qa-item   { border-color: rgba(107,158,78,0.2); }
+  [data-theme="garden"] .wp-event     { border-color: rgba(107,158,78,0.2); }
+  [data-theme="garden"] .wp-dress-badge { border-color: rgba(107,158,78,0.25); }
+  [data-theme="garden"] .wp-countdown  { border-color: rgba(107,158,78,0.35); }
+  [data-theme="garden"] .wp-cta-btn:hover { background: #1a3310; }
+
+  /* ── CHINESE (RED & GOLD) THEME ────────────────────────────────────────────── */
+  [data-theme="chinese"].wp {
+    background-color: #fff5f5;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Ctext x='12' y='80' font-family='serif' font-size='72' font-weight='900' fill='%23c9a84c' opacity='0.1' transform='rotate(-10 52 64)'%3E%E5%96%9C%3C/text%3E%3Ctext x='94' y='162' font-family='serif' font-size='72' font-weight='900' fill='%23c9a84c' opacity='0.1' transform='rotate(8 134 146)'%3E%E5%96%9C%3C/text%3E%3C/svg%3E");
+    background-size: 180px 180px;
+  }
+  [data-theme="chinese"] {
+    --gold:       #c9a84c;
+    --gold-light: #f5dc80;
+    --gold-dark:  #a07830;
+    --charcoal:   #6b0000;
+    --brown:      #8b1a1a;
+    --warm-white: #fff5f5;
+  }
+  [data-theme="chinese"] .wp-section   { border-bottom-color: rgba(180,0,0,0.12); }
+  [data-theme="chinese"] .wp-qa-item   { border-color: rgba(180,0,0,0.12); }
+  [data-theme="chinese"] .wp-event     { border-color: rgba(180,0,0,0.12); }
+  [data-theme="chinese"] .wp-dress-badge { border-color: rgba(180,0,0,0.18); background: #fff5f5; }
+  [data-theme="chinese"] .wp-countdown  { border-color: rgba(201,168,76,0.4); }
+  [data-theme="chinese"] .wp-cta-btn   { background: #6b0000; }
+  [data-theme="chinese"] .wp-cta-btn:hover { background: #4a0000; }
+  [data-theme="chinese"] .wp-rsvp-btn  { background: #c9a84c; color: #3a1a00; }
+  [data-theme="chinese"] .wp-rsvp-btn:hover { background: #a07830; }
 `;
+
+function LeafIcon({ style }) {
+  return (
+    <svg viewBox="0 0 30 50" style={style} className="wp-leaf" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+      <path d="M15,3 C22,6 26,22 20,40 Q18,45 15,47 Q12,45 10,40 C4,22 8,6 15,3Z" fill="#3d6b2a" />
+      <path d="M15,5 Q17,26 14,46" stroke="#2d5020" strokeWidth="0.9" fill="none" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+const GARDEN_LEAVES = [
+  { top: "20%",  left: "-20px",  rot: 15,   w: 74,  h: 122 },
+  { top: "26%",  right: "-18px", rot: -150, w: 61,  h: 101 },
+  { top: "37%",  left: "-16px",  rot: 40,   w: 51,  h: 85  },
+  { top: "43%",  right: "-16px", rot: 175,  w: 80,  h: 133 },
+  { top: "55%",  left: "-22px",  rot: -25,  w: 67,  h: 112 },
+  { top: "61%",  right: "-14px", rot: 95,   w: 58,  h: 96  },
+  { top: "70%",  left: "-14px",  rot: 130,  w: 48,  h: 80  },
+  { top: "78%",  right: "-20px", rot: -70,  w: 70,  h: 117 },
+  { top: "87%",  left: "-18px",  rot: 200,  w: 61,  h: 101 },
+  { top: "93%",  right: "-16px", rot: 120,  w: 54,  h: 90  },
+  { top: "48%",  left: "12px",   rot: 60,   w: 33,  h: 54  },
+  { top: "66%",  right: "10px",  rot: -40,  w: 30,  h: 50  },
+];
+
+function heroGradient(t) {
+  if (t === "garden")  return "linear-gradient(160deg, #1b3d13 0%, #0f2208 60%, #2a4a1c 100%)";
+  if (t === "chinese") return "linear-gradient(160deg, #7a0a0a 0%, #5c0000 60%, #8b1515 100%)";
+  return "linear-gradient(160deg, #2c2416 0%, #1a1008 60%, #3a2a10 100%)";
+}
+
+function heroBgColor(t) {
+  if (t === "garden")  return "#0f2208";
+  if (t === "chinese") return "#5c0000";
+  return "#1a1008";
+}
 
 function fmt12h(t) {
   if (!t) return "";
@@ -331,14 +424,33 @@ export default function WeddingPage() {
 
   const { bride_name, groom_name, wedding_date, venue_name, venue_address,
           ceremony_time, dinner_time, tea_ceremony_time, love_story, dress_code,
-          hero_image_url, rsvp_deadline, is_published, getting_there } = wedding;
+          hero_image_url, rsvp_deadline, is_published, getting_there,
+          theme: pageTheme = "minimal" } = wedding;
 
   const coupleNames = `${groom_name} & ${bride_name}`;
 
   return (
     <>
       <style>{styles}</style>
-      <div className="wp">
+      <div className="wp" data-theme={pageTheme}>
+
+        {pageTheme === "garden" && (
+          <div className="wp-leaves-bg">
+            {GARDEN_LEAVES.map((l, i) => (
+              <LeafIcon
+                key={i}
+                style={{
+                  top: l.top,
+                  left: l.left,
+                  right: l.right,
+                  width: l.w,
+                  height: l.h,
+                  transform: `rotate(${l.rot}deg)`,
+                }}
+              />
+            ))}
+          </div>
+        )}
 
         {!is_published && (
           <div className="wp-preview-banner">
@@ -352,10 +464,10 @@ export default function WeddingPage() {
           style={{
             backgroundImage: hero_image_url
               ? `linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.45) 100%), url(${hero_image_url})`
-              : `linear-gradient(160deg, #2c2416 0%, #1a1008 60%, #3a2a10 100%)`,
+              : heroGradient(pageTheme),
             backgroundSize: "cover",
             backgroundPosition: "center",
-            backgroundColor: "#1a1008",
+            backgroundColor: heroBgColor(pageTheme),
           }}
         >
 
