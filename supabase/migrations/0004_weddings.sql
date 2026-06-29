@@ -1,7 +1,8 @@
 -- Wedding Setup + Public Wedding Page
 --
 -- Consolidated from: 0007_wedding_setup, 0008_wedding_page,
---                    0009_tea_ceremony, 0010_getting_there
+--                    0009_tea_ceremony, 0010_getting_there,
+--                    0006_themes
 --
 -- Creates the `weddings` singleton table with all columns in their final form,
 -- the wedding-photos storage bucket, and all four RPCs at their final signatures.
@@ -29,6 +30,7 @@ create table if not exists public.weddings (
   is_published      boolean     default false,
   meal_options      text        default '',
   getting_there     text        default '',
+  theme             text        default 'minimal',
   updated_at        timestamptz not null default now()
 );
 
@@ -39,6 +41,9 @@ alter table public.weddings enable row level security;
 
 drop policy if exists "public" on public.weddings;
 create policy "public" on public.weddings for all using (true) with check (true);
+
+-- theme column may be absent on existing DBs that ran the old 0004.
+alter table public.weddings add column if not exists theme text default 'minimal';
 
 -- ── 2. STORAGE BUCKET (hero photos) ──────────────────────────────────────────
 
@@ -87,7 +92,8 @@ returns table (
   rsvp_deadline     date,
   is_published      boolean,
   meal_options      text,
-  getting_there     text
+  getting_there     text,
+  theme             text
 )
 language sql
 security definer
@@ -111,7 +117,8 @@ as $$
     rsvp_deadline,
     coalesce(is_published, false),
     coalesce(meal_options, ''),
-    coalesce(getting_there, '')
+    coalesce(getting_there, ''),
+    coalesce(theme, 'minimal')
   from public.weddings
   limit 1;
 $$;
@@ -173,6 +180,7 @@ grant execute on function public.upsert_wedding_config(text, text, date, text, t
 -- 3c. Upsert public page fields (Wedding Page tab).
 drop function if exists public.upsert_wedding_page(text, text, text, text, jsonb, date, boolean, text);
 drop function if exists public.upsert_wedding_page(text, text, text, text, jsonb, date, boolean, text, text);
+drop function if exists public.upsert_wedding_page(text, text, text, text, jsonb, date, boolean, text, text, text);
 
 create or replace function public.upsert_wedding_page(
   p_slug            text,
@@ -183,7 +191,8 @@ create or replace function public.upsert_wedding_page(
   p_rsvp_deadline   date,
   p_is_published    boolean,
   p_meal_options    text,
-  p_getting_there   text default ''
+  p_getting_there   text default '',
+  p_theme           text default 'minimal'
 )
 returns void
 language plpgsql
@@ -195,7 +204,7 @@ begin
     bride_name, groom_name,
     slug, love_story, dress_code, hero_image_url,
     fun_qa, rsvp_deadline, is_published, meal_options,
-    getting_there, updated_at
+    getting_there, theme, updated_at
   ) values (
     '', '',
     p_slug,
@@ -207,6 +216,7 @@ begin
     coalesce(p_is_published, false),
     left(coalesce(p_meal_options, ''), 200),
     left(coalesce(p_getting_there, ''), 2000),
+    coalesce(p_theme, 'minimal'),
     now()
   )
   on conflict ((true)) do update set
@@ -219,11 +229,12 @@ begin
     is_published   = coalesce(p_is_published, false),
     meal_options   = left(coalesce(p_meal_options, ''), 200),
     getting_there  = left(coalesce(p_getting_there, ''), 2000),
+    theme          = coalesce(p_theme, 'minimal'),
     updated_at     = now();
 end;
 $$;
 
-grant execute on function public.upsert_wedding_page(text, text, text, text, jsonb, date, boolean, text, text)
+grant execute on function public.upsert_wedding_page(text, text, text, text, jsonb, date, boolean, text, text, text)
   to anon, authenticated;
 
 -- 3d. Public page lookup by slug (used by /wedding/:slug route).
@@ -247,7 +258,8 @@ returns table (
   rsvp_deadline     date,
   is_published      boolean,
   meal_options      text,
-  getting_there     text
+  getting_there     text,
+  theme             text
 )
 language sql
 security definer
@@ -270,7 +282,8 @@ as $$
     rsvp_deadline,
     coalesce(is_published, false),
     coalesce(meal_options, ''),
-    coalesce(getting_there, '')
+    coalesce(getting_there, ''),
+    coalesce(theme, 'minimal')
   from public.weddings
   where slug = p_slug
   limit 1;

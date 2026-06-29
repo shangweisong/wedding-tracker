@@ -37,12 +37,25 @@ Open the **SQL Editor** in your Supabase dashboard and run the migrations **in o
 
 All migrations are idempotent (`CREATE OR REPLACE`, `IF NOT EXISTS`) — safe to re-run.
 
-> **Supabase CLI users (existing deployments):** if you previously applied `0006_rsvp_host_notify.sql` or `0007_second_reminder.sql` via `supabase db push`, those files have been consolidated into `0005`. Remove the stale entries from the migration tracking table to keep the CLI in sync:
+> **Supabase CLI users (existing deployments):** some files have been consolidated since earlier releases. If you applied any of the files listed below via `supabase db push`, remove their stale tracking entries so the CLI stays in sync:
+>
+> | Removed file | Consolidated into |
+> |---|---|
+> | `0006_rsvp_host_notify.sql` | `0005_email_automation.sql` |
+> | `0007_second_reminder.sql` | `0005_email_automation.sql` |
+> | `0006_themes.sql` | `0004_weddings.sql` |
+>
 > ```sql
+> -- Remove whichever rows match files you previously applied.
+> -- Check your actual version timestamps first:
+> --   select * from supabase_migrations.schema_migrations;
 > delete from supabase_migrations.schema_migrations
->   where version in ('20240001000006', '20240001000007');
+>   where version in (
+>     '<timestamp_for_0006_rsvp_host_notify>',
+>     '<timestamp_for_0007_second_reminder>',
+>     '<timestamp_for_0006_themes>'
+>   );
 > ```
-> Replace the version values with the actual timestamps shown in your `supabase_migrations.schema_migrations` table.
 
 > Never use `for all using (true)` — that exposes the entire guest list to anyone with the public anon key.
 
