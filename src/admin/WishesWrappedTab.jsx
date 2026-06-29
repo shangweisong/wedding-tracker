@@ -1,9 +1,22 @@
 import { useState, useMemo } from 'react';
 import { computeWrapped } from './wishesWrapped.js';
 
+// Slide definitions — check(data) returns true when the slide has applicable data
+const SLIDE_TOGGLES = [
+  { key: 'participation', label: '📊 Participation',    check: () => true },
+  { key: 'silence',       label: '🤐 Hall of Silence',  check: (d) => (d.totalGuests - d.totalWishes) > 0 },
+  { key: 'numbers',       label: '🔢 By the Numbers',   check: () => true },
+  { key: 'sides',         label: '💐 Bride vs Groom',   check: (d) => d.sides?.bride?.total > 0 && d.sides?.groom?.total > 0 },
+  { key: 'clusters',      label: '🎭 Personalities',    check: (d) => d.totalWishes >= 3 },
+  { key: 'words',         label: '☁️ Word Cloud',        check: (d) => (d.topWords?.length ?? 0) >= 3 },
+  { key: 'emoji',         label: '😄 Emoji Report',     check: (d) => (d.totalEmojis ?? 0) > 0 },
+  { key: 'awards',        label: '🏆 Award Slides',     check: (d) => Object.keys(d.awards).length > 0 },
+];
+
 export default function WishesWrappedTab({ guests, wedding }) {
-  const [wrappedData, setWrappedData] = useState(null);
-  const [theme, setTheme] = useState('elegant');
+  const [wrappedData, setWrappedData]     = useState(null);
+  const [theme, setTheme]                 = useState('elegant');
+  const [enabledSlides, setEnabledSlides] = useState(new Set());
 
   const wishers = useMemo(
     () => guests.filter(g => (g.rsvp_message || '').trim().length > 0),
@@ -11,7 +24,18 @@ export default function WishesWrappedTab({ guests, wedding }) {
   );
 
   const generate = () => {
-    setWrappedData(computeWrapped(guests));
+    const d = computeWrapped(guests);
+    setWrappedData(d);
+    // Default: enable all slides that have applicable data
+    setEnabledSlides(new Set(SLIDE_TOGGLES.filter(s => s.check(d)).map(s => s.key)));
+  };
+
+  const toggleSlide = (key) => {
+    setEnabledSlides(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
   };
 
   const openPresentation = () => {
@@ -20,6 +44,7 @@ export default function WishesWrappedTab({ guests, wedding }) {
       wrapped: wrappedData,
       wedding: wedding ?? null,
       theme,
+      enabledSlides: [...enabledSlides],
     }));
     window.open('/wishes-wrapped', '_blank', 'noopener,noreferrer');
   };
@@ -96,6 +121,69 @@ export default function WishesWrappedTab({ guests, wedding }) {
               <span style={{ display: 'block', fontSize: '10px', opacity: 0.65, fontWeight: 400, marginTop: '1px' }}>{desc}</span>
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Slide selection — only visible after generating */}
+      {wrappedData && (
+        <div style={{
+          marginBottom: '20px', padding: '16px 18px',
+          background: 'white', borderRadius: '12px',
+          border: '1.5px solid rgba(201,168,76,0.15)', boxShadow: 'var(--shadow)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--brown)', opacity: 0.5 }}>
+              Slides to present
+            </span>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              {['All', 'None'].map(label => (
+                <button
+                  key={label}
+                  onClick={() => {
+                    if (label === 'All') {
+                      setEnabledSlides(new Set(SLIDE_TOGGLES.filter(s => s.check(wrappedData)).map(s => s.key)));
+                    } else {
+                      setEnabledSlides(new Set());
+                    }
+                  }}
+                  style={{
+                    padding: '3px 10px', borderRadius: '6px', cursor: 'pointer',
+                    fontFamily: "'DM Sans', sans-serif", fontSize: '11px',
+                    border: '1px solid rgba(201,168,76,0.25)',
+                    background: 'transparent', color: 'var(--brown)', opacity: 0.65,
+                  }}
+                >{label}</button>
+              ))}
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            {SLIDE_TOGGLES.map(({ key, label, check }) => {
+              const available = check(wrappedData);
+              const enabled   = enabledSlides.has(key);
+              if (!available) return null; // hide inapplicable slides
+              return (
+                <button
+                  key={key}
+                  onClick={() => toggleSlide(key)}
+                  style={{
+                    padding: '6px 14px', borderRadius: '20px', cursor: 'pointer',
+                    fontFamily: "'DM Sans', sans-serif", fontSize: '12px',
+                    border: enabled
+                      ? '1.5px solid rgba(201,168,76,0.55)'
+                      : '1.5px solid rgba(201,168,76,0.15)',
+                    background: enabled ? 'rgba(201,168,76,0.1)' : 'rgba(0,0,0,0.02)',
+                    color: enabled ? 'var(--brown)' : 'rgba(100,80,50,0.4)',
+                    fontWeight: enabled ? 600 : 400,
+                    transition: 'all 0.15s',
+                    display: 'flex', alignItems: 'center', gap: '5px',
+                  }}
+                >
+                  <span style={{ fontSize: '10px' }}>{enabled ? '✓' : '○'}</span>
+                  {label}
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 

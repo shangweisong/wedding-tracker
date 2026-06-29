@@ -44,6 +44,16 @@ export function participationComment(rate, count) {
   return "Seems like most guests were here for the food... and that's okay 🍽️";
 }
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function shuffled(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 // ─── Main computation ─────────────────────────────────────────────────────────
 export function computeWrapped(guests) {
   const totalGuests = guests.length;
@@ -52,6 +62,7 @@ export function computeWrapped(guests) {
   const empty = {
     totalGuests, totalWishes: 0, totalWords: 0, avgLength: 0, participationRate: 0,
     longestWish: null, shortestWish: null, topWords: [], awards: {},
+    silentGuests: [],
     sides: {
       bride: { total: 0, wishers: 0, avgWords: 0, emojiCount: 0 },
       groom: { total: 0, wishers: 0, avgWords: 0, emojiCount: 0 },
@@ -159,6 +170,11 @@ export function computeWrapped(guests) {
     ? { word: topOpeningEntry[0], count: topOpeningEntry[1] }
     : null;
 
+  // ── Hall of Silence — random sample of up to 3 guests who said nothing ──
+  // Math.random() is intentional: different people called out each time Generate is clicked.
+  const silent = guests.filter(g => !(g.rsvp_message || '').trim());
+  const silentGuests = shuffled(silent).slice(0, 3);
+
   return {
     totalGuests,
     totalWishes:     wishers.length,
@@ -169,6 +185,7 @@ export function computeWrapped(guests) {
     shortestWish:    { guest: shortest.g, message: shortest.msg, wordCount: shortest.wordCount },
     topWords,
     awards,
+    silentGuests,
     sides,
     clusters,
     totalEmojis:     allEmojis.length,

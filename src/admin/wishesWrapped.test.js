@@ -166,6 +166,27 @@ describe('computeWrapped', () => {
     const r = computeWrapped([g('A', words)]);
     expect(r.novelPages).toBe(2); // 500 / 250
   });
+
+  it('silentGuests returns at most 3 guests with no message', () => {
+    const r = computeWrapped([
+      g('A', 'hello'), g('B', ''), g('C', null), g('D', '   '), g('E', 'world'),
+    ]);
+    expect(r.silentGuests.length).toBeLessThanOrEqual(3);
+    for (const s of r.silentGuests) {
+      expect((s.rsvp_message || '').trim()).toBe('');
+    }
+  });
+
+  it('silentGuests returns all silent guests when fewer than 3', () => {
+    const r = computeWrapped([g('A', 'hello'), g('B', ''), g('C', 'world')]);
+    expect(r.silentGuests).toHaveLength(1);
+    expect(r.silentGuests[0].name).toBe('B');
+  });
+
+  it('silentGuests is empty when everyone wrote something', () => {
+    const r = computeWrapped([g('A', 'hello'), g('B', 'world')]);
+    expect(r.silentGuests).toHaveLength(0);
+  });
 });
 
 describe('participationComment', () => {

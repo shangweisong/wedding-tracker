@@ -17,6 +17,7 @@ const VBG = {
     'linear-gradient(135deg, #1a0028 0%, #581c87 50%, #7e22ce 100%)',
     'linear-gradient(135deg, #1a0a00 0%, #7f1d1d 50%, #dc2626 100%)',
   ],
+  silence:     'linear-gradient(135deg, #0f0f0f 0%, #3b0a0a 50%, #7f1d1d 100%)',
   thanks:      'linear-gradient(135deg, #2d0a1e 0%, #831843 50%, #be185d 100%)',
 };
 
@@ -336,6 +337,43 @@ function ParticipationSlide({ totalWishes, totalGuests, participationRate, topOp
   );
 }
 
+function SilenceSlide({ silentGuests, bg }) {
+  return (
+    <div className="ww-slide" style={bg ? { background: bg } : {}}>
+      <div className="ww-slide-emoji">🤐</div>
+      <div className="ww-slide-label">Hall of Silence</div>
+      <div className="ww-slide-title" style={{ fontSize: 'clamp(28px, 4.5vw, 56px)', marginBottom: '10px' }}>
+        These guests came,<br />ate the food, and...
+      </div>
+      <div className="ww-slide-subtitle" style={{ fontStyle: 'normal', marginBottom: '36px' }}>
+        said absolutely nothing
+      </div>
+
+      <div style={{ display: 'flex', gap: '18px', flexWrap: 'wrap', justifyContent: 'center', marginBottom: '40px' }}>
+        {silentGuests.map((g, i) => (
+          <div key={g.id ?? i} style={{
+            background: 'var(--ww-card)', border: '1px solid var(--ww-border)',
+            borderRadius: '16px', padding: '18px 28px',
+            fontFamily: "'Cormorant Garamond', serif",
+            fontSize: 'clamp(22px, 3.5vw, 40px)',
+            color: 'var(--ww-text)', lineHeight: 1.2,
+          }}>
+            {g.name}
+          </div>
+        ))}
+      </div>
+
+      <div style={{
+        fontFamily: "'DM Sans', sans-serif",
+        fontSize: 'clamp(15px, 1.8vw, 20px)',
+        color: 'var(--ww-accent)', letterSpacing: '0.05em',
+      }}>
+        🎤 MC — time to give them the mike!
+      </div>
+    </div>
+  );
+}
+
 function NumbersSlide({ totalWishes, totalWords, avgLength, novelPages, bg }) {
   return (
     <div className="ww-slide" style={bg ? { background: bg } : {}}>
@@ -614,45 +652,62 @@ const AWARD_DEFS = [
   { key: 'fewestWords',      icon: '💌',  title: 'Keeping It Short & Sweet' },
 ];
 
-function buildSlides(data, wedding, theme) {
+// enabledSlides is a Set of slide keys. Empty set = show all (backwards compatible).
+function buildSlides(data, wedding, theme, enabledSlides) {
   const isVibrant = theme === 'vibrant';
   const vbg = (key) => isVibrant ? (VBG[key] ?? null) : null;
+  const on = (key) => !enabledSlides?.size || enabledSlides.has(key);
 
   const slides = [
     <TitleSlide key="title" wedding={wedding} totalWishes={data.totalWishes} bg={vbg('title')} />,
-    <ParticipationSlide
-      key="participation"
-      totalWishes={data.totalWishes}
-      totalGuests={data.totalGuests ?? 0}
-      participationRate={data.participationRate ?? 0}
-      topOpeningWord={data.topOpeningWord ?? null}
-      bg={vbg('participate')}
-    />,
-    <NumbersSlide
-      key="numbers"
-      totalWishes={data.totalWishes}
-      totalWords={data.totalWords}
-      avgLength={data.avgLength}
-      novelPages={data.novelPages ?? 0}
-      bg={vbg('numbers')}
-    />,
   ];
 
-  // Side vs side — only if both parties have data
-  if (data.sides?.bride?.total > 0 && data.sides?.groom?.total > 0) {
+  if (on('participation')) {
+    slides.push(
+      <ParticipationSlide
+        key="participation"
+        totalWishes={data.totalWishes}
+        totalGuests={data.totalGuests ?? 0}
+        participationRate={data.participationRate ?? 0}
+        topOpeningWord={data.topOpeningWord ?? null}
+        bg={vbg('participate')}
+      />
+    );
+  }
+
+  // Hall of Silence — after participation for narrative flow
+  if (on('silence') && (data.silentGuests?.length ?? 0) > 0) {
+    slides.push(
+      <SilenceSlide key="silence" silentGuests={data.silentGuests} bg={vbg('silence')} />
+    );
+  }
+
+  if (on('numbers')) {
+    slides.push(
+      <NumbersSlide
+        key="numbers"
+        totalWishes={data.totalWishes}
+        totalWords={data.totalWords}
+        avgLength={data.avgLength}
+        novelPages={data.novelPages ?? 0}
+        bg={vbg('numbers')}
+      />
+    );
+  }
+
+  if (on('sides') && data.sides?.bride?.total > 0 && data.sides?.groom?.total > 0) {
     slides.push(<SideVsSideSlide key="sides" sides={data.sides} wedding={wedding} bg={vbg('sides')} />);
   }
 
-  // Clusters — show if at least a few wishers
-  if (data.totalWishes >= 3 && data.clusters) {
+  if (on('clusters') && data.totalWishes >= 3 && data.clusters) {
     slides.push(<ClustersSlide key="clusters" clusters={data.clusters} bg={vbg('clusters')} />);
   }
 
-  if (data.topWords.length >= 3) {
+  if (on('words') && data.topWords.length >= 3) {
     slides.push(<WordCloudSlide key="words" topWords={data.topWords} vibrant={isVibrant} bg={vbg('words')} />);
   }
 
-  if ((data.totalEmojis ?? 0) > 0 && data.topEmoji) {
+  if (on('emoji') && (data.totalEmojis ?? 0) > 0 && data.topEmoji) {
     slides.push(
       <EmojiSlide
         key="emoji"
@@ -664,19 +719,21 @@ function buildSlides(data, wedding, theme) {
     );
   }
 
-  AWARD_DEFS.forEach(({ key, icon, title }, i) => {
-    if (data.awards[key]) {
-      slides.push(
-        <AwardSlide
-          key={key}
-          icon={icon}
-          title={title}
-          award={data.awards[key]}
-          bg={isVibrant ? VBG.awards[i % VBG.awards.length] : null}
-        />
-      );
-    }
-  });
+  if (on('awards')) {
+    AWARD_DEFS.forEach(({ key, icon, title }, i) => {
+      if (data.awards[key]) {
+        slides.push(
+          <AwardSlide
+            key={key}
+            icon={icon}
+            title={title}
+            award={data.awards[key]}
+            bg={isVibrant ? VBG.awards[i % VBG.awards.length] : null}
+          />
+        );
+      }
+    });
+  }
 
   slides.push(<ThankYouSlide key="thanks" wedding={wedding} bg={vbg('thanks')} />);
   return slides;
@@ -694,9 +751,13 @@ export default function WishesWrappedPage() {
     return null;
   });
 
-  const data      = session?.wrapped  ?? null;
-  const wedding   = session?.wedding  ?? null;
-  const pageTheme = session?.theme    ?? 'elegant';
+  const data         = session?.wrapped  ?? null;
+  const wedding      = session?.wedding  ?? null;
+  const pageTheme    = session?.theme    ?? 'elegant';
+  const enabledSlides = useMemo(
+    () => new Set(session?.enabledSlides ?? []),
+    [session],
+  );
 
   const [idx, setIdx]           = useState(0);
   const [autoPlay, setAutoPlay] = useState(false);
@@ -705,8 +766,8 @@ export default function WishesWrappedPage() {
   useEffect(() => { document.title = 'Wedding Wishes Wrapped ✨'; }, []);
 
   const slides = useMemo(
-    () => (data ? buildSlides(data, wedding, pageTheme) : []),
-    [data, wedding, pageTheme],
+    () => (data ? buildSlides(data, wedding, pageTheme, enabledSlides) : []),
+    [data, wedding, pageTheme, enabledSlides],
   );
 
   const prev = useCallback(() => setIdx(i => Math.max(0, i - 1)), []);
