@@ -1,5 +1,7 @@
 import { cleanName, cleanNotes, cleanTable, cleanParty } from "./validation.js";
 
+const RSVP_STATUSES = new Set(['pending', 'confirmed', 'declined']);
+
 // ─── CSV PARSER ───────────────────────────────────────────────────────────────
 export function parseCSV(text) {
   const lines = String(text ?? "").trim().split("\n");
@@ -35,6 +37,11 @@ export function parseCSV(text) {
         notes: cleanNotes(obj.notes || obj.note || obj.dietary),
         party: cleanParty(obj.party),
         is_vip: (obj.vip || "").toLowerCase() === "true" || (obj.vip || "") === "1",
+        rsvp_status: RSVP_STATUSES.has((obj.rsvp_status || obj.status || '').toLowerCase())
+          ? (obj.rsvp_status || obj.status).toLowerCase()
+          : 'pending',
+        rsvp_message: String(obj.rsvp_message || obj.message || obj.wish || '').trim().slice(0, 500),
+        meal_choice:  String(obj.meal_choice  || obj.meal   || ''             ).trim().slice(0, 60),
       };
     })
     .filter((g) => g.name);

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { computeWrapped } from './wishesWrapped.js';
+import { computeWrapped, participationComment } from './wishesWrapped.js';
 
-const g = (name, msg) => ({ id: name, name, rsvp_message: msg });
+const g = (name, msg, party) => ({ id: name, name, rsvp_message: msg, party: party ?? null });
 
 describe('computeWrapped', () => {
   it('returns empty state for no guests', () => {
@@ -74,5 +74,110 @@ describe('computeWrapped', () => {
       g('Varied', 'wishing you joy peace happiness laughter'),
     ]);
     expect(r.awards.mostPoetic.guest.name).toBe('Varied');
+  });
+
+  // ── New stats ─────────────────────────────────────────────────────────────
+
+  it('includes totalGuests regardless of message presence', () => {
+    const r = computeWrapped([g('A', 'hello'), g('B', ''), g('C', null)]);
+    expect(r.totalGuests).toBe(3);
+  });
+
+  it('computes participationRate correctly', () => {
+    const r = computeWrapped([g('A', 'hello'), g('B', ''), g('C', 'world'), g('D', null)]);
+    expect(r.totalWishes).toBe(2);
+    expect(r.totalGuests).toBe(4);
+    expect(r.participationRate).toBeCloseTo(0.5);
+  });
+
+  it('returns participationRate 0 for empty guest list', () => {
+    expect(computeWrapped([]).participationRate).toBe(0);
+  });
+
+  it('counts bride and groom sides separately', () => {
+    const r = computeWrapped([
+      g('Alice', 'lovely day', 'bride'),
+      g('Bob',   'congrats',   'groom'),
+      g('Carol', 'wonderful',  'bride'),
+      g('Dave',  '',           'groom'),
+    ]);
+    expect(r.sides.bride.total).toBe(2);
+    expect(r.sides.bride.wishers).toBe(2);
+    expect(r.sides.groom.total).toBe(2);
+    expect(r.sides.groom.wishers).toBe(1);
+  });
+
+  it('counts personality clusters', () => {
+    const essay  = Array(40).fill('word').join(' ');
+    const brief  = 'hi';
+    // shouty: 14 words (> 10 so not "brief"), 4 exclamations
+    const shouty = 'Wishing you both a lifetime of joy and happiness!! Love you to pieces amazing!!';
+    // emojiLovers: 13 words, 2 emojis, 0 !
+    const emojis = 'Congratulations to you both what an amazing beautiful wonderful happy day 🎉 🎊';
+    const r = computeWrapped([
+      g('A', essay),
+      g('B', brief),
+      g('C', shouty),
+      g('D', emojis),
+    ]);
+    expect(r.clusters.essayists).toBe(1);
+    expect(r.clusters.brief).toBe(1);
+    expect(r.clusters.shouty).toBe(1);
+    expect(r.clusters.emojiLovers).toBe(1);
+  });
+
+  it('counts total emojis and finds top emoji', () => {
+    const r = computeWrapped([
+      g('A', '🎉🎉 love'),
+      g('B', '🎉 congrats'),
+      g('C', '🎊 hooray'),
+    ]);
+    expect(r.totalEmojis).toBe(4);
+    expect(r.topEmoji?.emoji).toBe('🎉');
+    expect(r.topEmoji?.count).toBe(3);
+  });
+
+  it('returns topEmoji null when no emojis present', () => {
+    const r = computeWrapped([g('A', 'hello world')]);
+    expect(r.topEmoji).toBeNull();
+    expect(r.totalEmojis).toBe(0);
+  });
+
+  it('finds topOpeningWord when 2+ guests share the same first word', () => {
+    const r = computeWrapped([
+      g('A', 'Congratulations on your big day'),
+      g('B', 'Congratulations both of you'),
+      g('C', 'Wishing you all the best'),
+    ]);
+    expect(r.topOpeningWord?.word).toBe('congratulations');
+    expect(r.topOpeningWord?.count).toBe(2);
+  });
+
+  it('returns topOpeningWord null when no word is repeated', () => {
+    const r = computeWrapped([
+      g('A', 'Congratulations to you'),
+      g('B', 'Wishing you happiness'),
+    ]);
+    expect(r.topOpeningWord).toBeNull();
+  });
+
+  it('computes novelPages from totalWords', () => {
+    const words = Array(500).fill('word').join(' ');
+    const r = computeWrapped([g('A', words)]);
+    expect(r.novelPages).toBe(2); // 500 / 250
+  });
+});
+
+describe('participationComment', () => {
+  it('returns 100% message when all guests wrote', () => {
+    expect(participationComment(1, 10)).toContain('Every');
+  });
+
+  it('returns food comment for zero wishers', () => {
+    expect(participationComment(0, 0)).toContain('food');
+  });
+
+  it('returns positive message for high participation', () => {
+    expect(participationComment(0.9, 9)).toContain('loved');
   });
 });
