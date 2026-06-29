@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2026-06-29] — fix/wishes-wrapped-confirmed-only (PR #41)
+
+### Fixed
+
+- **Wishes Wrapped scoped to confirmed guests** — declined and pending guests were included in `totalGuests`, participation rate, side breakdowns, and Hall of Silence callouts. `WishesWrappedTab` now filters to `rsvp_status === 'confirmed'` before passing guests to `computeWrapped`.
+- **Hall of Silence spares family** — guests with `relationship_group === 'family'` are excluded from the silent-guest pool so relatives aren't publicly called out for skipping a well-wish.
+
+---
+
 ## [2026-06-29] — feat/wedding-page-templates
 
 ### Added
