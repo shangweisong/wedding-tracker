@@ -148,6 +148,47 @@ const styles = theme + `
     .rsvp-card { padding: 28px 20px; }
     .attend-btns { grid-template-columns: 1fr; }
   }
+
+  /* ── GARDEN THEME ─────────────────────────────────────────────────────────── */
+  [data-theme="garden"] {
+    --gold:       #6b9e4e;
+    --gold-light: #b8d9a0;
+    --gold-dark:  #3d6b2a;
+    --charcoal:   #1a3310;
+    --brown:      #4a6b35;
+    --warm-white: #f0f5ec;
+  }
+  [data-theme="garden"].rsvp-wrap { background: #e8f2e3; }
+  [data-theme="garden"] .rsvp-card        { border-color: rgba(107,158,78,0.25); }
+  [data-theme="garden"] .rsvp-divider     { background: rgba(107,158,78,0.25); }
+  [data-theme="garden"] .rsvp-input       { border-color: rgba(107,158,78,0.35); }
+  [data-theme="garden"] .attend-btn       { border-color: rgba(107,158,78,0.25); }
+  [data-theme="garden"] .meal-opt         { border-color: rgba(107,158,78,0.2); }
+  [data-theme="garden"] .rsvp-suggestions { border-color: rgba(107,158,78,0.35); }
+  [data-theme="garden"] .rsvp-suggestion-item { border-bottom-color: rgba(107,158,78,0.12); }
+  [data-theme="garden"] .rsvp-suggestion-item:hover { background: rgba(107,158,78,0.08); }
+  [data-theme="garden"] .rsvp-logo        { font-family: 'Libre Baskerville', serif; }
+
+  /* ── CHINESE (RED & GOLD) THEME ────────────────────────────────────────────── */
+  [data-theme="chinese"] {
+    --gold:       #c9a84c;
+    --gold-light: #f5dc80;
+    --gold-dark:  #a07830;
+    --charcoal:   #6b0000;
+    --brown:      #8b1a1a;
+    --warm-white: #fff5f5;
+  }
+  [data-theme="chinese"].rsvp-wrap { background: #fff0f0; }
+  [data-theme="chinese"] .rsvp-card        { border-color: rgba(180,0,0,0.15); }
+  [data-theme="chinese"] .rsvp-divider     { background: rgba(180,0,0,0.15); }
+  [data-theme="chinese"] .rsvp-input       { border-color: rgba(180,0,0,0.2); }
+  [data-theme="chinese"] .attend-btn       { border-color: rgba(180,0,0,0.15); }
+  [data-theme="chinese"] .meal-opt         { border-color: rgba(180,0,0,0.12); }
+  [data-theme="chinese"] .rsvp-suggestions { border-color: rgba(180,0,0,0.2); }
+  [data-theme="chinese"] .rsvp-suggestion-item { border-bottom-color: rgba(180,0,0,0.08); }
+  [data-theme="chinese"] .rsvp-suggestion-item:hover { background: rgba(180,0,0,0.04); }
+  [data-theme="chinese"] .rsvp-submit      { background: #6b0000; }
+  [data-theme="chinese"] .rsvp-submit:hover { background: #4a0000; }
 `;
 
 function ConfirmationView({ name, attending, wedding }) {
@@ -321,7 +362,7 @@ export default function RsvpPage() {
   return (
     <>
       <style>{styles}</style>
-      <div className="rsvp-wrap">
+      <div className="rsvp-wrap" data-theme={wedding?.theme || "minimal"}>
         <div className="rsvp-card">
           <div className="rsvp-logo">
             {wedding?.bride_name && wedding?.groom_name

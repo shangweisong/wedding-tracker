@@ -222,7 +222,61 @@ const styles = theme + `
       min-height: 100svh;
     }
   }
+
+  /* ── GARDEN THEME ─────────────────────────────────────────────────────────── */
+  [data-theme="garden"] {
+    --gold:       #6b9e4e;
+    --gold-light: #b8d9a0;
+    --gold-dark:  #3d6b2a;
+    --charcoal:   #1a3310;
+    --brown:      #4a6b35;
+    --warm-white: #f0f5ec;
+  }
+  [data-theme="garden"] .wp-couple,
+  [data-theme="garden"] .wp-section-title,
+  [data-theme="garden"] .wp-cta-title,
+  [data-theme="garden"] .wp-qa-a,
+  [data-theme="garden"] .wp-event-value {
+    font-family: 'Libre Baskerville', serif;
+  }
+  [data-theme="garden"] .wp-section   { border-bottom-color: rgba(107,158,78,0.2); }
+  [data-theme="garden"] .wp-qa-item   { border-color: rgba(107,158,78,0.2); }
+  [data-theme="garden"] .wp-event     { border-color: rgba(107,158,78,0.2); }
+  [data-theme="garden"] .wp-dress-badge { border-color: rgba(107,158,78,0.25); }
+  [data-theme="garden"] .wp-countdown  { border-color: rgba(107,158,78,0.35); }
+  [data-theme="garden"] .wp-cta-btn:hover { background: #1a3310; }
+
+  /* ── CHINESE (RED & GOLD) THEME ────────────────────────────────────────────── */
+  [data-theme="chinese"] {
+    --gold:       #c9a84c;
+    --gold-light: #f5dc80;
+    --gold-dark:  #a07830;
+    --charcoal:   #6b0000;
+    --brown:      #8b1a1a;
+    --warm-white: #fff5f5;
+  }
+  [data-theme="chinese"] .wp-section   { border-bottom-color: rgba(180,0,0,0.12); }
+  [data-theme="chinese"] .wp-qa-item   { border-color: rgba(180,0,0,0.12); }
+  [data-theme="chinese"] .wp-event     { border-color: rgba(180,0,0,0.12); }
+  [data-theme="chinese"] .wp-dress-badge { border-color: rgba(180,0,0,0.18); background: #fff5f5; }
+  [data-theme="chinese"] .wp-countdown  { border-color: rgba(201,168,76,0.4); }
+  [data-theme="chinese"] .wp-cta-btn   { background: #6b0000; }
+  [data-theme="chinese"] .wp-cta-btn:hover { background: #4a0000; }
+  [data-theme="chinese"] .wp-rsvp-btn  { background: #c9a84c; color: #3a1a00; }
+  [data-theme="chinese"] .wp-rsvp-btn:hover { background: #a07830; }
 `;
+
+function heroGradient(t) {
+  if (t === "garden")  return "linear-gradient(160deg, #1b3d13 0%, #0f2208 60%, #2a4a1c 100%)";
+  if (t === "chinese") return "linear-gradient(160deg, #7a0a0a 0%, #5c0000 60%, #8b1515 100%)";
+  return "linear-gradient(160deg, #2c2416 0%, #1a1008 60%, #3a2a10 100%)";
+}
+
+function heroBgColor(t) {
+  if (t === "garden")  return "#0f2208";
+  if (t === "chinese") return "#5c0000";
+  return "#1a1008";
+}
 
 function fmt12h(t) {
   if (!t) return "";
@@ -331,14 +385,15 @@ export default function WeddingPage() {
 
   const { bride_name, groom_name, wedding_date, venue_name, venue_address,
           ceremony_time, dinner_time, tea_ceremony_time, love_story, dress_code,
-          hero_image_url, rsvp_deadline, is_published, getting_there } = wedding;
+          hero_image_url, rsvp_deadline, is_published, getting_there,
+          theme: pageTheme = "minimal" } = wedding;
 
   const coupleNames = `${groom_name} & ${bride_name}`;
 
   return (
     <>
       <style>{styles}</style>
-      <div className="wp">
+      <div className="wp" data-theme={pageTheme}>
 
         {!is_published && (
           <div className="wp-preview-banner">
@@ -352,10 +407,10 @@ export default function WeddingPage() {
           style={{
             backgroundImage: hero_image_url
               ? `linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.45) 100%), url(${hero_image_url})`
-              : `linear-gradient(160deg, #2c2416 0%, #1a1008 60%, #3a2a10 100%)`,
+              : heroGradient(pageTheme),
             backgroundSize: "cover",
             backgroundPosition: "center",
-            backgroundColor: "#1a1008",
+            backgroundColor: heroBgColor(pageTheme),
           }}
         >
 

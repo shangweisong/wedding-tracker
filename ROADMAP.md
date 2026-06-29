@@ -21,7 +21,7 @@ A quick-scan list of known bugs, deferred work, and housekeeping. Details live i
 |---|---|---|---|
 | 1 | RSVP | ~~**Fuzzy name match false-positive**~~ ✅ — no-token RSVP flow now uses search-and-select + token-based submit; `submit_rsvp_by_name` is no longer called at submission time. [Issue #18](https://github.com/shangweisong/wedding-tracker/issues/18) | §3.1 |
 | 2 | Email | ~~**Supabase Vault webhook setup is manual**~~ ✅ — `scripts/setup-vault-secrets.sh` reads `.env` and either runs the SQL via the Supabase CLI or prints a pre-filled snippet to paste into the SQL Editor. [Issue #17](https://github.com/shangweisong/wedding-tracker/issues/17) | §Housekeeping |
-| 3 | Wedding Page | **Single template only** — only the Minimal dark-gold theme exists. Additional templates (Floral, Modern, Traditional, Garden) and accent colour picker are pending. | §3.3 |
+| 3 | Wedding Page | ~~**Single template only**~~ ✅ — Garden (forest green) and Traditional Chinese (red & gold) themes added. Theme picker in Wedding Page tab. Applies to wedding page + RSVP form only. | §3.3 |
 | 4 | Docs | ~~**README → User Guide split**~~ ✅ — `docs/USER_GUIDE.md` created; README is now a 1-page overview + quick-start. | §Housekeeping |
 | 5 | Migrations | ~~**Migration consolidation**~~ ✅ — `0006` and `0007` content merged into `0005`; both files deleted. Migration table is back to a clean 5-file structure. CLI users: see USER_GUIDE §1a for the one-time tracking cleanup. | §Housekeeping |
 | 6 | Security | ~~**Admin PIN disabled**~~ ✅ — `unlocked` restored to `useState(isDemoMode)`; `VITE_HELPER_PASSWORD` removed (was exposing Supabase password in JS bundle). [PR #31](https://github.com/shangweisong/wedding-tracker/pull/31) | §Security |
@@ -506,7 +506,7 @@ Options:
 13. ✅ Expand Wedding Setup modal — love story, dress code, hero photo upload, fun Q&A, publish toggle
 14. ✅ Personalised RSVP update links in all guest emails (`SITE_URL` env var + token button in confirmation, declined, and reminder emails)
 15. ✅ Host change-of-mind notifications (`HOST_EMAIL` env var + `0006_rsvp_host_notify.sql` trigger update + `send-rsvp-email.js` host email)
-16. Additional templates (Floral, Modern, Traditional, Garden)
+16. ✅ Additional templates — Garden (forest green) and Traditional Chinese (red & gold) themes added via `0006_themes.sql`. Theme picker in Wedding Page tab; affects wedding page + RSVP page only.
 17. Multi-couple auth (if needed)
 
 ---
