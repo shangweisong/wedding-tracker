@@ -32,14 +32,27 @@ const styles = theme + `
     background: white; border-radius: 20px; padding: 40px 36px;
     width: 100%; max-width: 480px;
     box-shadow: var(--shadow-lg); border: 1.5px solid rgba(201,168,76,0.15);
+    animation: rsvpCardIn 0.45s ease both;
+  }
+  @keyframes rsvpCardIn {
+    from { opacity: 0; transform: translateY(18px); }
+    to   { opacity: 1; transform: translateY(0); }
   }
   .rsvp-logo {
-    font-family: 'Cormorant Garamond', serif; font-size: 28px;
-    color: var(--gold-dark); text-align: center; margin-bottom: 4px;
+    font-family: 'Cormorant Garamond', serif; font-size: 32px;
+    color: var(--gold-dark); text-align: center; margin-bottom: 8px;
+  }
+  .rsvp-logo-heart {
+    display: inline-block; margin-right: 5px;
+    animation: rsvpPulse 2.5s ease-in-out infinite;
+  }
+  @keyframes rsvpPulse {
+    0%, 100% { transform: scale(1); }
+    50%       { transform: scale(1.15); }
   }
   .rsvp-eyebrow {
     font-size: 11px; color: var(--brown); opacity: 0.5;
-    letter-spacing: 0.2em; text-transform: uppercase;
+    letter-spacing: 0.35em; text-transform: uppercase;
     text-align: center; margin-bottom: 24px;
   }
   .rsvp-divider { height: 1px; background: rgba(201,168,76,0.2); margin-bottom: 24px; }
@@ -68,8 +81,8 @@ const styles = theme + `
     font-weight: 500; color: var(--brown); transition: all 0.15s; text-align: center;
   }
   .attend-btn:hover { border-color: var(--gold); }
-  .attend-btn.yes.active { background: var(--green-soft); border-color: var(--green); color: var(--green); }
-  .attend-btn.no.active  { background: var(--red-soft);   border-color: var(--red);   color: var(--red);   }
+  .attend-btn.yes.active { background: rgba(201,168,76,0.1); border-color: var(--gold); color: var(--gold-dark); }
+  .attend-btn.no.active  { background: rgba(44,36,22,0.06); border-color: rgba(44,36,22,0.3); color: var(--charcoal); }
 
   .meal-opts { display: flex; flex-direction: column; gap: 8px; }
   .meal-opt {
@@ -94,21 +107,34 @@ const styles = theme + `
   }
 
   .rsvp-submit {
-    width: 100%; padding: 14px; border-radius: 10px; border: none;
+    width: 100%; padding: 14px; border-radius: 50px; border: none;
     background: var(--gold); color: white; cursor: pointer;
     font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 500;
-    transition: background 0.15s; letter-spacing: 0.02em; margin-top: 4px;
+    transition: background 0.15s; letter-spacing: 0.06em; margin-top: 4px;
   }
   .rsvp-submit:hover { background: var(--gold-dark); }
   .rsvp-submit:disabled { opacity: 0.6; cursor: default; }
 
   .rsvp-confirm { text-align: center; }
-  .rsvp-confirm-icon { font-size: 48px; margin-bottom: 16px; }
-  .rsvp-confirm-title {
-    font-family: 'Cormorant Garamond', serif; font-size: 26px;
-    color: var(--charcoal); margin-bottom: 10px;
+  .rsvp-confirm-heart {
+    font-size: 56px; margin-bottom: 16px;
+    display: inline-block; animation: rsvpPulse 2.5s ease-in-out infinite;
   }
-  .rsvp-confirm-msg { font-size: 14px; color: var(--brown); opacity: 0.8; line-height: 1.6; }
+  .rsvp-confirm-title {
+    font-family: 'Cormorant Garamond', serif; font-size: 36px;
+    color: var(--charcoal); margin-bottom: 8px; font-weight: 300; line-height: 1.1;
+  }
+  .rsvp-confirm-name {
+    font-family: 'Cormorant Garamond', serif; font-size: 20px;
+    color: var(--gold-dark); font-style: italic; margin-bottom: 14px;
+  }
+  .rsvp-confirm-msg { font-size: 14px; color: var(--brown); opacity: 0.8; line-height: 1.7; margin-bottom: 20px; }
+  .rsvp-confirm-details {
+    display: flex; flex-direction: column; gap: 6px;
+    padding: 14px 18px; border-radius: 10px;
+    background: var(--warm-white); border: 1px solid rgba(201,168,76,0.2);
+  }
+  .rsvp-confirm-detail-row { font-size: 13px; color: var(--brown); line-height: 1.5; }
   .rsvp-event-info { font-size: 13px; color: var(--brown); opacity: 0.65; text-align: center; margin-bottom: 6px; line-height: 1.5; }
 
   .demo-badge {
@@ -144,9 +170,20 @@ const styles = theme + `
   }
   .rsvp-name-clear:hover { opacity: 0.75; }
 
+  .rsvp-collapse { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.3s ease; }
+  .rsvp-collapse.open { grid-template-rows: 1fr; }
+  .rsvp-collapse-inner { overflow: hidden; }
+
   @media (max-width: 560px) {
     .rsvp-card { padding: 28px 20px; }
     .attend-btns { grid-template-columns: 1fr; }
+    .rsvp-submit-wrap {
+      position: sticky; bottom: 0;
+      margin: 4px -20px -28px;
+      padding: 10px 20px 24px;
+      background: linear-gradient(to top, white 65%, transparent);
+    }
+    .rsvp-submit { margin-top: 0; }
   }
 
   /* ── GARDEN THEME ─────────────────────────────────────────────────────────── */
@@ -168,6 +205,7 @@ const styles = theme + `
   [data-theme="garden"] .rsvp-suggestion-item { border-bottom-color: rgba(107,158,78,0.12); }
   [data-theme="garden"] .rsvp-suggestion-item:hover { background: rgba(107,158,78,0.08); }
   [data-theme="garden"] .rsvp-logo        { font-family: 'Libre Baskerville', serif; }
+  [data-theme="garden"] .rsvp-card        { background: #f3f8f0; }
 
   /* ── CHINESE (RED & GOLD) THEME ────────────────────────────────────────────── */
   [data-theme="chinese"] {
@@ -191,6 +229,7 @@ const styles = theme + `
   [data-theme="chinese"] .rsvp-suggestions { border-color: rgba(180,0,0,0.2); }
   [data-theme="chinese"] .rsvp-suggestion-item { border-bottom-color: rgba(180,0,0,0.08); }
   [data-theme="chinese"] .rsvp-suggestion-item:hover { background: rgba(180,0,0,0.04); }
+  [data-theme="chinese"] .rsvp-card        { background: #fff8f8; }
   [data-theme="chinese"] .rsvp-submit      { background: #6b0000; }
   [data-theme="chinese"] .rsvp-submit:hover { background: #4a0000; }
 `;
@@ -199,17 +238,26 @@ function ConfirmationView({ name, attending, wedding }) {
   const couple = wedding?.bride_name && wedding?.groom_name
     ? `${wedding.bride_name} & ${wedding.groom_name}`
     : "the couple";
+  const date = wedding?.wedding_date ? formatDate(wedding.wedding_date) : null;
+  const venue = wedding?.venue_name || null;
   return (
     <div className="rsvp-confirm">
-      <div className="rsvp-confirm-icon">{attending ? "🎉" : "💌"}</div>
+      <div className="rsvp-confirm-heart">{attending ? "♡" : "💌"}</div>
       <div className="rsvp-confirm-title">
         {attending ? "See you there!" : "We'll miss you!"}
       </div>
+      <div className="rsvp-confirm-name">{name}</div>
       <div className="rsvp-confirm-msg">
         {attending
-          ? `Thanks ${name}, your RSVP is confirmed. ${couple} can't wait to celebrate with you!`
-          : `Thanks ${name} for letting us know. ${couple} will miss you, but hope to see you soon.`}
+          ? `Your RSVP is confirmed. ${couple} can't wait to celebrate with you!`
+          : `Thanks for letting us know. ${couple} will miss you, but hope to see you soon.`}
       </div>
+      {attending && (date || venue) && (
+        <div className="rsvp-confirm-details">
+          {date  && <div className="rsvp-confirm-detail-row">📅 {date}</div>}
+          {venue && <div className="rsvp-confirm-detail-row">📍 {venue}</div>}
+        </div>
+      )}
     </div>
   );
 }
@@ -369,9 +417,10 @@ export default function RsvpPage() {
       <div className="rsvp-wrap" data-theme={wedding?.theme || "minimal"}>
         <div className="rsvp-card">
           <div className="rsvp-logo">
+            <span className="rsvp-logo-heart">♡</span>
             {wedding?.bride_name && wedding?.groom_name
-              ? `♡ ${wedding.bride_name} & ${wedding.groom_name}`
-              : "♡ You're Invited"}
+              ? `${wedding.bride_name} & ${wedding.groom_name}`
+              : "You're Invited"}
           </div>
           {wedding?.wedding_date || wedding?.venue_name ? (
             <div className="rsvp-event-info">
@@ -529,10 +578,10 @@ export default function RsvpPage() {
                 </select>
               </div>
 
-              {/* Meal + dietary — only if attending */}
-              {attending === true && (
-                <>
-                  <div className="rsvp-field">
+              {/* Meal + dietary — only if attending, animated expand */}
+              <div className={`rsvp-collapse${attending === true ? ' open' : ''}`}>
+                <div className="rsvp-collapse-inner">
+                  <div className="rsvp-field" style={{ paddingTop: 4 }}>
                     <span className="rsvp-label">Meal Choice</span>
                     <div className="meal-opts">
                       {MEAL_OPTIONS.map((opt) => (
@@ -560,8 +609,8 @@ export default function RsvpPage() {
                       onChange={(e) => setDietary(e.target.value)}
                     />
                   </div>
-                </>
-              )}
+                </div>
+              </div>
 
               {/* Message */}
               <div className="rsvp-field">
@@ -579,9 +628,11 @@ export default function RsvpPage() {
 
               {error && <div className="rsvp-error">{error}</div>}
 
-              <button type="submit" className="rsvp-submit" disabled={submitting}>
-                {submitting ? "Sending…" : "Confirm My RSVP"}
-              </button>
+              <div className="rsvp-submit-wrap">
+                <button type="submit" className="rsvp-submit" disabled={submitting}>
+                  {submitting ? "Sending…" : "Confirm My RSVP"}
+                </button>
+              </div>
             </form>
           )}
         </div>

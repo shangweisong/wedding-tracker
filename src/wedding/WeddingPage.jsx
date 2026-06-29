@@ -66,6 +66,16 @@ const styles = theme + `
     position: relative; overflow: hidden; z-index: 1;
     padding: 60px 24px; background-color: #1a1008;
   }
+  .wp-hero::before {
+    content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+    background: radial-gradient(ellipse 70% 50% at 50% 42%, rgba(201,168,76,0.09) 0%, transparent 68%);
+  }
+  [data-theme="garden"] .wp-hero::before {
+    background: radial-gradient(ellipse 70% 50% at 50% 42%, rgba(107,158,78,0.14) 0%, transparent 68%);
+  }
+  [data-theme="chinese"] .wp-hero::before {
+    background: radial-gradient(ellipse 70% 50% at 50% 42%, rgba(201,100,0,0.1) 0%, transparent 68%);
+  }
   .wp-hero-content {
     position: relative; z-index: 10;
     text-align: center; max-width: 680px;
@@ -124,8 +134,13 @@ const styles = theme + `
   /* ── CONTENT SECTIONS ── */
   .wp-content { max-width: 720px; margin: 0 auto; padding: 0 24px 80px; position: relative; z-index: 1; }
 
-  .wp-section { padding: 64px 0; border-bottom: 1px solid rgba(201,168,76,0.15); }
+  .wp-section {
+    padding: 64px 0; border-bottom: 1px solid rgba(201,168,76,0.15);
+    opacity: 0; transform: translateY(24px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
   .wp-section:last-child { border-bottom: none; }
+  .wp-section.wp-visible { opacity: 1; transform: translateY(0); }
 
   .wp-section-eyebrow {
     font-size: 10px; letter-spacing: 0.35em; text-transform: uppercase;
@@ -142,44 +157,52 @@ const styles = theme + `
   }
 
   /* ── FUN Q&A ── */
-  .wp-qa-grid { display: flex; flex-direction: column; gap: 24px; }
+  .wp-qa-grid { display: flex; flex-direction: column; gap: 20px; }
   .wp-qa-item {
     display: grid; grid-template-columns: 1fr;
-    padding: 20px 24px; border-radius: 12px;
+    padding: 24px 28px; border-radius: 12px;
     background: white; border: 1px solid rgba(201,168,76,0.15);
     box-shadow: var(--shadow);
   }
   .wp-qa-q {
-    font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
-    color: var(--gold-dark); font-weight: 500; margin-bottom: 8px;
+    font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--gold-dark); font-weight: 600; margin-bottom: 10px;
   }
   .wp-qa-a {
-    font-family: 'Cormorant Garamond', serif; font-size: 19px;
-    color: var(--charcoal); line-height: 1.4; font-style: italic;
+    font-family: 'Cormorant Garamond', serif; font-size: clamp(18px, 2.2vw, 22px);
+    color: var(--charcoal); line-height: 1.5; font-style: italic;
+    position: relative; padding-left: 28px;
+  }
+  .wp-qa-a::before {
+    content: '"'; font-size: 52px; font-style: normal; line-height: 1;
+    position: absolute; top: -6px; left: -4px;
+    color: var(--gold); opacity: 0.28;
   }
 
-  /* ── THE BIG DAY ── */
-  .wp-events { display: flex; flex-direction: column; gap: 16px; }
-  .wp-event {
-    display: flex; align-items: flex-start; gap: 16px;
-    padding: 20px 24px; border-radius: 12px;
-    background: white; border: 1px solid rgba(201,168,76,0.15);
-    box-shadow: var(--shadow);
+  /* ── THE BIG DAY — TIMELINE ── */
+  .wp-timeline { display: flex; flex-direction: column; }
+  .wp-tl-item { display: flex; gap: 20px; align-items: flex-start; }
+  .wp-tl-node { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+  .wp-tl-icon {
+    width: 46px; height: 46px; border-radius: 50%;
+    background: white; border: 1.5px solid rgba(201,168,76,0.25);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; box-shadow: var(--shadow); z-index: 1; flex-shrink: 0;
   }
-  .wp-event-icon {
-    font-size: 22px; flex-shrink: 0; width: 36px;
-    text-align: center; line-height: 1;
-  }
-  .wp-event-body {}
-  .wp-event-label {
+  .wp-tl-connector { flex: 1; width: 1px; background: rgba(201,168,76,0.22); min-height: 24px; }
+  .wp-tl-item:last-child .wp-tl-connector { display: none; }
+  .wp-tl-body { padding: 10px 0 28px; }
+  .wp-tl-label {
     font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase;
     color: var(--gold-dark); font-weight: 500; margin-bottom: 4px;
   }
-  .wp-event-value {
-    font-size: 18px; font-family: 'Cormorant Garamond', serif;
-    color: var(--charcoal); font-weight: 500;
-  }
-  .wp-event-sub { font-size: 13px; color: var(--brown); opacity: 0.7; margin-top: 2px; line-height: 1.5; }
+  .wp-tl-value { font-size: 20px; font-family: 'Cormorant Garamond', serif; color: var(--charcoal); font-weight: 500; }
+  .wp-tl-sub { font-size: 13px; color: var(--brown); opacity: 0.7; margin-top: 3px; line-height: 1.5; }
+
+  /* ── GETTING THERE ── */
+  .wp-getting-there { display: flex; flex-direction: column; gap: 20px; }
+  .wp-getting-there-block { display: flex; gap: 14px; align-items: flex-start; }
+  .wp-getting-there-icon { font-size: 22px; flex-shrink: 0; margin-top: 1px; }
   .wp-dress-badge {
     display: inline-block; margin-top: 20px;
     padding: 6px 16px; border-radius: 20px;
@@ -189,23 +212,26 @@ const styles = theme + `
   .wp-dress-badge strong { color: var(--gold-dark); margin-right: 4px; }
 
   /* ── RSVP CTA ── */
-  .wp-cta { text-align: center; }
+  .wp-cta {
+    text-align: center; border: none !important;
+    background: linear-gradient(160deg, #2c2416 0%, #1a1008 60%, #3a2a10 100%);
+    border-radius: 20px; padding: 56px 32px;
+  }
+  .wp-cta .wp-section-eyebrow { color: var(--gold-light); opacity: 0.75; }
   .wp-cta-title {
-    font-family: 'Cormorant Garamond', serif; font-size: clamp(32px, 6vw, 48px);
-    color: var(--charcoal); margin-bottom: 12px;
+    font-family: 'Cormorant Garamond', serif; font-size: clamp(30px, 5.5vw, 44px);
+    color: white; margin-bottom: 12px;
   }
-  .wp-cta-deadline {
-    font-size: 14px; color: var(--brown); opacity: 0.65; margin-bottom: 28px;
-  }
+  .wp-cta-deadline { font-size: 14px; color: rgba(255,255,255,0.55); margin-bottom: 28px; }
   .wp-cta-btn {
     display: inline-block; padding: 18px 56px;
-    background: var(--charcoal); color: var(--gold-light);
+    background: var(--gold); color: white;
     border-radius: 50px; text-decoration: none;
     font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 500;
     letter-spacing: 0.1em; text-transform: uppercase;
     transition: background 0.2s, transform 0.15s;
   }
-  .wp-cta-btn:hover { background: #3a2d1a; transform: translateY(-1px); }
+  .wp-cta-btn:hover { background: var(--gold-dark); transform: translateY(-1px); }
 
   /* ── NOT FOUND ── */
   .wp-notfound {
@@ -255,6 +281,9 @@ const styles = theme + `
   [data-theme="garden"] .wp-dress-badge { border-color: rgba(107,158,78,0.25); }
   [data-theme="garden"] .wp-countdown  { border-color: rgba(107,158,78,0.35); }
   [data-theme="garden"] .wp-cta-btn:hover { background: #1a3310; }
+  [data-theme="garden"] .wp-cta { background: linear-gradient(160deg, #1a3310 0%, #0f2208 60%, #2a4a1c 100%); }
+  [data-theme="garden"] .wp-tl-connector { background: rgba(107,158,78,0.28); }
+  [data-theme="garden"] .wp-tl-icon { border-color: rgba(107,158,78,0.3); }
 
   /* ── CHINESE (RED & GOLD) THEME ────────────────────────────────────────────── */
   [data-theme="chinese"].wp {
@@ -279,6 +308,10 @@ const styles = theme + `
   [data-theme="chinese"] .wp-cta-btn:hover { background: #4a0000; }
   [data-theme="chinese"] .wp-rsvp-btn  { background: #c9a84c; color: #3a1a00; }
   [data-theme="chinese"] .wp-rsvp-btn:hover { background: #a07830; }
+  [data-theme="chinese"] .wp-cta { background: linear-gradient(160deg, #7a0a0a 0%, #5c0000 60%, #8b1515 100%); }
+  [data-theme="chinese"] .wp-cta .wp-cta-btn { background: var(--gold); color: #3a1a00; }
+  [data-theme="chinese"] .wp-tl-connector { background: rgba(180,0,0,0.15); }
+  [data-theme="chinese"] .wp-tl-icon { border-color: rgba(180,0,0,0.18); }
 `;
 
 function LeafIcon({ style }) {
@@ -388,6 +421,17 @@ export default function WeddingPage() {
     }
   }, [wedding]);
 
+  useEffect(() => {
+    if (!wedding) return;
+    const sections = document.querySelectorAll('.wp-section');
+    const obs = new IntersectionObserver(
+      (entries) => entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('wp-visible'); obs.unobserve(e.target); } }),
+      { threshold: 0.08 }
+    );
+    sections.forEach(el => obs.observe(el));
+    return () => obs.disconnect();
+  }, [wedding]);
+
   const rsvpHref = token ? `/rsvp?token=${token}` : "/rsvp";
   const days = daysUntil(wedding?.wedding_date);
 
@@ -472,7 +516,11 @@ export default function WeddingPage() {
         >
 
           <div className="wp-hero-content">
-            <div className="wp-invite-tag">— — — You are cordially invited — — —</div>
+            <div className="wp-invite-tag">
+              {groom_name && bride_name
+                ? `✦  ${groom_name} & ${bride_name} invite you  ✦`
+                : '— — — You are cordially invited — — —'}
+            </div>
 
             <div className="wp-couple">
               <span className="wp-couple-amp">♡</span>
@@ -533,49 +581,47 @@ export default function WeddingPage() {
           <section className="wp-section">
             <div className="wp-section-eyebrow">The Big Day</div>
             <div className="wp-section-title">Event details</div>
-            <div className="wp-events">
+            <div className="wp-timeline">
               {tea_ceremony_time && (
-                <div className="wp-event">
-                  <div className="wp-event-icon">🍵</div>
-                  <div className="wp-event-body">
-                    <div className="wp-event-label">Tea Ceremony</div>
-                    <div className="wp-event-value">{fmt12h(tea_ceremony_time)}</div>
-                    {wedding_date && <div className="wp-event-sub">{formatLongDate(wedding_date)}</div>}
+                <div className="wp-tl-item">
+                  <div className="wp-tl-node"><div className="wp-tl-icon">🍵</div><div className="wp-tl-connector" /></div>
+                  <div className="wp-tl-body">
+                    <div className="wp-tl-label">Tea Ceremony</div>
+                    <div className="wp-tl-value">{fmt12h(tea_ceremony_time)}</div>
+                    {wedding_date && <div className="wp-tl-sub">{formatLongDate(wedding_date)}</div>}
                   </div>
                 </div>
               )}
               {ceremony_time && (
-                <div className="wp-event">
-                  <div className="wp-event-icon">💍</div>
-                  <div className="wp-event-body">
-                    <div className="wp-event-label">Solemnisation</div>
-                    <div className="wp-event-value">{fmt12h(ceremony_time)}</div>
-                    {!tea_ceremony_time && wedding_date && <div className="wp-event-sub">{formatLongDate(wedding_date)}</div>}
+                <div className="wp-tl-item">
+                  <div className="wp-tl-node"><div className="wp-tl-icon">💍</div><div className="wp-tl-connector" /></div>
+                  <div className="wp-tl-body">
+                    <div className="wp-tl-label">Solemnisation</div>
+                    <div className="wp-tl-value">{fmt12h(ceremony_time)}</div>
+                    {!tea_ceremony_time && wedding_date && <div className="wp-tl-sub">{formatLongDate(wedding_date)}</div>}
                   </div>
                 </div>
               )}
               {dinner_time && (
-                <div className="wp-event">
-                  <div className="wp-event-icon">🍽</div>
-                  <div className="wp-event-body">
-                    <div className="wp-event-label">Dinner Reception</div>
-                    <div className="wp-event-value">{fmt12h(dinner_time)}</div>
+                <div className="wp-tl-item">
+                  <div className="wp-tl-node"><div className="wp-tl-icon">🍽</div><div className="wp-tl-connector" /></div>
+                  <div className="wp-tl-body">
+                    <div className="wp-tl-label">Dinner Reception</div>
+                    <div className="wp-tl-value">{fmt12h(dinner_time)}</div>
                   </div>
                 </div>
               )}
               {(venue_name || venue_address) && (
-                <div className="wp-event">
-                  <div className="wp-event-icon">📍</div>
-                  <div className="wp-event-body">
-                    <div className="wp-event-label">Venue</div>
-                    {venue_name && <div className="wp-event-value">{venue_name}</div>}
+                <div className="wp-tl-item">
+                  <div className="wp-tl-node"><div className="wp-tl-icon">📍</div><div className="wp-tl-connector" /></div>
+                  <div className="wp-tl-body">
+                    <div className="wp-tl-label">Venue</div>
+                    {venue_name && <div className="wp-tl-value">{venue_name}</div>}
                     {venue_address && (
-                      <div className="wp-event-sub">
-                        <a
-                          href={`https://maps.google.com/?q=${encodeURIComponent(venue_address)}`}
+                      <div className="wp-tl-sub">
+                        <a href={`https://maps.google.com/?q=${encodeURIComponent(venue_address)}`}
                           target="_blank" rel="noopener noreferrer"
-                          style={{ color: "var(--gold-dark)", textDecoration: "none" }}
-                        >
+                          style={{ color: "var(--gold-dark)", textDecoration: "none" }}>
                           {venue_address} ↗
                         </a>
                       </div>
@@ -596,9 +642,23 @@ export default function WeddingPage() {
             <section className="wp-section">
               <div className="wp-section-eyebrow">Getting There</div>
               <div className="wp-section-title">Plan your journey</div>
-              <p className="wp-story-text">{getting_there}</p>
+              <div className="wp-getting-there">
+                {getting_there.split('\n\n').filter(p => p.trim()).map((para, i) => {
+                  const text = para.trim();
+                  const icon = /mrt|bus|train|transit/i.test(text) ? '🚇'
+                             : /car|park|drive|taxi|grab/i.test(text) ? '🚗'
+                             : /walk|drop.?off|entrance|arrive/i.test(text) ? '🚶'
+                             : '📍';
+                  return (
+                    <div key={i} className="wp-getting-there-block">
+                      <div className="wp-getting-there-icon">{icon}</div>
+                      <p className="wp-story-text" style={{ margin: 0 }}>{text}</p>
+                    </div>
+                  );
+                })}
+              </div>
               {venue_address && (
-                <div style={{ marginTop: 20 }}>
+                <div style={{ marginTop: 24 }}>
                   <a
                     href={`https://maps.google.com/?q=${encodeURIComponent(venue_address)}`}
                     target="_blank" rel="noopener noreferrer"
