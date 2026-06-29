@@ -235,7 +235,7 @@ function TableCard({ table, seated, onToggleLock, onEdit, onDelete, onRemoveGues
   );
 }
 
-export default function SeatingTab({ guests, onUpdate, showToast }) {
+export default function SeatingTab({ guests, onUpdate, onResetSeating, showToast }) {
   const [tables, setTables] = useState(() => (isDemoMode ? DEMO_TABLES : []));
   const [loading, setLoading] = useState(!isDemoMode);
   const [modal, setModal] = useState(null);
@@ -243,6 +243,9 @@ export default function SeatingTab({ guests, onUpdate, showToast }) {
   const [form, setForm] = useState(BLANK_FORM);
   const [saving, setSaving] = useState(false);
   const [activeGuestId, setActiveGuestId] = useState(null);
+  const [resetConfirm, setResetConfirm] = useState(false);
+  const [bulkCount, setBulkCount] = useState(5);
+  const [bulkCapacity, setBulkCapacity] = useState(10);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
   );
@@ -265,7 +268,7 @@ export default function SeatingTab({ guests, onUpdate, showToast }) {
     })();
   }, [showToast]);
 
-  const assignedAt = (tableId) => guests.filter((g) => g.table_id === tableId);
+  const assignedAt = (tableId) => guests.filter((g) => g.table_id === tableId && g.rsvp_status === "confirmed");
   const unassigned = guests.filter(
     (g) => g.rsvp_status === "confirmed" && !g.table_id
   );
@@ -319,6 +322,55 @@ export default function SeatingTab({ guests, onUpdate, showToast }) {
       setModal(null);
     } catch (err) {
       showToast("Could not save — " + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Returns `count` table numbers not already in use, filling gaps then continuing upward.
+  const nextTableNumbers = (count) => {
+    const taken = new Set(
+      tables.map((t) => parseInt(t.table_number)).filter((n) => !isNaN(n))
+    );
+    const result = [];
+    let n = 1;
+    while (result.length < count) {
+      if (!taken.has(n)) result.push(String(n));
+      n++;
+    }
+    return result;
+  };
+
+  const bulkAddTables = async () => {
+    const count = Math.max(1, Math.min(50, bulkCount));
+    const numbers = nextTableNumbers(count);
+    const rows = numbers.map((table_number) => ({
+      table_number,
+      label: "",
+      capacity: bulkCapacity,
+      is_locked: false,
+    }));
+    setModal(null);
+    setSaving(true);
+    try {
+      if (isDemoMode) {
+        setTables((prev) => [
+          ...prev,
+          ...rows.map((r, i) => ({ ...r, id: `demo-bulk-${Date.now()}-${i}` })),
+        ]);
+        showToast(`${count} tables added`);
+        setSaving(false);
+        return;
+      }
+      const inserted = [];
+      for (const row of rows) {
+        const res = await sb.insert("tables", row);
+        if (Array.isArray(res)) inserted.push(res[0]);
+      }
+      setTables((prev) => [...prev, ...inserted]);
+      showToast(`${inserted.length} tables added`);
+    } catch (err) {
+      showToast("Could not add tables — " + err.message);
     } finally {
       setSaving(false);
     }
@@ -466,6 +518,9 @@ export default function SeatingTab({ guests, onUpdate, showToast }) {
             <button className="btn btn-gold" onClick={openAdd}>
               + Add Table
             </button>
+            <button className="btn btn-outline" onClick={() => setModal("bulk-add")}>
+              + Add Multiple
+            </button>
             <button className="btn btn-outline" onClick={generateSuggestion}>
               ✨ Generate Draft Seating
             </button>
@@ -474,6 +529,13 @@ export default function SeatingTab({ guests, onUpdate, showToast }) {
             </button>
             <button className="btn btn-outline" onClick={() => window.print()}>
               🖨 Print
+            </button>
+            <button
+              className="btn btn-outline"
+              style={{ color: "#c0392b", borderColor: "rgba(192,57,43,0.3)", marginLeft: "auto" }}
+              onClick={() => setResetConfirm(true)}
+            >
+              ↺ Reset Seating
             </button>
           </div>
 
@@ -591,6 +653,75 @@ export default function SeatingTab({ guests, onUpdate, showToast }) {
                 disabled={saving}
               >
                 {saving ? "Saving…" : modal === "edit" ? "Save Changes" : "Add Table"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BULK ADD TABLES */}
+      {modal === "bulk-add" && (
+        <div className="modal-overlay" onClick={() => setModal(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-title">Add Multiple Tables</div>
+            <div className="form-grid">
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Number of tables</label>
+                  <input
+                    className="form-input"
+                    type="number"
+                    min="1"
+                    max="50"
+                    value={bulkCount}
+                    autoFocus
+                    onChange={(e) => setBulkCount(Math.max(1, parseInt(e.target.value) || 1))}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Capacity each</label>
+                  <input
+                    className="form-input"
+                    type="number"
+                    min="1"
+                    max="50"
+                    value={bulkCapacity}
+                    onChange={(e) => setBulkCapacity(Math.max(1, parseInt(e.target.value) || 10))}
+                  />
+                </div>
+              </div>
+              <p style={{ fontSize: 12, color: "var(--brown)", opacity: 0.65, margin: 0 }}>
+                Will create tables numbered{" "}
+                <strong>{nextTableNumbers(Math.max(1, Math.min(50, bulkCount))).join(", ")}</strong>
+                {" "}(skipping any that already exist). You can rename them after.
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={() => setModal(null)}>Cancel</button>
+              <button className="btn btn-gold" onClick={bulkAddTables} disabled={saving}>
+                {saving ? "Adding…" : `Add ${Math.max(1, Math.min(50, bulkCount))} Tables`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* RESET SEATING CONFIRMATION */}
+      {resetConfirm && (
+        <div className="modal-overlay" onClick={() => setResetConfirm(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-title">Reset Seating Plan?</div>
+            <p style={{ fontSize: 14, color: "var(--charcoal)", lineHeight: 1.6, marginBottom: 24 }}>
+              All seat assignments will be cleared — every guest moves back to the unassigned pool. Table definitions are kept.
+            </p>
+            <div className="modal-actions">
+              <button className="btn btn-outline" onClick={() => setResetConfirm(false)}>Cancel</button>
+              <button
+                className="btn"
+                style={{ background: "#c0392b", color: "white" }}
+                onClick={() => { setResetConfirm(false); onResetSeating(); }}
+              >
+                Reset All
               </button>
             </div>
           </div>

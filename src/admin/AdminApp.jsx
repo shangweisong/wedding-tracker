@@ -827,6 +827,11 @@ export default function WeddingTracker() {
   const [approveAmount, setApproveAmount] = useState("");
   const [wedding, setWedding] = useState(undefined); // undefined = not fetched, null = no row yet, object = configured
   const [setupOpen, setSetupOpen] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [safeDeleteEnabled, setSafeDeleteEnabled] = useState(
+    () => localStorage.getItem("safeDelete") !== "false"
+  );
 
   // Hash-based routing: "#pay" opens the public ang-bao QR page (no login needed).
   useEffect(() => {
@@ -1269,6 +1274,17 @@ export default function WeddingTracker() {
     } catch { syncFail("Could not restore guest — check connection"); }
   };
 
+  const resetSeating = async () => {
+    setGuests((g) => g.map((x) => ({ ...x, table_id: null, table_number: "" })));
+    if (!isDemoMode) {
+      try {
+        const { error } = await supabase.from("guests").update({ table_id: null, table_number: "" }).not("id", "is", null);
+        if (error) throw error;
+      } catch { syncFail("Could not reset seating — check connection"); }
+    }
+    showToast("All seat assignments cleared");
+  };
+
   // CSV import
   const importCSV = async () => {
     const parsed = parseCSV(csvText);
@@ -1320,6 +1336,7 @@ export default function WeddingTracker() {
 
   // Filtered guests
   const filtered = guests.filter((g) => {
+    if (mode === "dday" && g.rsvp_status !== "confirmed") return false;
     const q = search.toLowerCase();
     const matchSearch = g.name.toLowerCase().includes(q) || String(g.table_number).includes(q);
     const matchFilter =
@@ -1340,9 +1357,10 @@ export default function WeddingTracker() {
   const rsvpPending = guests.filter((g) => g.rsvp_status === "pending").length;
   const rsvpHeadcount = rsvpConfirmed + guests.filter((g) => g.rsvp_status === "confirmed" && g.plus_one_name?.trim()).length;
 
-  // Table groups
+  // Table groups — only guests with an assignment; in d-day mode filtered already excludes non-confirmed
   const tables = {};
-  guests.forEach((g) => {
+  filtered.forEach((g) => {
+    if (!g.table_number) return;
     if (!tables[g.table_number]) tables[g.table_number] = [];
     tables[g.table_number].push(g);
   });
@@ -1617,7 +1635,7 @@ export default function WeddingTracker() {
                     <button className="icon-btn" onClick={() => { setEditGuest(g); setForm({ name: g.name, table_number: g.table_number, notes: g.notes || "", party: g.party || "", is_vip: g.is_vip || false }); setModal("edit"); }}>
                       <Icon.Edit />
                     </button>
-                    <button className="icon-btn danger" onClick={() => deleteGuest(g)}><Icon.Trash /></button>
+                    <button className="icon-btn danger" onClick={() => { setPendingDelete(g); setDeleteConfirmText(""); setModal("delete-confirm"); }}><Icon.Trash /></button>
                   </div>
                 </div>
               ))}
@@ -1713,9 +1731,9 @@ export default function WeddingTracker() {
               )}
             </div>
           ) : view === "rsvp" ? (
-            <RsvpTab guests={guests} onUpdate={updateGuest} showToast={showToast} />
+            <RsvpTab guests={guests} onUpdate={updateGuest} onDelete={(g) => { setPendingDelete(g); setDeleteConfirmText(""); setModal("delete-confirm"); }} showToast={showToast} />
           ) : view === "seating" ? (
-            <SeatingTab guests={guests} onUpdate={updateGuest} showToast={showToast} />
+            <SeatingTab guests={guests} onUpdate={updateGuest} onResetSeating={resetSeating} showToast={showToast} />
           ) : view === "wedding-page" ? (
             <WeddingPageTab wedding={wedding} onSave={saveWeddingPage} showToast={showToast} />
           ) : view === "wishes-wrapped" ? (
@@ -1940,6 +1958,62 @@ export default function WeddingTracker() {
               <div className="modal-actions">
                 <button className="btn btn-outline" onClick={() => { setModal(null); setApproveSub(null); }}>Cancel</button>
                 <button className="btn btn-gold" onClick={approveAsNewGuest}>+ Add as new guest</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* DELETE GUEST CONFIRMATION */}
+        {modal === "delete-confirm" && pendingDelete && (
+          <div className="modal-overlay" onClick={() => { setModal(null); setPendingDelete(null); }}>
+            <div className="modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-title">Delete Guest</div>
+              <p style={{ fontSize: 14, color: "var(--charcoal)", lineHeight: 1.6, marginBottom: 16 }}>
+                Permanently delete <strong>{pendingDelete.name}</strong>? This removes them from all records and cannot be undone.
+              </p>
+              {safeDeleteEnabled && (
+                <div className="form-group" style={{ marginBottom: 16 }}>
+                  <label className="form-label">Type DELETE to confirm</label>
+                  <input
+                    className="form-input"
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    placeholder="DELETE"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && deleteConfirmText === "DELETE") {
+                        deleteGuest(pendingDelete); setModal(null); setPendingDelete(null);
+                      }
+                    }}
+                  />
+                </div>
+              )}
+              <label className="checkbox-label" style={{ fontSize: 12, opacity: 0.6, marginBottom: 4 }}>
+                <input
+                  type="checkbox"
+                  checked={safeDeleteEnabled}
+                  onChange={(e) => {
+                    setSafeDeleteEnabled(e.target.checked);
+                    localStorage.setItem("safeDelete", e.target.checked ? "true" : "false");
+                    if (!e.target.checked) setDeleteConfirmText("");
+                  }}
+                />
+                Require typing DELETE
+              </label>
+              <div className="modal-actions">
+                <button className="btn btn-outline" onClick={() => { setModal(null); setPendingDelete(null); }}>Cancel</button>
+                <button
+                  className="btn"
+                  style={{
+                    background: "#c0392b", color: "white",
+                    opacity: safeDeleteEnabled && deleteConfirmText !== "DELETE" ? 0.4 : 1,
+                    cursor: safeDeleteEnabled && deleteConfirmText !== "DELETE" ? "not-allowed" : "pointer",
+                  }}
+                  disabled={safeDeleteEnabled && deleteConfirmText !== "DELETE"}
+                  onClick={() => { deleteGuest(pendingDelete); setModal(null); setPendingDelete(null); }}
+                >
+                  Delete
+                </button>
               </div>
             </div>
           </div>
