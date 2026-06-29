@@ -18,13 +18,18 @@ export default function WishesWrappedTab({ guests, wedding }) {
   const [theme, setTheme]                 = useState('elegant');
   const [enabledSlides, setEnabledSlides] = useState(new Set());
 
-  const wishers = useMemo(
-    () => guests.filter(g => (g.rsvp_message || '').trim().length > 0),
+  const confirmedGuests = useMemo(
+    () => guests.filter(g => g.rsvp_status === 'confirmed'),
     [guests],
   );
 
+  const wishers = useMemo(
+    () => confirmedGuests.filter(g => (g.rsvp_message || '').trim().length > 0),
+    [confirmedGuests],
+  );
+
   const generate = () => {
-    const d = computeWrapped(guests);
+    const d = computeWrapped(confirmedGuests);
     setWrappedData(d);
     // Default: enable all slides that have applicable data
     setEnabledSlides(new Set(SLIDE_TOGGLES.filter(s => s.check(d)).map(s => s.key)));
