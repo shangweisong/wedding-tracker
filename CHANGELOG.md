@@ -5,6 +5,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2026-07-01] — feat/52-editable-fun-questions (PR #54)
+
+### Added
+
+- **Fun Facts — editable question labels** — each question in the Fun Facts About You section is now an editable input; couples can rename any of the 8 default questions to suit their story.
+- **Fun Facts — delete questions** — a ✕ button on each row lets couples remove questions they don't want to show guests.
+- **Fun Facts — add custom questions** — a "+ Add question" button at the bottom lets couples create entirely new questions beyond the defaults.
+- **Fun Facts — resizable answer field** — the answer input is now a textarea (`min-height: 72px`, vertically resizable) so long answers are fully visible while editing.
+
+### Changed
+
+- `fun_qa` storage shape updated from `[{ id, answer }]` to `[{ id, q, answer }]`; existing saved data is read with a backward-compatible fallback.
+- Public wedding page Q&A now renders in the couple's chosen order rather than the hardcoded default order.
+
+---
+
 ## [2026-06-29] — improve/wishes-wrapped-ui
 
 ### Changed

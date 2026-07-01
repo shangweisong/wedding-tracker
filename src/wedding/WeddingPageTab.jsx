@@ -12,6 +12,8 @@ const FUN_QUESTIONS = [
   { id: "first_date", q: "What happened on your first date?" },
 ];
 
+const FUN_QUESTIONS_BY_ID = Object.fromEntries(FUN_QUESTIONS.map((q) => [q.id, q.q]));
+
 const styles = `
   .wpt { display: flex; flex-direction: column; gap: 20px; padding: 20px 24px 40px; max-width: 780px; }
 
@@ -76,12 +78,28 @@ const styles = `
   /* Q&A grid */
   .wpt-qa-grid { display: flex; flex-direction: column; gap: 14px; }
   .wpt-qa-item {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+    display: grid; grid-template-columns: 1fr 1.5fr auto; gap: 12px;
     align-items: start; padding: 14px 16px;
     background: var(--warm-white); border-radius: 10px;
     border: 1px solid rgba(201,168,76,0.15);
   }
-  .wpt-qa-q { font-size: 13px; color: var(--brown); line-height: 1.5; padding-top: 10px; }
+  .wpt-qa-answer {
+    resize: vertical; min-height: 72px; line-height: 1.5;
+  }
+  .wpt-qa-delete {
+    padding: 9px 10px; border-radius: 8px; border: 1.5px solid rgba(192,57,43,0.2);
+    background: white; cursor: pointer; font-size: 13px; color: rgba(192,57,43,0.6);
+    font-family: 'DM Sans', sans-serif; line-height: 1; transition: all 0.15s;
+    margin-top: 1px;
+  }
+  .wpt-qa-delete:hover { border-color: rgba(192,57,43,0.5); color: rgb(192,57,43); background: rgba(192,57,43,0.04); }
+  .wpt-qa-add {
+    margin-top: 10px; width: 100%; padding: 10px 16px; border-radius: 8px;
+    border: 1.5px dashed rgba(201,168,76,0.4); background: white; cursor: pointer;
+    font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--brown);
+    transition: all 0.15s; text-align: center;
+  }
+  .wpt-qa-add:hover { border-color: var(--gold); color: var(--gold-dark); background: rgba(201,168,76,0.04); }
 
   /* Hero image */
   .wpt-hero-row { display: flex; gap: 12px; align-items: flex-start; }
@@ -169,7 +187,8 @@ const styles = `
 
   @media (max-width: 600px) {
     .wpt { padding: 16px 16px 40px; }
-    .wpt-qa-item { grid-template-columns: 1fr; }
+    .wpt-qa-item { grid-template-columns: 1fr auto; }
+    .wpt-qa-item .wpt-input:first-child { grid-column: 1 / -1; }
     .wpt-url-prefix { display: none; }
   }
 `;
@@ -184,11 +203,16 @@ function defaultSlug(bride, groom) {
   return `${slugify(groom)}-and-${slugify(bride)}`;
 }
 
-function getQaAnswers(funQa) {
+function buildCustomQA(funQa) {
   const arr = Array.isArray(funQa) ? funQa : [];
-  const map = {};
-  arr.forEach((item) => { map[item.id] = item.answer || ""; });
-  return map;
+  if (arr.length === 0) {
+    return FUN_QUESTIONS.map((q) => ({ id: q.id, q: q.q, answer: "" }));
+  }
+  return arr.map((item) => ({
+    id: item.id,
+    q: item.q || FUN_QUESTIONS_BY_ID[item.id] || "",
+    answer: item.answer || "",
+  }));
 }
 
 export default function WeddingPageTab({ wedding, onSave, showToast }) {
@@ -206,7 +230,7 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
   const [gettingThere, setGettingThere] = useState("");
   const [isPublished, setIsPublished]   = useState(false);
   const [pageTheme, setPageTheme]       = useState("minimal");
-  const [qaAnswers, setQaAnswers]  = useState({});
+  const [customQA, setCustomQA]    = useState([]);
 
   useEffect(() => {
     if (!wedding) return;
@@ -230,7 +254,7 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPageTheme(wedding.theme || "minimal");
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setQaAnswers(getQaAnswers(wedding.fun_qa));
+    setCustomQA(buildCustomQA(wedding.fun_qa));
   }, [wedding]);
 
   if (wedding === undefined) {
@@ -283,9 +307,9 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
   };
 
   const save = async () => {
-    const funQa = FUN_QUESTIONS
-      .filter((q) => qaAnswers[q.id]?.trim())
-      .map((q) => ({ id: q.id, answer: qaAnswers[q.id].trim() }));
+    const funQa = customQA
+      .filter((item) => item.answer?.trim())
+      .map((item) => ({ id: item.id, q: item.q.trim(), answer: item.answer.trim() }));
 
     setSaving(true);
     await onSave({
@@ -447,21 +471,49 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
         <div className="wpt-card">
           <div className="wpt-card-title">Fun Facts About You</div>
           <div className="wpt-card-sub">
-            Answer the questions you want guests to see. Leave blank to skip any question.
+            Customise the questions and answers your guests will see. Leave the answer blank to hide a question.
           </div>
           <div className="wpt-qa-grid">
-            {FUN_QUESTIONS.map((q) => (
-              <div key={q.id} className="wpt-qa-item">
-                <div className="wpt-qa-q">{q.q}</div>
+            {customQA.map((item, idx) => (
+              <div key={item.id} className="wpt-qa-item">
                 <input
                   className="wpt-input"
-                  value={qaAnswers[q.id] || ""}
-                  onChange={(e) => setQaAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
-                  placeholder="Your answer…"
+                  value={item.q}
+                  onChange={(e) => setCustomQA((prev) =>
+                    prev.map((r, i) => i === idx ? { ...r, q: e.target.value } : r)
+                  )}
+                  placeholder="Your question…"
                 />
+                <textarea
+                  className="wpt-input wpt-qa-answer"
+                  value={item.answer}
+                  onChange={(e) => setCustomQA((prev) =>
+                    prev.map((r, i) => i === idx ? { ...r, answer: e.target.value } : r)
+                  )}
+                  placeholder="Your answer…"
+                  rows={3}
+                />
+                <button
+                  type="button"
+                  className="wpt-qa-delete"
+                  onClick={() => setCustomQA((prev) => prev.filter((_, i) => i !== idx))}
+                  aria-label="Remove question"
+                >
+                  ✕
+                </button>
               </div>
             ))}
           </div>
+          <button
+            type="button"
+            className="wpt-qa-add"
+            onClick={() => setCustomQA((prev) => [
+              ...prev,
+              { id: `custom_${Date.now()}`, q: "", answer: "" },
+            ])}
+          >
+            + Add question
+          </button>
         </div>
 
         {/* ── THEME ── */}

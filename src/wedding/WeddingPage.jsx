@@ -3,16 +3,16 @@ import { useParams, useSearchParams } from "react-router-dom";
 import { sb, isDemoMode } from "../lib/supabase.js";
 import { theme } from "../shared/theme.js";
 
-const FUN_QUESTIONS = [
-  { id: "how_met",     q: "How did you two meet?" },
-  { id: "proposal",   q: "How did the proposal happen?" },
-  { id: "first_ily",  q: "Who said 'I love you' first?" },
-  { id: "best_cook",  q: "Who's the better cook?" },
-  { id: "funnier",    q: "Who's funnier?" },
-  { id: "fiercer",    q: "Who's fiercer?" },
-  { id: "best_memory",q: "What's your favourite memory together?" },
-  { id: "first_date", q: "What happened on your first date?" },
-];
+const FUN_QUESTION_LABELS = {
+  how_met:     "How did you two meet?",
+  proposal:    "How did the proposal happen?",
+  first_ily:   "Who said 'I love you' first?",
+  best_cook:   "Who's the better cook?",
+  funnier:     "Who's funnier?",
+  fiercer:     "Who's fiercer?",
+  best_memory: "What's your favourite memory together?",
+  first_date:  "What happened on your first date?",
+};
 
 const DEMO_WEDDING = {
   bride_name: "Siew Yong",
@@ -438,9 +438,13 @@ export default function WeddingPage() {
   const answeredQA = (() => {
     if (!wedding?.fun_qa) return [];
     const qaArr = Array.isArray(wedding.fun_qa) ? wedding.fun_qa : [];
-    return FUN_QUESTIONS
-      .map((q) => ({ ...q, answer: (qaArr.find((a) => a.id === q.id) || {}).answer }))
-      .filter((q) => q.answer);
+    return qaArr
+      .map((item) => ({
+        id: item.id,
+        q: item.q || FUN_QUESTION_LABELS[item.id] || "",
+        answer: item.answer || "",
+      }))
+      .filter((item) => item.answer && item.q);
   })();
 
   if (loading) {
