@@ -22,6 +22,11 @@ const FRIEND_SUBGROUP_OPTIONS = [
   { value: "other", label: "Other" },
 ];
 
+// Opt-in playful options (#42) — appended only when the couple enables
+// `enable_fun_rsvp_options` in Wedding Setup.
+const FUN_RELATIONSHIP_OPTION = { value: "complicated", label: "It's complicated 😅" };
+const FUN_FRIEND_SUBGROUP_OPTION = { value: "secret", label: "😏 It's a secret" };
+
 
 const styles = theme + `
   .rsvp-wrap {
@@ -298,6 +303,15 @@ export default function RsvpPage() {
   // activeToken: URL token takes precedence, then one selected from the name dropdown
   const activeToken = urlToken || selectedToken;
 
+  // Playful options are shown only when the couple opted in (#42).
+  const funOptions = !!wedding?.enable_fun_rsvp_options;
+  const relationshipOptions = funOptions
+    ? [...RELATIONSHIP_OPTIONS, FUN_RELATIONSHIP_OPTION]
+    : RELATIONSHIP_OPTIONS;
+  const friendSubgroupOptions = funOptions
+    ? [...FRIEND_SUBGROUP_OPTIONS, FUN_FRIEND_SUBGROUP_OPTION]
+    : FRIEND_SUBGROUP_OPTIONS;
+
   useEffect(() => {
     if (isDemoMode) return;
     sb.rpc("get_wedding_config", {}).then((rows) => {
@@ -543,7 +557,7 @@ export default function RsvpPage() {
                   onChange={(e) => { setRelationshipGroup(e.target.value); setFriendSubgroup(""); }}
                 >
                   <option value="">Select one…</option>
-                  {RELATIONSHIP_OPTIONS.map((o) => (
+                  {relationshipOptions.map((o) => (
                     <option key={o.value} value={o.value}>{o.label}</option>
                   ))}
                 </select>
@@ -558,7 +572,7 @@ export default function RsvpPage() {
                     onChange={(e) => setFriendSubgroup(e.target.value)}
                   >
                     <option value="">Select one…</option>
-                    {FRIEND_SUBGROUP_OPTIONS.map((o) => (
+                    {friendSubgroupOptions.map((o) => (
                       <option key={o.value} value={o.value}>{o.label}</option>
                     ))}
                   </select>

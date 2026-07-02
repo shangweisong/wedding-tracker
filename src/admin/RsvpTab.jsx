@@ -2,14 +2,16 @@ import { useState } from "react";
 
 const MEAL_OPTIONS = ["", "Halal", "Vegetarian", "Normal"];
 
+// Includes the opt-in playful options (#42) unconditionally so helpers can see
+// and set them regardless of the couple's public-form toggle.
 const RELATIONSHIP_OPTIONS = [
   ["", "Not set"], ["family", "Family"], ["colleagues", "Colleagues"],
-  ["friends", "Friends"], ["other", "Other"],
+  ["friends", "Friends"], ["other", "Other"], ["complicated", "It's complicated 😅"],
 ];
 const FRIEND_SUBGROUP_OPTIONS = [
   ["", "Not set"], ["army", "Army / NS"], ["primary_school", "Primary School"],
   ["secondary_school", "Secondary School"], ["tertiary", "JC / Poly"],
-  ["university", "University"], ["other", "Other"],
+  ["university", "University"], ["other", "Other"], ["secret", "😏 It's a secret"],
 ];
 const PARTY_OPTIONS = [
   ["", "Not set"], ["bride", "Bride"], ["groom", "Groom"],

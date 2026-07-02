@@ -9,9 +9,12 @@ export const MAX_NAME = 120,
   MAX_VENUE_NAME = 200,
   MAX_VENUE_ADDRESS = 500;
 export const PARTIES = ["", "bride", "groom"];
-export const RELATIONSHIP_GROUPS = ["", "family", "colleagues", "friends", "other"];
+// "complicated" / "secret" are the opt-in playful RSVP options (#42); always
+// allowed server-side — the Wedding Setup toggle only gates their visibility on
+// the public form, not their validity.
+export const RELATIONSHIP_GROUPS = ["", "family", "colleagues", "friends", "other", "complicated"];
 export const FRIEND_SUBGROUPS = [
-  "", "army", "primary_school", "secondary_school", "tertiary", "university", "other",
+  "", "army", "primary_school", "secondary_school", "tertiary", "university", "other", "secret",
 ];
 
 export const cleanName = (v) => String(v ?? "").trim().slice(0, MAX_NAME);

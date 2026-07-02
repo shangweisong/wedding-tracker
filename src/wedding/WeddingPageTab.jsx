@@ -230,6 +230,7 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
   const [gettingThere, setGettingThere] = useState("");
   const [isPublished, setIsPublished]   = useState(false);
   const [pageTheme, setPageTheme]       = useState("minimal");
+  const [enableFunRsvpOptions, setEnableFunRsvpOptions] = useState(false);
   const [customQA, setCustomQA]    = useState([]);
 
   useEffect(() => {
@@ -253,6 +254,8 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
     setIsPublished(wedding.is_published || false);
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPageTheme(wedding.theme || "minimal");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setEnableFunRsvpOptions(wedding.enable_fun_rsvp_options || false);
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setCustomQA(buildCustomQA(wedding.fun_qa));
   }, [wedding]);
@@ -323,6 +326,7 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
       meal_options:    mealOptions.trim(),
       getting_there:   gettingThere.trim(),
       theme:           pageTheme,
+      enable_fun_rsvp_options: enableFunRsvpOptions,
     });
     setSaving(false);
   };
@@ -573,6 +577,23 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
               ✓ Live at &nbsp;<a href={`/wedding/${slug}`} target="_blank" rel="noopener noreferrer" style={{ color: "inherit" }}>{pageUrl}</a>
             </div>
           )}
+
+          <div className="wpt-publish-row">
+            <div className="wpt-publish-info">
+              <div className="wpt-publish-title">
+                Fun RSVP options {enableFunRsvpOptions ? "on" : "off"}
+              </div>
+              <div className="wpt-publish-desc">
+                Adds playful choices to the RSVP form: “It&apos;s complicated 😅” under how
+                guests know you, and “😏 It&apos;s a secret” under friend type. Off by default.
+              </div>
+            </div>
+            <label className="wpt-toggle">
+              <input type="checkbox" checked={enableFunRsvpOptions} onChange={(e) => setEnableFunRsvpOptions(e.target.checked)} />
+              <div className="wpt-toggle-track" />
+              <div className="wpt-toggle-thumb" />
+            </label>
+          </div>
         </div>
 
         {/* ── SAVE ── */}

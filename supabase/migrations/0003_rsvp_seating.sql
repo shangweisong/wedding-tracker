@@ -74,12 +74,27 @@ alter table public.guests
 -- (Replaces the earlier flat enum that included uni_friends, secondary_school, etc.)
 alter table public.guests
   add column if not exists relationship_group text not null default ''
-    check (relationship_group in ('', 'family', 'colleagues', 'friends', 'other'));
+    check (relationship_group in ('', 'family', 'colleagues', 'friends', 'other', 'complicated'));
 
 alter table public.guests
   add column if not exists friend_subgroup text not null default ''
     check (friend_subgroup in (
-      '', 'army', 'primary_school', 'secondary_school', 'tertiary', 'university', 'other'
+      '', 'army', 'primary_school', 'secondary_school', 'tertiary', 'university', 'other', 'secret'
+    ));
+
+-- Re-assert the taxonomy CHECKs so existing DBs (where the columns already
+-- exist, making `add column if not exists` a no-op) pick up newly-allowed
+-- values — e.g. the opt-in "fun" RSVP options 'complicated' / 'secret' (#42).
+alter table public.guests drop constraint if exists guests_relationship_group_check;
+alter table public.guests
+  add constraint guests_relationship_group_check
+    check (relationship_group in ('', 'family', 'colleagues', 'friends', 'other', 'complicated'));
+
+alter table public.guests drop constraint if exists guests_friend_subgroup_check;
+alter table public.guests
+  add constraint guests_friend_subgroup_check
+    check (friend_subgroup in (
+      '', 'army', 'primary_school', 'secondary_school', 'tertiary', 'university', 'other', 'secret'
     ));
 
 alter table public.guests
@@ -167,8 +182,8 @@ security definer
 set search_path = public
 as $$
 declare
-  v_valid_groups  text[] := array['family', 'colleagues', 'friends', 'other', ''];
-  v_valid_friends text[] := array['army', 'primary_school', 'secondary_school', 'tertiary', 'university', 'other', ''];
+  v_valid_groups  text[] := array['family', 'colleagues', 'friends', 'other', 'complicated', ''];
+  v_valid_friends text[] := array['army', 'primary_school', 'secondary_school', 'tertiary', 'university', 'other', 'secret', ''];
   v_valid_parties text[] := array['bride', 'groom', ''];
 begin
   if p_status not in ('confirmed', 'declined') then
@@ -238,8 +253,8 @@ as $$
 declare
   v_ids           uuid[];
   v_match_id      uuid;
-  v_valid_groups  text[] := array['family', 'colleagues', 'friends', 'other', ''];
-  v_valid_friends text[] := array['army', 'primary_school', 'secondary_school', 'tertiary', 'university', 'other', ''];
+  v_valid_groups  text[] := array['family', 'colleagues', 'friends', 'other', 'complicated', ''];
+  v_valid_friends text[] := array['army', 'primary_school', 'secondary_school', 'tertiary', 'university', 'other', 'secret', ''];
   v_valid_parties text[] := array['bride', 'groom', ''];
 begin
   if p_status not in ('confirmed', 'declined') then

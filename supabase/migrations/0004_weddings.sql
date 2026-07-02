@@ -31,6 +31,8 @@ create table if not exists public.weddings (
   meal_options      text        default '',
   getting_there     text        default '',
   theme             text        default 'minimal',
+  -- Opt-in playful RSVP dropdown options ("It's complicated" / "It's a secret") — #42
+  enable_fun_rsvp_options boolean default false,
   updated_at        timestamptz not null default now()
 );
 
@@ -44,6 +46,9 @@ create policy "public" on public.weddings for all using (true) with check (true)
 
 -- theme column may be absent on existing DBs that ran the old 0004.
 alter table public.weddings add column if not exists theme text default 'minimal';
+
+-- Opt-in playful RSVP dropdown options — absent on existing DBs (#42).
+alter table public.weddings add column if not exists enable_fun_rsvp_options boolean default false;
 
 -- ── 2. STORAGE BUCKET (hero photos) ──────────────────────────────────────────
 
@@ -93,7 +98,8 @@ returns table (
   is_published      boolean,
   meal_options      text,
   getting_there     text,
-  theme             text
+  theme             text,
+  enable_fun_rsvp_options boolean
 )
 language sql
 security definer
@@ -118,7 +124,8 @@ as $$
     coalesce(is_published, false),
     coalesce(meal_options, ''),
     coalesce(getting_there, ''),
-    coalesce(theme, 'minimal')
+    coalesce(theme, 'minimal'),
+    coalesce(enable_fun_rsvp_options, false)
   from public.weddings
   limit 1;
 $$;
@@ -192,7 +199,8 @@ create or replace function public.upsert_wedding_page(
   p_is_published    boolean,
   p_meal_options    text,
   p_getting_there   text default '',
-  p_theme           text default 'minimal'
+  p_theme           text default 'minimal',
+  p_enable_fun_rsvp_options boolean default false
 )
 returns void
 language plpgsql
@@ -204,7 +212,7 @@ begin
     bride_name, groom_name,
     slug, love_story, dress_code, hero_image_url,
     fun_qa, rsvp_deadline, is_published, meal_options,
-    getting_there, theme, updated_at
+    getting_there, theme, enable_fun_rsvp_options, updated_at
   ) values (
     '', '',
     p_slug,
@@ -217,6 +225,7 @@ begin
     left(coalesce(p_meal_options, ''), 200),
     left(coalesce(p_getting_there, ''), 2000),
     coalesce(p_theme, 'minimal'),
+    coalesce(p_enable_fun_rsvp_options, false),
     now()
   )
   on conflict ((true)) do update set
@@ -230,11 +239,12 @@ begin
     meal_options   = left(coalesce(p_meal_options, ''), 200),
     getting_there  = left(coalesce(p_getting_there, ''), 2000),
     theme          = coalesce(p_theme, 'minimal'),
+    enable_fun_rsvp_options = coalesce(p_enable_fun_rsvp_options, false),
     updated_at     = now();
 end;
 $$;
 
-grant execute on function public.upsert_wedding_page(text, text, text, text, jsonb, date, boolean, text, text, text)
+grant execute on function public.upsert_wedding_page(text, text, text, text, jsonb, date, boolean, text, text, text, boolean)
   to anon, authenticated;
 
 -- 3d. Public page lookup by slug (used by /wedding/:slug route).

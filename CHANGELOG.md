@@ -5,6 +5,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2026-07-02] — feat/42-fun-rsvp-options (#42)
+
+### Added
+
+- **RSVP form — opt-in playful dropdown options** — couples can enable two lighthearted choices on the public RSVP form: "It's complicated 😅" under *How do you know the couple?* and "😏 It's a secret" under *Which kind of friend?*. Off by default; toggled from **Wedding Setup → Wedding Page** ("Fun RSVP options").
+- New `weddings.enable_fun_rsvp_options` boolean flag, threaded through `get_wedding_config` (read by the public RSVP page) and `upsert_wedding_page` (admin save).
+
+### Changed
+
+- `guests.relationship_group` / `friend_subgroup` CHECK constraints and the `submit_rsvp` / `submit_rsvp_by_name` RPC allow-lists now accept `complicated` / `secret`. The admin RSVP tab shows these options unconditionally so helpers can view/set stored values; the public form shows them only when the couple opts in.
+
+> Migrations `0003_rsvp_seating.sql` and `0004_weddings.sql` were updated in place (idempotent — `create or replace`, `add column if not exists`, and explicit `drop/add constraint`). Re-run both in the Supabase SQL editor.
+
+---
+
 ## [2026-07-02] — feat/39-guest-import-template (#39)
 
 ### Added
