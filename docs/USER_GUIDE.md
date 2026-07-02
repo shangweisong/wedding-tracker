@@ -116,11 +116,16 @@ HOST_EMAIL=your@email.com               # receives change-of-mind RSVP notificat
 
 ## 3. Run locally
 
+Install dependencies first (once, or whenever `package.json` changes), then start the dev server:
+
 ```bash
+npm install
 npm run dev
 ```
 
 Open `http://localhost:5173` for the admin. Open `http://localhost:5173/rsvp` to see the guest RSVP form.
+
+To produce an optimized production build (what Vercel runs on deploy), use `npm run build` — the output goes to `dist/`. Preview it locally with `npm run preview`.
 
 To test multi-device sync on the same WiFi, use your computer's LAN IP instead of `localhost`.
 
@@ -219,6 +224,14 @@ RESEND_SENDING_DOMAIN=mail.yourdomain.com
 
 Instead of adding variables one-by-one in the Vercel dashboard, use the included setup script. It reads your `.env`, detects which provider you've chosen, and pushes the right set of variables to Vercel (production + preview + development) in one command.
 
+> **The Vercel project must exist first.** The script pushes vars to a linked project, so the repo has to be linked/deployed before it works. If you haven't imported the repo via the dashboard, run a first deploy from the CLI to create and link the project:
+>
+> ```bash
+> vercel --prod --yes
+> ```
+>
+> The `--yes` flag accepts the default project settings non-interactively. After this, the env-push script can find the project.
+
 **Preview what will be pushed (no changes made):**
 ```bash
 bash scripts/setup-vercel-env.sh --dry-run
@@ -231,7 +244,7 @@ bash scripts/setup-vercel-env.sh
 
 Then redeploy:
 ```bash
-vercel --prod
+vercel --prod --yes
 ```
 
 ---
