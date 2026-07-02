@@ -3,7 +3,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { buildPayNowPayload, normalizeMobile } from "../paynow";
 import { sb, isDemoMode, supabase, HELPER_EMAIL } from "../lib/supabase.js";
 import { cleanName, cleanNotes, cleanTable, cleanParty, cleanAmount, MAX_ANGBAO } from "../lib/validation.js";
-import { parseCSV, toCSV } from "../lib/csv.js";
+import { parseCSV, toCSV, guestImportTemplateCSV } from "../lib/csv.js";
 import { formatTime } from "../lib/format.js";
 import { Icon } from "../shared/icons.jsx";
 import { theme } from "../shared/theme.js";
@@ -1890,7 +1890,16 @@ export default function WeddingTracker() {
                   />
                 </div>
                 <div style={{fontSize:"12px", color:"var(--brown)", opacity:0.6, lineHeight:1.5}}>
-                  Required column: <strong>name</strong>. Optional: <strong>table</strong> (or table_number), <strong>notes</strong>, <strong>vip</strong> (true/false)
+                  Required column: <strong>name</strong>. Optional: <strong>table</strong> (or table_number), <strong>notes</strong>, <strong>vip</strong> (true/false), <strong>party</strong> (bride/groom).
+                  {" "}Not sure of the format?{" "}
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm"
+                    style={{marginTop:"6px"}}
+                    onClick={() => download(guestImportTemplateCSV(), "guest-import-template.csv", "text/csv")}
+                  >
+                    <Icon.Download /> Download template
+                  </button>
                 </div>
               </div>
               <div className="modal-actions">

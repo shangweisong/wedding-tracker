@@ -70,6 +70,25 @@ const EXPORT_HEADERS = [
   "VIP",
 ];
 
+// ─── IMPORT TEMPLATE ──────────────────────────────────────────────────────────
+// A ready-to-fill sample for the guest-list import. Headers are the plain names
+// parseCSV() recognises (kept unquoted — parseCSV only strips quotes from values,
+// not header cells); example rows go through csvCell for the same injection
+// hardening as exports. Keep this in sync with parseCSV's accepted columns.
+export const IMPORT_TEMPLATE_HEADERS = ["name", "table", "notes", "vip", "party"];
+
+const IMPORT_TEMPLATE_ROWS = [
+  ["Tan Wei Ming", "1", "Best man", "true", "groom"],
+  ["Priya Nair", "2", "Vegetarian", "false", "bride"],
+];
+
+export function guestImportTemplateCSV() {
+  return [
+    IMPORT_TEMPLATE_HEADERS.join(","),
+    ...IMPORT_TEMPLATE_ROWS.map((row) => row.map(csvCell).join(",")),
+  ].join("\n");
+}
+
 export function toCSV(guests) {
   const rows = [
     EXPORT_HEADERS.join(","),

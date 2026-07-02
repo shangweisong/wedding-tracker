@@ -295,6 +295,8 @@ Admin → D-Day mode → toolbar → **Add Guest** or **Import CSV**.
 
 Columns: `name, table, notes, vip, party` — only `name` is required.
 
+> Not sure of the format? The **Import Guest List** dialog has a **Download template** button that saves a ready-to-fill `guest-import-template.csv` with these columns and two example rows. Fill it in, then upload it back.
+
 | Column | Description | Example |
 |---|---|---|
 | `name` | Full name (**required**) | `Tan Wei Ming` |

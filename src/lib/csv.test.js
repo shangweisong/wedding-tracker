@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseCSV, csvCell, toCSV } from "./csv.js";
+import { parseCSV, csvCell, toCSV, guestImportTemplateCSV, IMPORT_TEMPLATE_HEADERS } from "./csv.js";
 
 describe("parseCSV", () => {
   it("parses a basic guest list", () => {
@@ -109,6 +109,24 @@ describe("toCSV", () => {
       table_number: "1",
       notes: "Best man",
       is_vip: true,
+    });
+  });
+});
+
+describe("guestImportTemplateCSV — downloadable import template", () => {
+  it("uses the documented core headers, unquoted so parseCSV recognises them", () => {
+    expect(IMPORT_TEMPLATE_HEADERS).toEqual(["name", "table", "notes", "vip", "party"]);
+    expect(guestImportTemplateCSV().split("\n")[0]).toBe("name,table,notes,vip,party");
+  });
+
+  it("round-trips through parseCSV into the two example guests", () => {
+    const parsed = parseCSV(guestImportTemplateCSV());
+    expect(parsed).toHaveLength(2);
+    expect(parsed[0]).toMatchObject({
+      name: "Tan Wei Ming", table_number: "1", notes: "Best man", is_vip: true, party: "groom",
+    });
+    expect(parsed[1]).toMatchObject({
+      name: "Priya Nair", table_number: "2", notes: "Vegetarian", is_vip: false, party: "bride",
     });
   });
 });

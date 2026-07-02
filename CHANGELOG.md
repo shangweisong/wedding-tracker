@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2026-07-02] — feat/39-guest-import-template (#39)
+
+### Added
+
+- **Guest import — downloadable template** — the Import Guest List dialog now has a **Download template** button that saves a ready-to-fill `guest-import-template.csv` (the documented `name, table, notes, vip, party` columns plus two example rows), so users know the expected format before uploading. Built with the existing injection-safe `csvCell` helper; a Vitest round-trip test asserts the template always re-parses cleanly through `parseCSV`, keeping template and importer in sync.
+
+> Note: issue #39 requested an *xlsx* template, but the importer is CSV-only (no xlsx dependency). Delivered as a CSV template matching the actual importer rather than adding a heavyweight spreadsheet library.
+
+---
+
 ## [2026-07-01] — feat/52-editable-fun-questions (PR #54)
 
 ### Added
