@@ -12,9 +12,13 @@ on:
 
 jobs:
   claude-review:
-    # Skip dependency-bump PRs opened by bots (avoids the
-    # claude-code-action "non-human actor" guard and saves review tokens)
-    if: github.actor != 'dependabot[bot]'
+    # Skip when the review can't run in this context:
+    #  - dependency-bump PRs opened by bots (claude-code-action "non-human actor" guard)
+    #  - PRs from forks, where GitHub withholds id-token/secrets, so the OIDC
+    #    token fetch fails ("Could not fetch an OIDC token"). Same-repo PRs still run.
+    if: >-
+      github.actor != 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository
     # Optional: Filter by PR author
     # if: |
     #   github.event.pull_request.user.login == 'external-contributor' ||
@@ -30,9 +34,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Run Claude Code Review
         id: claude-review
