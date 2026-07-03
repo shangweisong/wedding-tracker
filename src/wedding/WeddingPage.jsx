@@ -2,16 +2,20 @@ import { useState, useEffect } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { sb, isDemoMode } from "../lib/supabase.js";
 import { theme } from "../shared/theme.js";
+import { useLocale } from "../i18n/index.jsx";
+import LanguageSwitcher from "../i18n/LanguageSwitcher.jsx";
 
-const FUN_QUESTION_LABELS = {
-  how_met:     "How did you two meet?",
-  proposal:    "How did the proposal happen?",
-  first_ily:   "Who said 'I love you' first?",
-  best_cook:   "Who's the better cook?",
-  funnier:     "Who's funnier?",
-  fiercer:     "Who's fiercer?",
-  best_memory: "What's your favourite memory together?",
-  first_date:  "What happened on your first date?",
+// Maps a fun-fact id to the i18n key for its fallback question (used only when
+// the couple didn't supply their own question text).
+const FUN_QUESTION_KEYS = {
+  how_met:     "wedding.funq.meet",
+  proposal:    "wedding.funq.proposal",
+  first_ily:   "wedding.funq.iloveyou",
+  best_cook:   "wedding.funq.cook",
+  funnier:     "wedding.funq.funnier",
+  fiercer:     "wedding.funq.fiercer",
+  best_memory: "wedding.funq.memory",
+  first_date:  "wedding.funq.firstdate",
 };
 
 const DEMO_WEDDING = {
@@ -350,31 +354,6 @@ function heroBgColor(t) {
   return "#1a1008";
 }
 
-function fmt12h(t) {
-  if (!t) return "";
-  const [hStr, mStr] = t.split(":");
-  const h = parseInt(hStr, 10);
-  const period = h < 12 ? "AM" : "PM";
-  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return `${h12}:${mStr} ${period}`;
-}
-
-function formatLongDate(dateStr) {
-  if (!dateStr) return "";
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-  const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-  const dow = new Date(y, m - 1, d).getDay();
-  return `${days[dow]}, ${d} ${months[m - 1]} ${y}`;
-}
-
-function formatShortDate(dateStr) {
-  if (!dateStr) return "";
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  return `${d} ${months[m - 1]} ${y}`;
-}
-
 function daysUntil(dateStr) {
   if (!dateStr) return null;
   const [y, m, d] = dateStr.split("-").map(Number);
@@ -384,14 +363,38 @@ function daysUntil(dateStr) {
   return Math.round((weddingUtc - todayUtc) / 86_400_000);
 }
 
-function countdownLabel(days) {
-  if (days === null) return null;
-  if (days === 0) return "Today! 🎊";
-  if (days > 0) return `${days} day${days === 1 ? "" : "s"} to go`;
-  return `${Math.abs(days)} day${Math.abs(days) === 1 ? "" : "s"} ago`;
-}
-
 export default function WeddingPage() {
+  const { t, locale } = useLocale();
+
+  // Date/time formatters close over the active locale. en-GB keeps the
+  // day→month order used by the original hardcoded English formatting.
+  const dtLocale = locale === "zh-TW" ? "zh-TW" : "en-GB";
+
+  function fmt12h(time) {
+    if (!time) return "";
+    const [hStr, mStr] = time.split(":");
+    const d = new Date(2000, 0, 1, parseInt(hStr, 10), parseInt(mStr, 10));
+    return new Intl.DateTimeFormat(dtLocale, {
+      hour: "numeric", minute: "2-digit", hour12: true,
+    }).format(d);
+  }
+
+  function formatLongDate(dateStr) {
+    if (!dateStr) return "";
+    const [y, m, d] = dateStr.split("-").map(Number);
+    return new Intl.DateTimeFormat(dtLocale, {
+      weekday: "long", day: "numeric", month: "long", year: "numeric",
+    }).format(new Date(y, m - 1, d));
+  }
+
+  function formatShortDate(dateStr) {
+    if (!dateStr) return "";
+    const [y, m, d] = dateStr.split("-").map(Number);
+    return new Intl.DateTimeFormat(dtLocale, {
+      day: "numeric", month: "short", year: "numeric",
+    }).format(new Date(y, m - 1, d));
+  }
+
   const { slug } = useParams();
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token");
@@ -417,9 +420,9 @@ export default function WeddingPage() {
 
   useEffect(() => {
     if (wedding?.bride_name && wedding?.groom_name) {
-      document.title = `${wedding.bride_name} & ${wedding.groom_name} · Wedding`;
+      document.title = t("wedding.docTitle", { bride: wedding.bride_name, groom: wedding.groom_name });
     }
-  }, [wedding]);
+  }, [wedding, t]);
 
   useEffect(() => {
     if (!wedding) return;
@@ -441,7 +444,7 @@ export default function WeddingPage() {
     return qaArr
       .map((item) => ({
         id: item.id,
-        q: item.q || FUN_QUESTION_LABELS[item.id] || "",
+        q: item.q || (FUN_QUESTION_KEYS[item.id] ? t(FUN_QUESTION_KEYS[item.id]) : ""),
         answer: item.answer || "",
       }))
       .filter((item) => item.answer && item.q);
@@ -463,8 +466,8 @@ export default function WeddingPage() {
       <>
         <style>{styles}</style>
         <div className="wp-notfound">
-          <div className="wp-notfound-title">Page not found</div>
-          <div className="wp-notfound-sub">This wedding page doesn't exist or hasn't been set up yet.</div>
+          <div className="wp-notfound-title">{t("wedding.notFound.title")}</div>
+          <div className="wp-notfound-sub">{t("wedding.notFound.body")}</div>
         </div>
       </>
     );
@@ -481,6 +484,9 @@ export default function WeddingPage() {
     <>
       <style>{styles}</style>
       <div className="wp" data-theme={pageTheme}>
+
+        {/* Sit below the sticky preview banner (and above it in z-order) when unpublished. */}
+        <LanguageSwitcher style={{ position: "absolute", top: is_published ? 16 : 52, right: 16, zIndex: 201 }} />
 
         {pageTheme === "garden" && (
           <div className="wp-leaves-bg">
@@ -502,7 +508,7 @@ export default function WeddingPage() {
 
         {!is_published && (
           <div className="wp-preview-banner">
-            Preview — this page isn't published yet. Only you can see this link.
+            {t("wedding.previewBanner")}
           </div>
         )}
 
@@ -522,8 +528,8 @@ export default function WeddingPage() {
           <div className="wp-hero-content">
             <div className="wp-invite-tag">
               {groom_name && bride_name
-                ? `✦  ${groom_name} & ${bride_name} invite you  ✦`
-                : '— — — You are cordially invited — — —'}
+                ? t("wedding.inviteTag", { groom: groom_name, bride: bride_name })
+                : t("wedding.inviteTagFallback")}
             </div>
 
             <div className="wp-couple">
@@ -543,11 +549,17 @@ export default function WeddingPage() {
 
             {days !== null && (
               <div className="wp-countdown">
-                ✦ &nbsp;{countdownLabel(days)}
+                ✦ &nbsp;{
+                  days === 0
+                    ? t("wedding.countdown.today")
+                    : days > 0
+                      ? t(days === 1 ? "wedding.countdown.toGo_one" : "wedding.countdown.toGo_other", { n: days })
+                      : t(Math.abs(days) === 1 ? "wedding.countdown.ago_one" : "wedding.countdown.ago_other", { n: Math.abs(days) })
+                }
               </div>
             )}
 
-            <a className="wp-rsvp-btn" href={rsvpHref}>RSVP Now</a>
+            <a className="wp-rsvp-btn" href={rsvpHref}>{t("wedding.rsvpNow")}</a>
           </div>
 
           <div className="wp-scroll-hint">↓</div>
@@ -559,8 +571,8 @@ export default function WeddingPage() {
           {/* Our Story */}
           {love_story && (
             <section className="wp-section">
-              <div className="wp-section-eyebrow">Our Story</div>
-              <div className="wp-section-title">How it all began</div>
+              <div className="wp-section-eyebrow">{t("wedding.story.eyebrow")}</div>
+              <div className="wp-section-title">{t("wedding.story.title")}</div>
               <p className="wp-story-text">{love_story}</p>
             </section>
           )}
@@ -568,8 +580,8 @@ export default function WeddingPage() {
           {/* Fun Q&A */}
           {answeredQA.length > 0 && (
             <section className="wp-section">
-              <div className="wp-section-eyebrow">Fun Facts</div>
-              <div className="wp-section-title">A little about us</div>
+              <div className="wp-section-eyebrow">{t("wedding.funfacts.eyebrow")}</div>
+              <div className="wp-section-title">{t("wedding.funfacts.title")}</div>
               <div className="wp-qa-grid">
                 {answeredQA.map((item) => (
                   <div key={item.id} className="wp-qa-item">
@@ -583,14 +595,14 @@ export default function WeddingPage() {
 
           {/* The Big Day */}
           <section className="wp-section">
-            <div className="wp-section-eyebrow">The Big Day</div>
-            <div className="wp-section-title">Event details</div>
+            <div className="wp-section-eyebrow">{t("wedding.bigday.eyebrow")}</div>
+            <div className="wp-section-title">{t("wedding.bigday.title")}</div>
             <div className="wp-timeline">
               {tea_ceremony_time && (
                 <div className="wp-tl-item">
                   <div className="wp-tl-node"><div className="wp-tl-icon">🍵</div><div className="wp-tl-connector" /></div>
                   <div className="wp-tl-body">
-                    <div className="wp-tl-label">Tea Ceremony</div>
+                    <div className="wp-tl-label">{t("wedding.timeline.tea")}</div>
                     <div className="wp-tl-value">{fmt12h(tea_ceremony_time)}</div>
                     {wedding_date && <div className="wp-tl-sub">{formatLongDate(wedding_date)}</div>}
                   </div>
@@ -600,7 +612,7 @@ export default function WeddingPage() {
                 <div className="wp-tl-item">
                   <div className="wp-tl-node"><div className="wp-tl-icon">💍</div><div className="wp-tl-connector" /></div>
                   <div className="wp-tl-body">
-                    <div className="wp-tl-label">Solemnisation</div>
+                    <div className="wp-tl-label">{t("wedding.timeline.solemnisation")}</div>
                     <div className="wp-tl-value">{fmt12h(ceremony_time)}</div>
                     {!tea_ceremony_time && wedding_date && <div className="wp-tl-sub">{formatLongDate(wedding_date)}</div>}
                   </div>
@@ -610,7 +622,7 @@ export default function WeddingPage() {
                 <div className="wp-tl-item">
                   <div className="wp-tl-node"><div className="wp-tl-icon">🍽</div><div className="wp-tl-connector" /></div>
                   <div className="wp-tl-body">
-                    <div className="wp-tl-label">Dinner Reception</div>
+                    <div className="wp-tl-label">{t("wedding.timeline.dinner")}</div>
                     <div className="wp-tl-value">{fmt12h(dinner_time)}</div>
                   </div>
                 </div>
@@ -619,7 +631,7 @@ export default function WeddingPage() {
                 <div className="wp-tl-item">
                   <div className="wp-tl-node"><div className="wp-tl-icon">📍</div><div className="wp-tl-connector" /></div>
                   <div className="wp-tl-body">
-                    <div className="wp-tl-label">Venue</div>
+                    <div className="wp-tl-label">{t("wedding.timeline.venue")}</div>
                     {venue_name && <div className="wp-tl-value">{venue_name}</div>}
                     {venue_address && (
                       <div className="wp-tl-sub">
@@ -636,7 +648,7 @@ export default function WeddingPage() {
             </div>
             {dress_code && (
               <div className="wp-dress-badge">
-                <strong>Dress code:</strong> {dress_code}
+                <strong>{t("wedding.dressCodeLabel")}</strong> {dress_code}
               </div>
             )}
           </section>
@@ -644,8 +656,8 @@ export default function WeddingPage() {
           {/* Getting There */}
           {getting_there && (
             <section className="wp-section">
-              <div className="wp-section-eyebrow">Getting There</div>
-              <div className="wp-section-title">Plan your journey</div>
+              <div className="wp-section-eyebrow">{t("wedding.gettingthere.eyebrow")}</div>
+              <div className="wp-section-title">{t("wedding.gettingthere.title")}</div>
               <div className="wp-getting-there">
                 {getting_there.split('\n\n').filter(p => p.trim()).map((para, i) => {
                   const text = para.trim();
@@ -669,7 +681,7 @@ export default function WeddingPage() {
                     className="wp-rsvp-btn"
                     style={{ fontSize: 13, padding: "12px 28px", letterSpacing: "0.06em" }}
                   >
-                    Open in Google Maps ↗
+                    {t("wedding.openMaps")}
                   </a>
                 </div>
               )}
@@ -678,14 +690,14 @@ export default function WeddingPage() {
 
           {/* RSVP CTA */}
           <section className="wp-section wp-cta">
-            <div className="wp-section-eyebrow">Join Us</div>
-            <div className="wp-cta-title">Hope to see you there!</div>
+            <div className="wp-section-eyebrow">{t("wedding.join.eyebrow")}</div>
+            <div className="wp-cta-title">{t("wedding.join.title")}</div>
             {rsvp_deadline && (
               <div className="wp-cta-deadline">
-                Kindly RSVP by {formatShortDate(rsvp_deadline)}
+                {t("wedding.rsvpBy", { date: formatShortDate(rsvp_deadline) })}
               </div>
             )}
-            <a className="wp-cta-btn" href={rsvpHref}>{coupleNames} are waiting for your RSVP →</a>
+            <a className="wp-cta-btn" href={rsvpHref}>{t("wedding.ctaWaiting", { couple: coupleNames })}</a>
           </section>
 
         </div>

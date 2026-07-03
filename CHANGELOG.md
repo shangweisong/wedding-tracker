@@ -5,6 +5,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2026-07-03] — feat/53-i18n-public-pages (#53, Phase 1)
+
+### Added
+
+- **Multi-language public pages (English / 中文)** — the guest-facing Wedding page and RSVP form can now switch between English and Traditional Chinese via an `EN | 中文` toggle (top-right). The choice is remembered in `localStorage` and falls back to the browser language.
+- Lightweight in-app i18n (`src/i18n/`) — a message-catalog + `t()` helper + React context, no new dependency. ~95 UI-chrome strings externalised across `WeddingPage.jsx` and `RsvpPage.jsx`; dates/times now localise via `Intl.DateTimeFormat`. A unit test enforces that the `en` and `zh-TW` catalogs stay key-for-key in sync.
+
+### Notes
+
+- **Phase 1 = UI chrome only.** App-owned labels are translated; the couple's own content (love story, venue, Q&A answers, notices) stays as entered. RSVP dropdown **labels** translate while the stored **values** are unchanged. Admin UI and emails remain English.
+- Phase 2 (couple-content translations with an auto-translate draft) is planned as a follow-up.
+
+---
+
 ## [2026-07-03] — feat/38-plus-x-guests (#38)
 
 ### Added

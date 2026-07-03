@@ -324,6 +324,7 @@ Priya Nair,2,,false,bride
    - Optional: under **Wedding Page**, flip **Fun RSVP options** on to add two playful choices to the guest RSVP form — *"It's complicated 😅"* (how they know you) and *"😏 It's a secret"* (friend type). Off by default.
    - Optional: under **Wedding Page → Note to Guests**, add **Parking** and/or **Smoking** notices — these show on the RSVP form (to attending guests) only if filled. Attending guests are also asked *"Would you like to give a speech?"*; the RSVP tab flags volunteers with a 🎤.
    - Attending guests can bring up to **6 additional guests** — each becomes its own guest entry (seatable and checkable-in independently). In the **RSVP tab** these appear as rows labelled *"↳ additional guest of …"*; the confirmed **headcount** stat counts every body, while the confirmed/pending counts track invitations.
+   - The public **Wedding page** and **RSVP form** offer an `EN | 中文` language switch (top-right) — English and Traditional Chinese. The app's own labels are translated automatically and the guest's choice is remembered; your own text (love story, venue, notices, Q&A answers) shows as you entered it. The admin dashboard and emails stay in English.
 2. Import your guest list via CSV (or add guests one by one)
 3. Share `https://your-app.vercel.app/rsvp` in your wedding group chat
 4. Guests fill in the RSVP form — responses appear in the **RSVP tab** in real time

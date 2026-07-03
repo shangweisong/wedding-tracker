@@ -3,29 +3,35 @@ import { useSearchParams } from "react-router-dom";
 import { sb, isDemoMode } from "../lib/supabase.js";
 import { theme } from "../shared/theme.js";
 import { cleanName, cleanNotes, cleanParty, cleanRelationshipGroup, cleanFriendSubgroup, cleanEmail, cleanSpeech } from "../lib/validation.js";
+import { useLocale } from "../i18n/index.jsx";
+import LanguageSwitcher from "../i18n/LanguageSwitcher.jsx";
 
-const MEAL_OPTIONS = ["Halal", "Vegetarian", "Normal"];
+const MEAL_OPTIONS = [
+  { value: "Halal", labelKey: "rsvp.meal.Halal" },
+  { value: "Vegetarian", labelKey: "rsvp.meal.Vegetarian" },
+  { value: "Normal", labelKey: "rsvp.meal.Normal" },
+];
 
 const RELATIONSHIP_OPTIONS = [
-  { value: "family", label: "Family" },
-  { value: "colleagues", label: "Colleagues" },
-  { value: "friends", label: "Friends" },
-  { value: "other", label: "Other" },
+  { value: "family", labelKey: "rsvp.rel.family" },
+  { value: "colleagues", labelKey: "rsvp.rel.colleagues" },
+  { value: "friends", labelKey: "rsvp.rel.friends" },
+  { value: "other", labelKey: "rsvp.rel.other" },
 ];
 
 const FRIEND_SUBGROUP_OPTIONS = [
-  { value: "army", label: "Army / NS" },
-  { value: "primary_school", label: "Primary School" },
-  { value: "secondary_school", label: "Secondary School" },
-  { value: "tertiary", label: "JC / Poly" },
-  { value: "university", label: "University" },
-  { value: "other", label: "Other" },
+  { value: "army", labelKey: "rsvp.friend.army" },
+  { value: "primary_school", labelKey: "rsvp.friend.primary_school" },
+  { value: "secondary_school", labelKey: "rsvp.friend.secondary_school" },
+  { value: "tertiary", labelKey: "rsvp.friend.tertiary" },
+  { value: "university", labelKey: "rsvp.friend.university" },
+  { value: "other", labelKey: "rsvp.friend.other" },
 ];
 
 // Opt-in playful options (#42) — appended only when the couple enables
 // `enable_fun_rsvp_options` in Wedding Setup.
-const FUN_RELATIONSHIP_OPTION = { value: "complicated", label: "It's complicated 😅" };
-const FUN_FRIEND_SUBGROUP_OPTION = { value: "secret", label: "😏 It's a secret" };
+const FUN_RELATIONSHIP_OPTION = { value: "complicated", labelKey: "rsvp.rel.complicated" };
+const FUN_FRIEND_SUBGROUP_OPTION = { value: "secret", labelKey: "rsvp.friend.secret" };
 
 
 const styles = theme + `
@@ -240,22 +246,24 @@ const styles = theme + `
 `;
 
 function ConfirmationView({ name, attending, wedding }) {
+  const { t, locale } = useLocale();
+  const dtLocale = locale === "zh-TW" ? "zh-TW" : "en-GB";
   const couple = wedding?.bride_name && wedding?.groom_name
     ? `${wedding.bride_name} & ${wedding.groom_name}`
-    : "the couple";
-  const date = wedding?.wedding_date ? formatDate(wedding.wedding_date) : null;
+    : t("rsvp.confirm.coupleFallback");
+  const date = wedding?.wedding_date ? formatDate(wedding.wedding_date, dtLocale) : null;
   const venue = wedding?.venue_name || null;
   return (
     <div className="rsvp-confirm">
       <div className="rsvp-confirm-heart">{attending ? "♡" : "💌"}</div>
       <div className="rsvp-confirm-title">
-        {attending ? "See you there!" : "We'll miss you!"}
+        {attending ? t("rsvp.confirm.seeYou") : t("rsvp.confirm.miss")}
       </div>
       <div className="rsvp-confirm-name">{name}</div>
       <div className="rsvp-confirm-msg">
         {attending
-          ? `Your RSVP is confirmed. ${couple} can't wait to celebrate with you!`
-          : `Thanks for letting us know. ${couple} will miss you, but hope to see you soon.`}
+          ? t("rsvp.confirm.yesMsg", { couple })
+          : t("rsvp.confirm.noMsg", { couple })}
       </div>
       {attending && (date || venue) && (
         <div className="rsvp-confirm-details">
@@ -267,14 +275,16 @@ function ConfirmationView({ name, attending, wedding }) {
   );
 }
 
-function formatDate(dateStr) {
+function formatDate(dateStr, dtLocale = "en-GB") {
   if (!dateStr) return null;
   const [y, m, d] = dateStr.split("-").map(Number);
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  return `${d} ${months[m - 1]} ${y}`;
+  return new Intl.DateTimeFormat(dtLocale, { day: "numeric", month: "short", year: "numeric" })
+    .format(new Date(y, m - 1, d));
 }
 
 export default function RsvpPage() {
+  const { t, locale } = useLocale();
+  const dtLocale = locale === "zh-TW" ? "zh-TW" : "en-GB";
   const [searchParams] = useSearchParams();
   const urlToken = searchParams.get("token") || "";
 
@@ -319,11 +329,16 @@ export default function RsvpPage() {
     sb.rpc("get_wedding_config", {}).then((rows) => {
       if (Array.isArray(rows) && rows.length) {
         setWedding(rows[0]);
-        const { bride_name, groom_name } = rows[0];
-        if (bride_name && groom_name) document.title = `RSVP · ${bride_name} & ${groom_name}'s Wedding`;
       }
     }).catch(() => {});
   }, []);
+
+  // Keep the document title in sync with the couple + active locale.
+  useEffect(() => {
+    if (wedding?.bride_name && wedding?.groom_name) {
+      document.title = t("rsvp.docTitle", { bride: wedding.bride_name, groom: wedding.groom_name });
+    }
+  }, [wedding, t]);
 
   // Pre-fill form from URL token when arriving via an "Update RSVP" link.
   useEffect(() => {
@@ -385,12 +400,12 @@ export default function RsvpPage() {
   const submit = async (e) => {
     e.preventDefault();
     if (!isDemoMode && !activeToken) {
-      setError("Please type your name above and select it from the list.");
+      setError(t("rsvp.err.nameSelect"));
       return;
     }
-    if (isDemoMode && !name.trim()) { setError("Please enter your name."); return; }
-    if (attending === null) { setError("Please select whether you'll be attending."); return; }
-    if (!cleanEmail(email)) { setError("Please enter a valid email address."); return; }
+    if (isDemoMode && !name.trim()) { setError(t("rsvp.err.nameEnter")); return; }
+    if (attending === null) { setError(t("rsvp.err.attendingSelect")); return; }
+    if (!cleanEmail(email)) { setError(t("rsvp.err.emailInvalid")); return; }
     setError("");
     setSubmitting(true);
 
@@ -422,11 +437,11 @@ export default function RsvpPage() {
       const msg = (err?.message ?? "").toLowerCase();
       console.error("[RSVP] submit error:", err);
       if (msg.includes("function") || msg.includes("does not exist") || msg.includes("pgrst")) {
-        setError("RSVP is not set up yet — the database migration hasn't been run. Contact the couple.");
+        setError(t("rsvp.err.notSetup"));
       } else if (msg.includes("invalid rsvp token")) {
-        setError("Your RSVP link has expired. Please contact the couple for a new link.");
+        setError(t("rsvp.err.linkExpired"));
       } else {
-        setError(`Something went wrong: ${err?.message ?? "unknown error"}`);
+        setError(t("rsvp.err.generic", { msg: err?.message ?? "unknown error" }));
       }
     } finally {
       setSubmitting(false);
@@ -436,41 +451,42 @@ export default function RsvpPage() {
   return (
     <>
       <style>{styles}</style>
-      <div className="rsvp-wrap" data-theme={wedding?.theme || "minimal"}>
+      <div className="rsvp-wrap" data-theme={wedding?.theme || "minimal"} style={{ position: "relative" }}>
+        <LanguageSwitcher style={{ position: "absolute", top: 16, right: 16, zIndex: 20 }} />
         <div className="rsvp-card">
           <div className="rsvp-logo">
             <span className="rsvp-logo-heart">♡</span>
             {wedding?.bride_name && wedding?.groom_name
               ? `${wedding.bride_name} & ${wedding.groom_name}`
-              : "You're Invited"}
+              : t("rsvp.invited")}
           </div>
           {wedding?.wedding_date || wedding?.venue_name ? (
             <div className="rsvp-event-info">
-              {[formatDate(wedding.wedding_date), wedding.venue_name].filter(Boolean).join(" · ")}
+              {[formatDate(wedding.wedding_date, dtLocale), wedding.venue_name].filter(Boolean).join(" · ")}
             </div>
           ) : null}
-          <div className="rsvp-eyebrow">RSVP</div>
+          <div className="rsvp-eyebrow">{t("rsvp.eyebrow")}</div>
           <div className="rsvp-divider" />
 
           {tokenLoading ? (
-            <p style={{ textAlign: "center", color: "var(--brown)", opacity: 0.6, fontSize: 14 }}>Loading your details…</p>
+            <p style={{ textAlign: "center", color: "var(--brown)", opacity: 0.6, fontSize: 14 }}>{t("rsvp.loading")}</p>
           ) : done ? (
             <ConfirmationView name={cleanName(name)} attending={attending} wedding={wedding} />
           ) : (
             <form onSubmit={submit}>
-              {isDemoMode && <div className="demo-badge">Demo Mode</div>}
+              {isDemoMode && <div className="demo-badge">{t("rsvp.demoBadge")}</div>}
 
               {/* Name — three modes:
                   1. urlToken present → read-only pre-filled from DB (same as before)
                   2. selectedToken set → read-only after guest picks from search list; × to re-search
                   3. Neither → search-and-select dropdown (no-token flow) */}
               <div className="rsvp-field">
-                <label className="rsvp-label">Your Full Name</label>
+                <label className="rsvp-label">{t("rsvp.name.label")}</label>
 
                 {isDemoMode ? (
                   <input
                     className="rsvp-input"
-                    placeholder="As written on your invitation"
+                    placeholder={t("rsvp.name.placeholder")}
                     value={name}
                     onChange={(e) => { setName(e.target.value); setError(""); }}
                     autoFocus
@@ -485,7 +501,7 @@ export default function RsvpPage() {
                     />
                     {/* Only show clear button for list-selected tokens, not URL tokens */}
                     {selectedToken && (
-                      <button type="button" className="rsvp-name-clear" onClick={clearNameSelection} aria-label="Clear name selection">
+                      <button type="button" className="rsvp-name-clear" onClick={clearNameSelection} aria-label={t("rsvp.name.clearAria")}>
                         ×
                       </button>
                     )}
@@ -494,7 +510,7 @@ export default function RsvpPage() {
                   <div className="rsvp-name-wrap">
                     <input
                       className="rsvp-input"
-                      placeholder="Start typing your name…"
+                      placeholder={t("rsvp.name.searchPlaceholder")}
                       value={nameQuery}
                       onChange={(e) => { setNameQuery(e.target.value); setError(""); }}
                       autoFocus
@@ -502,7 +518,7 @@ export default function RsvpPage() {
                     />
                     {showSuggestions && nameSearching && (
                       <div className="rsvp-suggestions">
-                        <div className="rsvp-suggestion-empty">Searching…</div>
+                        <div className="rsvp-suggestion-empty">{t("rsvp.searching")}</div>
                       </div>
                     )}
                     {showSuggestions && !nameSearching && nameResults.length > 0 && (
@@ -520,7 +536,7 @@ export default function RsvpPage() {
                     )}
                     {showSuggestions && !nameSearching && nameResults.length === 0 && (
                       <div className="rsvp-suggestions">
-                        <div className="rsvp-suggestion-empty">No match found — check spelling or contact the couple</div>
+                        <div className="rsvp-suggestion-empty">{t("rsvp.noMatch")}</div>
                       </div>
                     )}
                   </div>
@@ -529,11 +545,11 @@ export default function RsvpPage() {
 
               {/* Email — used to send confirmation + reminder emails */}
               <div className="rsvp-field">
-                <label className="rsvp-label">Your Email</label>
+                <label className="rsvp-label">{t("rsvp.email.label")}</label>
                 <input
                   className="rsvp-input"
                   type="email"
-                  placeholder="So we can send your confirmation"
+                  placeholder={t("rsvp.email.placeholder")}
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); setError(""); }}
                 />
@@ -541,62 +557,62 @@ export default function RsvpPage() {
 
               {/* Attendance */}
               <div className="rsvp-field">
-                <span className="rsvp-label">Will you be attending?</span>
+                <span className="rsvp-label">{t("rsvp.attending.q")}</span>
                 <div className="attend-btns">
                   <button type="button"
                     className={`attend-btn yes ${attending === true ? "active" : ""}`}
                     onClick={() => { setAttending(true); setError(""); }}>
-                    ✓&nbsp; Yes, I'll be there!
+                    {t("rsvp.attending.yes")}
                   </button>
                   <button type="button"
                     className={`attend-btn no ${attending === false ? "active" : ""}`}
                     onClick={() => { setAttending(false); setError(""); }}>
-                    ✗&nbsp; Sorry, I can't make it
+                    {t("rsvp.attending.no")}
                   </button>
                 </div>
               </div>
 
               {/* Relationship to the couple */}
               <div className="rsvp-field">
-                <label className="rsvp-label">How do you know the couple?</label>
+                <label className="rsvp-label">{t("rsvp.rel.q")}</label>
                 <select
                   className="rsvp-input"
                   value={relationshipGroup}
                   onChange={(e) => { setRelationshipGroup(e.target.value); setFriendSubgroup(""); }}
                 >
-                  <option value="">Select one…</option>
+                  <option value="">{t("common.selectOne")}</option>
                   {relationshipOptions.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
+                    <option key={o.value} value={o.value}>{t(o.labelKey)}</option>
                   ))}
                 </select>
               </div>
 
               {relationshipGroup === "friends" && (
                 <div className="rsvp-field">
-                  <label className="rsvp-label">Which kind of friend?</label>
+                  <label className="rsvp-label">{t("rsvp.friend.q")}</label>
                   <select
                     className="rsvp-input"
                     value={friendSubgroup}
                     onChange={(e) => setFriendSubgroup(e.target.value)}
                   >
-                    <option value="">Select one…</option>
+                    <option value="">{t("common.selectOne")}</option>
                     {friendSubgroupOptions.map((o) => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
+                      <option key={o.value} value={o.value}>{t(o.labelKey)}</option>
                     ))}
                   </select>
                 </div>
               )}
 
               <div className="rsvp-field">
-                <label className="rsvp-label">Closer to</label>
+                <label className="rsvp-label">{t("rsvp.closerTo")}</label>
                 <select
                   className="rsvp-input"
                   value={closerTo}
                   onChange={(e) => setCloserTo(e.target.value)}
                 >
-                  <option value="">Select one…</option>
-                  <option value="bride">💐 {wedding?.bride_name || "Bride"}</option>
-                  <option value="groom">🤵 {wedding?.groom_name || "Groom"}</option>
+                  <option value="">{t("common.selectOne")}</option>
+                  <option value="bride">💐 {wedding?.bride_name || t("rsvp.side.brideFallback")}</option>
+                  <option value="groom">🤵 {wedding?.groom_name || t("rsvp.side.groomFallback")}</option>
                 </select>
               </div>
 
@@ -604,16 +620,16 @@ export default function RsvpPage() {
               <div className={`rsvp-collapse${attending === true ? ' open' : ''}`}>
                 <div className="rsvp-collapse-inner">
                   <div className="rsvp-field" style={{ paddingTop: 4 }}>
-                    <span className="rsvp-label">Meal Choice</span>
+                    <span className="rsvp-label">{t("rsvp.meal.label")}</span>
                     <div className="meal-opts">
                       {MEAL_OPTIONS.map((opt) => (
-                        <div key={opt}
-                          className={`meal-opt ${mealChoice === opt ? "active" : ""}`}
-                          onClick={() => setMealChoice(opt)}>
+                        <div key={opt.value}
+                          className={`meal-opt ${mealChoice === opt.value ? "active" : ""}`}
+                          onClick={() => setMealChoice(opt.value)}>
                           <span className="meal-radio">
-                            {mealChoice === opt && <span className="meal-radio-dot" />}
+                            {mealChoice === opt.value && <span className="meal-radio-dot" />}
                           </span>
-                          {opt}
+                          {t(opt.labelKey)}
                         </div>
                       ))}
                     </div>
@@ -621,12 +637,12 @@ export default function RsvpPage() {
 
                   <div className="rsvp-field">
                     <label className="rsvp-label">
-                      Dietary Requirements
-                      <span style={{ opacity: 0.45, fontWeight: 400, marginLeft: 4 }}>(optional)</span>
+                      {t("rsvp.dietary.label")}
+                      <span style={{ opacity: 0.45, fontWeight: 400, marginLeft: 4 }}>{t("common.optional")}</span>
                     </label>
                     <input
                       className="rsvp-input"
-                      placeholder="Any allergies or dietary needs?"
+                      placeholder={t("rsvp.dietary.placeholder")}
                       value={dietary}
                       onChange={(e) => setDietary(e.target.value)}
                     />
@@ -634,24 +650,24 @@ export default function RsvpPage() {
 
                   {/* Do you want to give a speech? — three-state (unset toggles off) */}
                   <div className="rsvp-field">
-                    <span className="rsvp-label">Would you like to give a speech?</span>
+                    <span className="rsvp-label">{t("rsvp.speech.q")}</span>
                     <div className="attend-btns">
                       <button type="button"
                         className={`attend-btn yes ${wantsToSpeak === "yes" ? "active" : ""}`}
                         onClick={() => setWantsToSpeak(wantsToSpeak === "yes" ? "" : "yes")}>
-                        🎤&nbsp; Yes, I'd love to
+                        {t("rsvp.speech.yes")}
                       </button>
                       <button type="button"
                         className={`attend-btn no ${wantsToSpeak === "no" ? "active" : ""}`}
                         onClick={() => setWantsToSpeak(wantsToSpeak === "no" ? "" : "no")}>
-                        No, thanks
+                        {t("rsvp.speech.no")}
                       </button>
                     </div>
                   </div>
 
                   {/* Additional guests — plus-x, up to 6 (#38) */}
                   <div className="rsvp-field">
-                    <label className="rsvp-label">Bringing additional guests?</label>
+                    <label className="rsvp-label">{t("rsvp.plus.q")}</label>
                     <select
                       className="rsvp-input"
                       value={plusOneNames.length}
@@ -666,7 +682,7 @@ export default function RsvpPage() {
                     >
                       {[0, 1, 2, 3, 4, 5, 6].map((n) => (
                         <option key={n} value={n}>
-                          {n === 0 ? "Just me" : `${n} more guest${n > 1 ? "s" : ""}`}
+                          {n === 0 ? t("rsvp.plus.justMe") : t(n === 1 ? "rsvp.plus.more_one" : "rsvp.plus.more_other", { n })}
                         </option>
                       ))}
                     </select>
@@ -675,7 +691,7 @@ export default function RsvpPage() {
                         key={i}
                         className="rsvp-input"
                         style={{ marginTop: 8 }}
-                        placeholder={`Guest ${i + 1} full name`}
+                        placeholder={t("rsvp.plus.namePlaceholder", { i: i + 1 })}
                         value={nm}
                         onChange={(e) =>
                           setPlusOneNames((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))
@@ -684,7 +700,7 @@ export default function RsvpPage() {
                     ))}
                     {plusOneNames.length > 0 && (
                       <div style={{ marginTop: 8, fontSize: 13, lineHeight: 1.5, padding: "10px 12px", borderRadius: 10, background: "rgba(212,160,80,0.14)", color: "#7a5c1e" }}>
-                        ⚠️ Please inform the bride &amp; groom of this addition.
+                        {t("rsvp.plus.disclaimer")}
                       </div>
                     )}
                   </div>
@@ -692,16 +708,16 @@ export default function RsvpPage() {
                   {/* Note to guests — display-only notices configured by the couple */}
                   {(wedding?.parking_notice || wedding?.smoking_notice) && (
                     <div className="rsvp-field">
-                      <span className="rsvp-label">Note to guests</span>
+                      <span className="rsvp-label">{t("rsvp.notes.title")}</span>
                       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                         {wedding?.parking_notice && (
                           <div style={{ fontSize: 14, lineHeight: 1.5, padding: "10px 12px", borderRadius: 10, background: "rgba(0,0,0,0.04)" }}>
-                            <strong>🅿️ Parking:</strong> {wedding.parking_notice}
+                            <strong>{t("rsvp.notes.parking")}</strong> {wedding.parking_notice}
                           </div>
                         )}
                         {wedding?.smoking_notice && (
                           <div style={{ fontSize: 14, lineHeight: 1.5, padding: "10px 12px", borderRadius: 10, background: "rgba(0,0,0,0.04)" }}>
-                            <strong>🚭 Smoking:</strong> {wedding.smoking_notice}
+                            <strong>{t("rsvp.notes.smoking")}</strong> {wedding.smoking_notice}
                           </div>
                         )}
                       </div>
@@ -713,12 +729,12 @@ export default function RsvpPage() {
               {/* Message */}
               <div className="rsvp-field">
                 <label className="rsvp-label">
-                  Message to the Couple
-                  <span style={{ opacity: 0.45, fontWeight: 400, marginLeft: 4 }}>(optional)</span>
+                  {t("rsvp.message.label")}
+                  <span style={{ opacity: 0.45, fontWeight: 400, marginLeft: 4 }}>{t("common.optional")}</span>
                 </label>
                 <textarea
                   className="rsvp-input"
-                  placeholder="Write a message or well wishes…"
+                  placeholder={t("rsvp.message.placeholder")}
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                 />
@@ -728,7 +744,7 @@ export default function RsvpPage() {
 
               <div className="rsvp-submit-wrap">
                 <button type="submit" className="rsvp-submit" disabled={submitting}>
-                  {submitting ? "Sending…" : "Confirm My RSVP"}
+                  {submitting ? t("rsvp.submitting") : t("rsvp.submit")}
                 </button>
               </div>
             </form>
