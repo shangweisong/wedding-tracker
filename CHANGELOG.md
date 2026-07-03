@@ -5,6 +5,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2026-07-03] — feat/38-plus-x-guests (#38)
+
+### Added
+
+- **RSVP form — bring up to 6 additional guests** — attending guests pick how many others they're bringing (0–6) and name each one. A disclaimer reminds them to inform the couple of the addition.
+- Each additional guest becomes its own **child guest row** (`guests.primary_guest_id`), so they're independently seatable and checkable-in. Revisiting an RSVP link repopulates the names; changing the list preserves the seats/check-ins of unchanged names (reconcile-by-name in `submit_rsvp`).
+
+### Changed
+
+- **Replaces the single `plus_one_name` field.** Existing values are migrated into child rows and the legacy field is cleared. The admin RSVP tab labels child rows ("↳ additional guest of …") and shows a "+N guests" tag on primaries; responder stats count primaries while **headcount counts every confirmed body**. Seating export drops the now-redundant `plus_one` column. Name search hides child rows (they don't self-RSVP).
+
+> Migration `0003_rsvp_seating.sql` was updated in place (idempotent): adds `primary_guest_id` + backfills existing plus-ones into child rows. Re-run it in the Supabase SQL editor.
+
+---
+
 ## [2026-07-03] — feat/40-note-to-guests (#40)
 
 ### Added

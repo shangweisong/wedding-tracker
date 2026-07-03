@@ -1352,14 +1352,19 @@ export default function WeddingTracker() {
   });
 
   // Stats
-  const total = guests.length;
+  // Plus-ones (#38) are child guest rows; "invitation" stats count primaries,
+  // headcount counts every confirmed body.
+  const primaryGuests = guests.filter((g) => !g.primary_guest_id);
+  const total = primaryGuests.length;
   const arrived = guests.filter((g) => g.checked_in).length;
-  const angbaoTotal = guests.filter((g) => g.angbao_given).reduce((s, g) => s + (g.angbao_amount || 0), 0);
-  const angbaoCount = guests.filter((g) => g.angbao_given).length;
+  // Ang-bao is given per invitation, so scope to primaries (keeps "Still Pending"
+  // = total - angbaoCount non-negative and consistent with `total`).
+  const angbaoTotal = primaryGuests.filter((g) => g.angbao_given).reduce((s, g) => s + (g.angbao_amount || 0), 0);
+  const angbaoCount = primaryGuests.filter((g) => g.angbao_given).length;
   const pendingSubs = submissions.filter((s) => s.status === "pending").length;
-  const rsvpConfirmed = guests.filter((g) => g.rsvp_status === "confirmed").length;
-  const rsvpPending = guests.filter((g) => g.rsvp_status === "pending").length;
-  const rsvpHeadcount = rsvpConfirmed + guests.filter((g) => g.rsvp_status === "confirmed" && g.plus_one_name?.trim()).length;
+  const rsvpConfirmed = primaryGuests.filter((g) => g.rsvp_status === "confirmed").length;
+  const rsvpPending = primaryGuests.filter((g) => g.rsvp_status === "pending").length;
+  const rsvpHeadcount = guests.filter((g) => g.rsvp_status === "confirmed").length;
 
   // Table groups — only guests with an assignment; in d-day mode filtered already excludes non-confirmed
   const tables = {};
@@ -1475,11 +1480,11 @@ export default function WeddingTracker() {
             ) : (
               <>
                 <div className="stat-pill">
-                  <span className="num">{arrived}/{total}</span>
+                  <span className="num">{arrived}/{guests.length}</span>
                   <span className="lbl">Arrived</span>
                 </div>
                 <div className="stat-pill">
-                  <span className="num">{total > 0 ? Math.round((arrived / total) * 100) : 0}%</span>
+                  <span className="num">{guests.length > 0 ? Math.round((arrived / guests.length) * 100) : 0}%</span>
                   <span className="lbl">Attendance</span>
                 </div>
                 {ANGBAO_ENABLED && (
