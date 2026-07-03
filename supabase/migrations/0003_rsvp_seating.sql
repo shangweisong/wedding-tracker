@@ -103,6 +103,39 @@ alter table public.guests
   add column if not exists wants_to_speak text not null default ''
     check (wants_to_speak in ('', 'yes', 'no'));
 
+-- Plus-x: additional guests a primary RSVPs for become their own guest rows,
+-- linked back to the primary. NULL for primary guests. Cascade so removing a
+-- primary removes the party they registered (#38).
+alter table public.guests
+  add column if not exists primary_guest_id uuid
+    references public.guests(id) on delete cascade;
+
+create index if not exists guests_primary_guest_id_idx
+  on public.guests(primary_guest_id);
+
+-- Backfill the legacy single plus_one_name into a child guest row, then clear
+-- it so children are the single source of truth. Idempotent: both steps skip
+-- primaries that already have a matching child (#38).
+insert into public.guests (name, primary_guest_id, party, rsvp_status)
+select left(trim(g.plus_one_name), 120), g.id, g.party, g.rsvp_status
+from public.guests g
+where g.primary_guest_id is null
+  and coalesce(trim(g.plus_one_name), '') <> ''
+  and not exists (
+    select 1 from public.guests c
+    where c.primary_guest_id = g.id
+      and lower(trim(c.name)) = lower(trim(g.plus_one_name))
+  );
+
+update public.guests g set plus_one_name = ''
+where g.primary_guest_id is null
+  and coalesce(trim(g.plus_one_name), '') <> ''
+  and exists (
+    select 1 from public.guests c
+    where c.primary_guest_id = g.id
+      and lower(trim(c.name)) = lower(trim(g.plus_one_name))
+  );
+
 alter table public.guests
   add column if not exists rsvp_message text not null default ''
     check (char_length(rsvp_message) <= 500);
@@ -150,18 +183,27 @@ returns table (
   party              text,
   rsvp_message       text,
   email              text,
-  wants_to_speak     text
+  wants_to_speak     text,
+  plus_one_names     text[]
 )
 language sql
 security definer
 set search_path = public
 as $$
   select
-    id, name, rsvp_status, meal_choice,
-    plus_one_name, dietary_notes, relationship_group, friend_subgroup, party, rsvp_message,
-    email, wants_to_speak
-  from public.guests
-  where rsvp_token = p_token;
+    g.id, g.name, g.rsvp_status, g.meal_choice,
+    g.plus_one_name, g.dietary_notes, g.relationship_group, g.friend_subgroup, g.party, g.rsvp_message,
+    g.email, g.wants_to_speak,
+    coalesce(
+      array(
+        select c.name from public.guests c
+        where c.primary_guest_id = g.id
+        order by c.name
+      ),
+      '{}'
+    )
+  from public.guests g
+  where g.rsvp_token = p_token;
 $$;
 
 grant execute on function public.get_guest_by_rsvp_token(uuid) to anon, authenticated;
@@ -170,6 +212,7 @@ grant execute on function public.get_guest_by_rsvp_token(uuid) to anon, authenti
 drop function if exists public.submit_rsvp(uuid, text, text, text, text, text, text);
 drop function if exists public.submit_rsvp(uuid, text, text, text, text, text, text, text, text);
 drop function if exists public.submit_rsvp(uuid, text, text, text, text, text, text, text, text, text);
+drop function if exists public.submit_rsvp(uuid, text, text, text, text, text, text, text, text, text, text);
 
 create or replace function public.submit_rsvp(
   p_token              uuid,
@@ -182,7 +225,8 @@ create or replace function public.submit_rsvp(
   p_party              text default '',
   p_message            text default '',
   p_email              text default '',
-  p_wants_to_speak     text default ''
+  p_wants_to_speak     text default '',
+  p_plus_one_names     text[] default '{}'
 )
 returns void
 language plpgsql
@@ -193,6 +237,9 @@ declare
   v_valid_groups  text[] := array['family', 'colleagues', 'friends', 'other', 'complicated', ''];
   v_valid_friends text[] := array['army', 'primary_school', 'secondary_school', 'tertiary', 'university', 'other', 'secret', ''];
   v_valid_parties text[] := array['bride', 'groom', ''];
+  v_primary_id    uuid;
+  v_party         text;
+  v_clean         text[];
 begin
   if p_status not in ('confirmed', 'declined') then
     raise exception 'invalid rsvp status: %', p_status;
@@ -233,10 +280,42 @@ begin
   if not found then
     raise exception 'invalid rsvp token';
   end if;
+
+  -- ── Plus-x reconciliation (#38) ──────────────────────────────────────────
+  -- Resolve the primary and the party it should be filed under.
+  select id,
+         case when p_party = any(v_valid_parties) and p_party != '' then p_party else party end
+    into v_primary_id, v_party
+  from public.guests where rsvp_token = p_token;
+
+  -- Clean requested names: trim, drop blanks, cap length, dedupe, cap at 6.
+  select coalesce(array_agg(nm), '{}')
+    into v_clean
+  from (
+    select distinct left(trim(n), 120) as nm
+    from unnest(coalesce(p_plus_one_names, '{}')) as t(n)
+    where trim(coalesce(n, '')) <> ''
+  ) d;
+  if array_length(v_clean, 1) > 6 then
+    v_clean := v_clean[1:6];
+  end if;
+
+  -- Remove children no longer listed (preserves table/check-in for kept names).
+  delete from public.guests
+  where primary_guest_id = v_primary_id
+    and lower(trim(name)) <> all (select lower(x) from unnest(v_clean) as x);
+
+  -- Add newly-listed names not already present as a child of this primary.
+  insert into public.guests (name, primary_guest_id, party, rsvp_status)
+  select nm, v_primary_id, v_party, p_status
+  from unnest(v_clean) as nm
+  where lower(trim(nm)) not in (
+    select lower(trim(name)) from public.guests where primary_guest_id = v_primary_id
+  );
 end;
 $$;
 
-grant execute on function public.submit_rsvp(uuid, text, text, text, text, text, text, text, text, text, text) to anon, authenticated;
+grant execute on function public.submit_rsvp(uuid, text, text, text, text, text, text, text, text, text, text, text[]) to anon, authenticated;
 
 -- 4c. Fuzzy name-based RSVP submission (fallback when no token link).
 --     Raises: 'not_found' | 'ambiguous' | 'invalid_status'
@@ -336,6 +415,7 @@ as $$
   select id, name, rsvp_token
   from public.guests
   where char_length(trim(p_name)) >= 2
+    and primary_guest_id is null  -- plus-ones don't self-RSVP (#38)
     and lower(name) like '%' || lower(trim(p_name)) || '%'
   order by
     case when lower(trim(name)) = lower(trim(p_name)) then 0 else 1 end,

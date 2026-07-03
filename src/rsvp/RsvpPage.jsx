@@ -288,6 +288,7 @@ export default function RsvpPage() {
   const [relationshipGroup, setRelationshipGroup] = useState("");
   const [friendSubgroup, setFriendSubgroup]        = useState("");
   const [wantsToSpeak, setWantsToSpeak]            = useState("");
+  const [plusOneNames, setPlusOneNames]           = useState([]);
   const [closerTo, setCloserTo]                    = useState("");
   const [message, setMessage]         = useState("");
   const [error, setError]             = useState("");
@@ -340,6 +341,7 @@ export default function RsvpPage() {
         setFriendSubgroup(g.friend_subgroup ?? "");
         setCloserTo(g.party ?? "");
         setWantsToSpeak(g.wants_to_speak ?? "");
+        setPlusOneNames(Array.isArray(g.plus_one_names) ? g.plus_one_names : []);
         setMessage(g.rsvp_message ?? "");
       })
       .catch(() => {})
@@ -411,6 +413,9 @@ export default function RsvpPage() {
         p_party:              cleanParty(closerTo),
         p_email:              cleanEmail(email),
         p_wants_to_speak:     attending ? cleanSpeech(wantsToSpeak) : "",
+        p_plus_one_names:     attending
+          ? plusOneNames.map((n) => cleanName(n)).filter(Boolean).slice(0, 6)
+          : [],
       });
       setDone(true);
     } catch (err) {
@@ -642,6 +647,46 @@ export default function RsvpPage() {
                         No, thanks
                       </button>
                     </div>
+                  </div>
+
+                  {/* Additional guests — plus-x, up to 6 (#38) */}
+                  <div className="rsvp-field">
+                    <label className="rsvp-label">Bringing additional guests?</label>
+                    <select
+                      className="rsvp-input"
+                      value={plusOneNames.length}
+                      onChange={(e) => {
+                        const n = Number(e.target.value);
+                        setPlusOneNames((prev) => {
+                          const next = prev.slice(0, n);
+                          while (next.length < n) next.push("");
+                          return next;
+                        });
+                      }}
+                    >
+                      {[0, 1, 2, 3, 4, 5, 6].map((n) => (
+                        <option key={n} value={n}>
+                          {n === 0 ? "Just me" : `${n} more guest${n > 1 ? "s" : ""}`}
+                        </option>
+                      ))}
+                    </select>
+                    {plusOneNames.map((nm, i) => (
+                      <input
+                        key={i}
+                        className="rsvp-input"
+                        style={{ marginTop: 8 }}
+                        placeholder={`Guest ${i + 1} full name`}
+                        value={nm}
+                        onChange={(e) =>
+                          setPlusOneNames((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))
+                        }
+                      />
+                    ))}
+                    {plusOneNames.length > 0 && (
+                      <div style={{ marginTop: 8, fontSize: 13, lineHeight: 1.5, padding: "10px 12px", borderRadius: 10, background: "rgba(212,160,80,0.14)", color: "#7a5c1e" }}>
+                        ⚠️ Please inform the bride &amp; groom of this addition.
+                      </div>
+                    )}
                   </div>
 
                   {/* Note to guests — display-only notices configured by the couple */}

@@ -1352,14 +1352,17 @@ export default function WeddingTracker() {
   });
 
   // Stats
-  const total = guests.length;
+  // Plus-ones (#38) are child guest rows; "invitation" stats count primaries,
+  // headcount counts every confirmed body.
+  const primaryGuests = guests.filter((g) => !g.primary_guest_id);
+  const total = primaryGuests.length;
   const arrived = guests.filter((g) => g.checked_in).length;
   const angbaoTotal = guests.filter((g) => g.angbao_given).reduce((s, g) => s + (g.angbao_amount || 0), 0);
   const angbaoCount = guests.filter((g) => g.angbao_given).length;
   const pendingSubs = submissions.filter((s) => s.status === "pending").length;
-  const rsvpConfirmed = guests.filter((g) => g.rsvp_status === "confirmed").length;
-  const rsvpPending = guests.filter((g) => g.rsvp_status === "pending").length;
-  const rsvpHeadcount = rsvpConfirmed + guests.filter((g) => g.rsvp_status === "confirmed" && g.plus_one_name?.trim()).length;
+  const rsvpConfirmed = primaryGuests.filter((g) => g.rsvp_status === "confirmed").length;
+  const rsvpPending = primaryGuests.filter((g) => g.rsvp_status === "pending").length;
+  const rsvpHeadcount = guests.filter((g) => g.rsvp_status === "confirmed").length;
 
   // Table groups — only guests with an assignment; in d-day mode filtered already excludes non-confirmed
   const tables = {};

@@ -479,7 +479,6 @@ export default function SeatingTab({ guests, onUpdate, onResetSeating, showToast
         table_label: t.label,
         guest_name: g.name,
         meal_choice: g.meal_choice || "",
-        plus_one: g.plus_one_name || "",
         party: g.party || "",
       }))
     );
@@ -487,7 +486,7 @@ export default function SeatingTab({ guests, onUpdate, onResetSeating, showToast
       showToast("No seating assignments to export");
       return;
     }
-    const headers = ["table_number", "table_label", "guest_name", "meal_choice", "plus_one", "party"];
+    const headers = ["table_number", "table_label", "guest_name", "meal_choice", "party"];
     const csv = [
       headers.join(","),
       ...rows.map((r) => headers.map((h) => csvCell(r[h])).join(",")),
