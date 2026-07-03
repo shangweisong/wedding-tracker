@@ -4,6 +4,7 @@ import { sb, isDemoMode } from "../lib/supabase.js";
 import { theme } from "../shared/theme.js";
 import { cleanName, cleanNotes, cleanParty, cleanRelationshipGroup, cleanFriendSubgroup, cleanEmail, cleanSpeech } from "../lib/validation.js";
 import { useLocale } from "../i18n/index.jsx";
+import { localizeWedding } from "../i18n/content.js";
 import LanguageSwitcher from "../i18n/LanguageSwitcher.jsx";
 
 const MEAL_OPTIONS = [
@@ -289,6 +290,8 @@ export default function RsvpPage() {
   const urlToken = searchParams.get("token") || "";
 
   const [wedding, setWedding]         = useState(null);
+  // Couple content in the active language (per-field fallback to English) — #53 Phase 2.
+  const w = localizeWedding(wedding, locale);
   // name: confirmed display name (set by token pre-fill or by guest selecting from list)
   const [name, setName]               = useState("");
   const [email, setEmail]             = useState("");
@@ -462,7 +465,7 @@ export default function RsvpPage() {
           </div>
           {wedding?.wedding_date || wedding?.venue_name ? (
             <div className="rsvp-event-info">
-              {[formatDate(wedding.wedding_date, dtLocale), wedding.venue_name].filter(Boolean).join(" · ")}
+              {[formatDate(wedding.wedding_date, dtLocale), w.venue_name].filter(Boolean).join(" · ")}
             </div>
           ) : null}
           <div className="rsvp-eyebrow">{t("rsvp.eyebrow")}</div>
@@ -471,7 +474,7 @@ export default function RsvpPage() {
           {tokenLoading ? (
             <p style={{ textAlign: "center", color: "var(--brown)", opacity: 0.6, fontSize: 14 }}>{t("rsvp.loading")}</p>
           ) : done ? (
-            <ConfirmationView name={cleanName(name)} attending={attending} wedding={wedding} />
+            <ConfirmationView name={cleanName(name)} attending={attending} wedding={w} />
           ) : (
             <form onSubmit={submit}>
               {isDemoMode && <div className="demo-badge">{t("rsvp.demoBadge")}</div>}
@@ -706,18 +709,18 @@ export default function RsvpPage() {
                   </div>
 
                   {/* Note to guests — display-only notices configured by the couple */}
-                  {(wedding?.parking_notice || wedding?.smoking_notice) && (
+                  {(w?.parking_notice || w?.smoking_notice) && (
                     <div className="rsvp-field">
                       <span className="rsvp-label">{t("rsvp.notes.title")}</span>
                       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                        {wedding?.parking_notice && (
+                        {w?.parking_notice && (
                           <div style={{ fontSize: 14, lineHeight: 1.5, padding: "10px 12px", borderRadius: 10, background: "rgba(0,0,0,0.04)" }}>
-                            <strong>{t("rsvp.notes.parking")}</strong> {wedding.parking_notice}
+                            <strong>{t("rsvp.notes.parking")}</strong> {w.parking_notice}
                           </div>
                         )}
-                        {wedding?.smoking_notice && (
+                        {w?.smoking_notice && (
                           <div style={{ fontSize: 14, lineHeight: 1.5, padding: "10px 12px", borderRadius: 10, background: "rgba(0,0,0,0.04)" }}>
-                            <strong>{t("rsvp.notes.smoking")}</strong> {wedding.smoking_notice}
+                            <strong>{t("rsvp.notes.smoking")}</strong> {w.smoking_notice}
                           </div>
                         )}
                       </div>

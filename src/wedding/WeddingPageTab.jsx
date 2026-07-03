@@ -235,6 +235,10 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
   const [enableFunRsvpOptions, setEnableFunRsvpOptions] = useState(false);
   const [customQA, setCustomQA]    = useState([]);
 
+  const [zhTr, setZhTr]            = useState({});
+  const [translating, setTranslating] = useState(false);
+  const [translateErr, setTranslateErr] = useState("");
+
   useEffect(() => {
     if (!wedding) return;
     const auto = defaultSlug(wedding.bride_name, wedding.groom_name);
@@ -264,6 +268,8 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
     setEnableFunRsvpOptions(wedding.enable_fun_rsvp_options || false);
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setCustomQA(buildCustomQA(wedding.fun_qa));
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setZhTr(wedding.content_translations?.["zh-TW"] || {});
   }, [wedding]);
 
   if (wedding === undefined) {
@@ -315,6 +321,92 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
     }
   };
 
+  // ── zh-TW translation helpers ──
+  const zhTextFields = [
+    { key: "love_story",     label: "Your Story",      en: loveStory },
+    { key: "dress_code",     label: "Dress Code",      en: dresscode },
+    { key: "venue_name",     label: "Venue Name",      en: wedding?.venue_name || "" },
+    { key: "venue_address",  label: "Venue Address",   en: wedding?.venue_address || "" },
+    { key: "getting_there",  label: "Getting There",   en: gettingThere },
+    { key: "smoking_notice", label: "Smoking notice",  en: smokingNotice },
+    { key: "parking_notice", label: "Parking notice",  en: parkingNotice },
+  ];
+
+  const setZhField = (key, value) => setZhTr((p) => ({ ...p, [key]: value }));
+
+  const zhFunQaValue = (id, field) => {
+    const arr = Array.isArray(zhTr.fun_qa) ? zhTr.fun_qa : [];
+    const found = arr.find((r) => r.id === id);
+    return (found && found[field]) || "";
+  };
+
+  const setZhFunQa = (id, field, value) => setZhTr((p) => {
+    const arr = Array.isArray(p.fun_qa) ? p.fun_qa : [];
+    const exists = arr.some((r) => r.id === id);
+    const next = exists
+      ? arr.map((r) => r.id === id ? { ...r, [field]: value } : r)
+      : [...arr, { id, q: "", answer: "", [field]: value }];
+    return { ...p, fun_qa: next };
+  });
+
+  const autoTranslate = async () => {
+    setTranslating(true);
+    setTranslateErr("");
+    try {
+      const items = [];
+      zhTextFields.forEach(({ key, en }) => {
+        if (en && en.trim()) items.push({ key, text: en.trim() });
+      });
+      customQA.forEach((item) => {
+        if (item.answer?.trim()) {
+          if (item.q?.trim()) items.push({ key: `fun_qa.${item.id}.q`, text: item.q.trim() });
+          items.push({ key: `fun_qa.${item.id}.answer`, text: item.answer.trim() });
+        }
+      });
+
+      const res = await fetch("/api/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items, source: "en", target: "zh-TW" }),
+      });
+      if (!res.ok) throw new Error(`translate request failed: ${res.status}`);
+      const data = await res.json();
+      const results = Array.isArray(data?.results) ? data.results : [];
+
+      setZhTr((prev) => {
+        const next = { ...prev };
+        const funQa = Array.isArray(prev.fun_qa) ? [...prev.fun_qa] : [];
+        const upsertFq = (id, field, value) => {
+          const idx = funQa.findIndex((r) => r.id === id);
+          if (idx === -1) funQa.push({ id, q: "", answer: "", [field]: value });
+          else funQa[idx] = { ...funQa[idx], [field]: value };
+        };
+        results.forEach(({ key, text }) => {
+          if (!text || !text.trim()) return;
+          const fq = key.match(/^fun_qa\.(.+)\.(q|answer)$/);
+          if (fq) {
+            const [, id, field] = fq;
+            // Don't overwrite manual edits
+            const existing = funQa.find((r) => r.id === id);
+            if (existing && existing[field] && existing[field].trim()) return;
+            upsertFq(id, field, text);
+          } else {
+            // Don't overwrite manual edits
+            if (next[key] && next[key].trim()) return;
+            next[key] = text;
+          }
+        });
+        next.fun_qa = funQa;
+        return next;
+      });
+    } catch (err) {
+      console.error("[WeddingPageTab] auto-translate error:", err);
+      setTranslateErr("Auto-translate failed — you can still type translations manually.");
+    } finally {
+      setTranslating(false);
+    }
+  };
+
   const save = async () => {
     const funQa = customQA
       .filter((item) => item.answer?.trim())
@@ -335,6 +427,7 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
       enable_fun_rsvp_options: enableFunRsvpOptions,
       smoking_notice:  smokingNotice.trim(),
       parking_notice:  parkingNotice.trim(),
+      content_translations: { ...(wedding?.content_translations || {}), "zh-TW": zhTr },
     });
     setSaving(false);
   };
@@ -634,6 +727,88 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
               <div className="wpt-toggle-thumb" />
             </label>
           </div>
+        </div>
+
+        {/* ── ZH-TW TRANSLATIONS ── */}
+        <div className="wpt-card">
+          <div className="wpt-card-title">中文 translations (Traditional Chinese)</div>
+          <div className="wpt-card-sub">
+            These show on your public wedding page and RSVP form when a guest switches to 中文.
+            Any field left blank falls back to the English version.
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <button
+              type="button"
+              className="wpt-upload-btn"
+              style={{ display: "inline-block", width: "auto" }}
+              disabled={translating}
+              onClick={autoTranslate}
+            >
+              {translating ? "Translating…" : "Auto-translate from English ↻"}
+            </button>
+            <div style={{ fontSize: 11, color: "var(--brown)", opacity: 0.5, lineHeight: 1.4, marginTop: 6 }}>
+              Fills in blank fields only — your own edits are never overwritten.
+            </div>
+            {translateErr && (
+              <div style={{ fontSize: 12, color: "var(--red)", marginTop: 8 }}>
+                {translateErr}
+              </div>
+            )}
+          </div>
+
+          {zhTextFields.map(({ key, label, en }) => (
+            <div className="wpt-field" key={key}>
+              <label className="wpt-label">{label}</label>
+              {en && en.trim() ? (
+                <div style={{ fontSize: 11, color: "var(--brown)", opacity: 0.45, lineHeight: 1.4, marginBottom: 6, whiteSpace: "pre-wrap" }}>
+                  EN: {en}
+                </div>
+              ) : (
+                <div style={{ fontSize: 11, color: "var(--brown)", opacity: 0.35, lineHeight: 1.4, marginBottom: 6 }}>
+                  EN: (empty)
+                </div>
+              )}
+              <textarea
+                className="wpt-textarea"
+                style={{ minHeight: 64 }}
+                value={zhTr[key] || ""}
+                onChange={(e) => setZhField(key, e.target.value)}
+                placeholder="中文…"
+              />
+            </div>
+          ))}
+
+          {customQA.some((item) => item.answer?.trim()) && (
+            <div style={{ marginTop: 8 }}>
+              <label className="wpt-label">Fun Q&amp;A</label>
+              <div className="wpt-qa-grid" style={{ marginTop: 6 }}>
+                {customQA.filter((item) => item.answer?.trim()).map((item) => (
+                  <div key={item.id} style={{ padding: 14, background: "var(--warm-white)", borderRadius: 10, border: "1px solid rgba(201,168,76,0.15)" }}>
+                    <div style={{ fontSize: 11, color: "var(--brown)", opacity: 0.45, lineHeight: 1.4, marginBottom: 6, whiteSpace: "pre-wrap" }}>
+                      EN Q: {item.q}
+                    </div>
+                    <input
+                      className="wpt-input"
+                      value={zhFunQaValue(item.id, "q")}
+                      onChange={(e) => setZhFunQa(item.id, "q", e.target.value)}
+                      placeholder="問題（中文）…"
+                    />
+                    <div style={{ fontSize: 11, color: "var(--brown)", opacity: 0.45, lineHeight: 1.4, margin: "10px 0 6px", whiteSpace: "pre-wrap" }}>
+                      EN A: {item.answer}
+                    </div>
+                    <textarea
+                      className="wpt-input wpt-qa-answer"
+                      value={zhFunQaValue(item.id, "answer")}
+                      onChange={(e) => setZhFunQa(item.id, "answer", e.target.value)}
+                      placeholder="答案（中文）…"
+                      rows={3}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── SAVE ── */}

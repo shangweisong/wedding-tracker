@@ -3,6 +3,7 @@ import { useParams, useSearchParams } from "react-router-dom";
 import { sb, isDemoMode } from "../lib/supabase.js";
 import { theme } from "../shared/theme.js";
 import { useLocale } from "../i18n/index.jsx";
+import { localizeWedding } from "../i18n/content.js";
 import LanguageSwitcher from "../i18n/LanguageSwitcher.jsx";
 
 // Maps a fun-fact id to the i18n key for its fallback question (used only when
@@ -401,6 +402,8 @@ export default function WeddingPage() {
 
   const [wedding, setWedding] = useState(null);
   const [loading, setLoading]  = useState(true);
+  // Couple content in the active language (per-field fallback to English) — #53 Phase 2.
+  const lw = localizeWedding(wedding, locale);
 
   useEffect(() => {
     if (isDemoMode) {
@@ -439,8 +442,8 @@ export default function WeddingPage() {
   const days = daysUntil(wedding?.wedding_date);
 
   const answeredQA = (() => {
-    if (!wedding?.fun_qa) return [];
-    const qaArr = Array.isArray(wedding.fun_qa) ? wedding.fun_qa : [];
+    if (!lw?.fun_qa) return [];
+    const qaArr = Array.isArray(lw.fun_qa) ? lw.fun_qa : [];
     return qaArr
       .map((item) => ({
         id: item.id,
@@ -476,7 +479,7 @@ export default function WeddingPage() {
   const { bride_name, groom_name, wedding_date, venue_name, venue_address,
           ceremony_time, dinner_time, tea_ceremony_time, love_story, dress_code,
           hero_image_url, rsvp_deadline, is_published, getting_there,
-          theme: pageTheme = "minimal" } = wedding;
+          theme: pageTheme = "minimal" } = lw;
 
   const coupleNames = `${groom_name} & ${bride_name}`;
 

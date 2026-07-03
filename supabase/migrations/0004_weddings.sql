@@ -36,6 +36,10 @@ create table if not exists public.weddings (
   -- Display-only notices shown to guests on the RSVP form (#40)
   smoking_notice    text        default '' check (char_length(smoking_notice) <= 500),
   parking_notice    text        default '' check (char_length(parking_notice) <= 500),
+  -- Per-locale translations of the couple's own content (#53 Phase 2):
+  -- { "<locale>": { love_story, dress_code, venue_name, venue_address,
+  --   getting_there, smoking_notice, parking_notice, fun_qa: [{id,q,answer}] } }
+  content_translations jsonb default '{}',
   updated_at        timestamptz not null default now()
 );
 
@@ -56,6 +60,9 @@ alter table public.weddings add column if not exists enable_fun_rsvp_options boo
 -- Display-only RSVP notices — absent on existing DBs (#40).
 alter table public.weddings add column if not exists smoking_notice text default '';
 alter table public.weddings add column if not exists parking_notice text default '';
+
+-- Per-locale content translations — absent on existing DBs (#53 Phase 2).
+alter table public.weddings add column if not exists content_translations jsonb default '{}';
 
 -- ── 2. STORAGE BUCKET (hero photos) ──────────────────────────────────────────
 
@@ -108,7 +115,8 @@ returns table (
   theme             text,
   enable_fun_rsvp_options boolean,
   smoking_notice    text,
-  parking_notice    text
+  parking_notice    text,
+  content_translations jsonb
 )
 language sql
 security definer
@@ -136,7 +144,8 @@ as $$
     coalesce(theme, 'minimal'),
     coalesce(enable_fun_rsvp_options, false),
     coalesce(smoking_notice, ''),
-    coalesce(parking_notice, '')
+    coalesce(parking_notice, ''),
+    coalesce(content_translations, '{}'::jsonb)
   from public.weddings
   limit 1;
 $$;
@@ -200,6 +209,7 @@ drop function if exists public.upsert_wedding_page(text, text, text, text, jsonb
 drop function if exists public.upsert_wedding_page(text, text, text, text, jsonb, date, boolean, text, text);
 drop function if exists public.upsert_wedding_page(text, text, text, text, jsonb, date, boolean, text, text, text);
 drop function if exists public.upsert_wedding_page(text, text, text, text, jsonb, date, boolean, text, text, text, boolean);
+drop function if exists public.upsert_wedding_page(text, text, text, text, jsonb, date, boolean, text, text, text, boolean, text, text);
 
 create or replace function public.upsert_wedding_page(
   p_slug            text,
@@ -214,7 +224,8 @@ create or replace function public.upsert_wedding_page(
   p_theme           text default 'minimal',
   p_enable_fun_rsvp_options boolean default false,
   p_smoking_notice  text default '',
-  p_parking_notice  text default ''
+  p_parking_notice  text default '',
+  p_content_translations jsonb default '{}'
 )
 returns void
 language plpgsql
@@ -227,7 +238,7 @@ begin
     slug, love_story, dress_code, hero_image_url,
     fun_qa, rsvp_deadline, is_published, meal_options,
     getting_there, theme, enable_fun_rsvp_options,
-    smoking_notice, parking_notice, updated_at
+    smoking_notice, parking_notice, content_translations, updated_at
   ) values (
     '', '',
     p_slug,
@@ -243,6 +254,7 @@ begin
     coalesce(p_enable_fun_rsvp_options, false),
     left(coalesce(p_smoking_notice, ''), 500),
     left(coalesce(p_parking_notice, ''), 500),
+    coalesce(p_content_translations, '{}'::jsonb),
     now()
   )
   on conflict ((true)) do update set
@@ -259,11 +271,12 @@ begin
     enable_fun_rsvp_options = coalesce(p_enable_fun_rsvp_options, false),
     smoking_notice = left(coalesce(p_smoking_notice, ''), 500),
     parking_notice = left(coalesce(p_parking_notice, ''), 500),
+    content_translations = coalesce(p_content_translations, '{}'::jsonb),
     updated_at     = now();
 end;
 $$;
 
-grant execute on function public.upsert_wedding_page(text, text, text, text, jsonb, date, boolean, text, text, text, boolean, text, text)
+grant execute on function public.upsert_wedding_page(text, text, text, text, jsonb, date, boolean, text, text, text, boolean, text, text, jsonb)
   to anon, authenticated;
 
 -- 3d. Public page lookup by slug (used by /wedding/:slug route).
@@ -288,7 +301,8 @@ returns table (
   is_published      boolean,
   meal_options      text,
   getting_there     text,
-  theme             text
+  theme             text,
+  content_translations jsonb
 )
 language sql
 security definer
@@ -312,7 +326,8 @@ as $$
     coalesce(is_published, false),
     coalesce(meal_options, ''),
     coalesce(getting_there, ''),
-    coalesce(theme, 'minimal')
+    coalesce(theme, 'minimal'),
+    coalesce(content_translations, '{}'::jsonb)
   from public.weddings
   where slug = p_slug
   limit 1;
