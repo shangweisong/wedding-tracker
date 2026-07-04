@@ -1,5 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase, isDemoMode } from "../lib/supabase.js";
+import { LOCALES } from "../i18n/index.jsx";
+
+// Locales the couple can provide content translations for (every locale except
+// the English source of truth). Drives the per-language editor below.
+const TRANSLATABLE_LOCALES = Object.keys(LOCALES).filter((code) => code !== "en");
 
 const FUN_QUESTIONS = [
   { id: "how_met",     q: "How did you two meet?" },
@@ -235,7 +240,10 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
   const [enableFunRsvpOptions, setEnableFunRsvpOptions] = useState(false);
   const [customQA, setCustomQA]    = useState([]);
 
-  const [zhTr, setZhTr]            = useState({});
+  // All per-locale content translations, keyed by locale code:
+  // { "zh-TW": { love_story, …, fun_qa: [{id,q,answer}] }, "ja": {…}, … }.
+  const [translations, setTranslations] = useState({});
+  const [activeLocale, setActiveLocale] = useState(TRANSLATABLE_LOCALES[0]);
   const [translating, setTranslating] = useState(false);
   const [translateErr, setTranslateErr] = useState("");
 
@@ -269,7 +277,7 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setCustomQA(buildCustomQA(wedding.fun_qa));
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setZhTr(wedding.content_translations?.["zh-TW"] || {});
+    setTranslations(wedding.content_translations || {});
   }, [wedding]);
 
   if (wedding === undefined) {
@@ -321,8 +329,8 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
     }
   };
 
-  // ── zh-TW translation helpers ──
-  const zhTextFields = [
+  // ── Per-locale content-translation helpers (edit the active locale) ──
+  const sourceFields = [
     { key: "love_story",     label: "Your Story",      en: loveStory },
     { key: "dress_code",     label: "Dress Code",      en: dresscode },
     { key: "venue_name",     label: "Venue Name",      en: wedding?.venue_name || "" },
@@ -332,29 +340,38 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
     { key: "parking_notice", label: "Parking notice",  en: parkingNotice },
   ];
 
-  const setZhField = (key, value) => setZhTr((p) => ({ ...p, [key]: value }));
+  // The translation object for the locale currently being edited.
+  const activeTr = translations[activeLocale] || {};
 
-  const zhFunQaValue = (id, field) => {
-    const arr = Array.isArray(zhTr.fun_qa) ? zhTr.fun_qa : [];
+  const setTrField = (key, value) =>
+    setTranslations((p) => ({
+      ...p,
+      [activeLocale]: { ...(p[activeLocale] || {}), [key]: value },
+    }));
+
+  const trFunQaValue = (id, field) => {
+    const arr = Array.isArray(activeTr.fun_qa) ? activeTr.fun_qa : [];
     const found = arr.find((r) => r.id === id);
     return (found && found[field]) || "";
   };
 
-  const setZhFunQa = (id, field, value) => setZhTr((p) => {
-    const arr = Array.isArray(p.fun_qa) ? p.fun_qa : [];
-    const exists = arr.some((r) => r.id === id);
-    const next = exists
-      ? arr.map((r) => r.id === id ? { ...r, [field]: value } : r)
-      : [...arr, { id, q: "", answer: "", [field]: value }];
-    return { ...p, fun_qa: next };
-  });
+  const setTrFunQa = (id, field, value) =>
+    setTranslations((p) => {
+      const cur = p[activeLocale] || {};
+      const arr = Array.isArray(cur.fun_qa) ? cur.fun_qa : [];
+      const exists = arr.some((r) => r.id === id);
+      const next = exists
+        ? arr.map((r) => (r.id === id ? { ...r, [field]: value } : r))
+        : [...arr, { id, q: "", answer: "", [field]: value }];
+      return { ...p, [activeLocale]: { ...cur, fun_qa: next } };
+    });
 
   const autoTranslate = async () => {
     setTranslating(true);
     setTranslateErr("");
     try {
       const items = [];
-      zhTextFields.forEach(({ key, en }) => {
+      sourceFields.forEach(({ key, en }) => {
         if (en && en.trim()) items.push({ key, text: en.trim() });
       });
       customQA.forEach((item) => {
@@ -367,13 +384,14 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
       const res = await fetch("/api/translate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items, source: "en", target: "zh-TW" }),
+        body: JSON.stringify({ items, source: "en", target: activeLocale }),
       });
       if (!res.ok) throw new Error(`translate request failed: ${res.status}`);
       const data = await res.json();
       const results = Array.isArray(data?.results) ? data.results : [];
 
-      setZhTr((prev) => {
+      setTranslations((prevAll) => {
+        const prev = prevAll[activeLocale] || {};
         const next = { ...prev };
         const funQa = Array.isArray(prev.fun_qa) ? [...prev.fun_qa] : [];
         const upsertFq = (id, field, value) => {
@@ -397,7 +415,7 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
           }
         });
         next.fun_qa = funQa;
-        return next;
+        return { ...prevAll, [activeLocale]: next };
       });
     } catch (err) {
       console.error("[WeddingPageTab] auto-translate error:", err);
@@ -427,7 +445,7 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
       enable_fun_rsvp_options: enableFunRsvpOptions,
       smoking_notice:  smokingNotice.trim(),
       parking_notice:  parkingNotice.trim(),
-      content_translations: { ...(wedding?.content_translations || {}), "zh-TW": zhTr },
+      content_translations: { ...(wedding?.content_translations || {}), ...translations },
     });
     setSaving(false);
   };
@@ -729,12 +747,45 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
           </div>
         </div>
 
-        {/* ── ZH-TW TRANSLATIONS ── */}
+        {/* ── CONTENT TRANSLATIONS (per language) ── */}
         <div className="wpt-card">
-          <div className="wpt-card-title">中文 translations (Traditional Chinese)</div>
+          <div className="wpt-card-title">Translations</div>
           <div className="wpt-card-sub">
-            These show on your public wedding page and RSVP form when a guest switches to 中文.
+            These show on your public wedding page and RSVP form when a guest switches language.
             Any field left blank falls back to the English version.
+          </div>
+
+          {/* Language picker — choose which language you're editing. */}
+          <div
+            role="tablist"
+            aria-label="Translation language"
+            style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}
+          >
+            {TRANSLATABLE_LOCALES.map((code) => {
+              const active = code === activeLocale;
+              return (
+                <button
+                  key={code}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setActiveLocale(code)}
+                  style={{
+                    border: active ? "1px solid var(--gold)" : "1px solid rgba(201,168,76,0.25)",
+                    background: active ? "var(--gold)" : "transparent",
+                    color: active ? "#fff" : "var(--brown)",
+                    cursor: "pointer",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    padding: "6px 14px",
+                    borderRadius: 999,
+                    transition: "background 0.15s, color 0.15s",
+                  }}
+                >
+                  {LOCALES[code].label}
+                </button>
+              );
+            })}
           </div>
 
           <div style={{ marginBottom: 16 }}>
@@ -757,7 +808,7 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
             )}
           </div>
 
-          {zhTextFields.map(({ key, label, en }) => (
+          {sourceFields.map(({ key, label, en }) => (
             <div className="wpt-field" key={key}>
               <label className="wpt-label">{label}</label>
               {en && en.trim() ? (
@@ -772,9 +823,9 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
               <textarea
                 className="wpt-textarea"
                 style={{ minHeight: 64 }}
-                value={zhTr[key] || ""}
-                onChange={(e) => setZhField(key, e.target.value)}
-                placeholder="中文…"
+                value={activeTr[key] || ""}
+                onChange={(e) => setTrField(key, e.target.value)}
+                placeholder={`${LOCALES[activeLocale].label}…`}
               />
             </div>
           ))}
@@ -790,18 +841,18 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
                     </div>
                     <input
                       className="wpt-input"
-                      value={zhFunQaValue(item.id, "q")}
-                      onChange={(e) => setZhFunQa(item.id, "q", e.target.value)}
-                      placeholder="問題（中文）…"
+                      value={trFunQaValue(item.id, "q")}
+                      onChange={(e) => setTrFunQa(item.id, "q", e.target.value)}
+                      placeholder={`Question (${LOCALES[activeLocale].label})…`}
                     />
                     <div style={{ fontSize: 11, color: "var(--brown)", opacity: 0.45, lineHeight: 1.4, margin: "10px 0 6px", whiteSpace: "pre-wrap" }}>
                       EN A: {item.answer}
                     </div>
                     <textarea
                       className="wpt-input wpt-qa-answer"
-                      value={zhFunQaValue(item.id, "answer")}
-                      onChange={(e) => setZhFunQa(item.id, "answer", e.target.value)}
-                      placeholder="答案（中文）…"
+                      value={trFunQaValue(item.id, "answer")}
+                      onChange={(e) => setTrFunQa(item.id, "answer", e.target.value)}
+                      placeholder={`Answer (${LOCALES[activeLocale].label})…`}
                       rows={3}
                     />
                   </div>

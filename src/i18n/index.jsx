@@ -8,13 +8,37 @@
 import { createContext, useContext, useMemo, useState, useCallback } from "react";
 import en from "./locales/en.js";
 import zhTW from "./locales/zh-TW.js";
+import zhCN from "./locales/zh-CN.js";
+import ms from "./locales/ms.js";
+import ja from "./locales/ja.js";
+import ko from "./locales/ko.js";
 
+// The single source of truth for supported locales. `label` is the native name
+// shown in the LanguageSwitcher; add a locale here + a matching catalog under
+// ./locales and it appears everywhere automatically (parity enforced by tests).
 export const LOCALES = {
-  en: { label: "EN", messages: en },
-  "zh-TW": { label: "中文", messages: zhTW },
+  en: { label: "English", messages: en },
+  "zh-TW": { label: "繁體中文", messages: zhTW },
+  "zh-CN": { label: "简体中文", messages: zhCN },
+  ms: { label: "Bahasa Melayu", messages: ms },
+  ja: { label: "日本語", messages: ja },
+  ko: { label: "한국어", messages: ko },
 };
 export const DEFAULT_LOCALE = "en";
 const STORAGE_KEY = "wt_locale";
+
+// Best-effort map from the browser's language tag to one of our locales.
+// Returns null when nothing sensible matches (caller falls back to English).
+function sniffNavigatorLocale() {
+  if (typeof navigator === "undefined") return null;
+  const lang = (navigator.language || "").toLowerCase();
+  if (/^zh-(tw|hk|mo|hant)\b/.test(lang)) return "zh-TW";
+  if (/^zh\b/.test(lang)) return "zh-CN"; // zh, zh-cn, zh-sg, zh-hans → Simplified
+  if (/^(ms|id)\b/.test(lang)) return "ms"; // Malay (Indonesian is close enough)
+  if (/^ja\b/.test(lang)) return "ja";
+  if (/^ko\b/.test(lang)) return "ko";
+  return null;
+}
 
 function readInitialLocale() {
   try {
@@ -24,11 +48,8 @@ function readInitialLocale() {
     /* localStorage may be unavailable (private mode) */
   }
   try {
-    // Only auto-pick Traditional Chinese for Traditional locales (TW/HK/Hant);
-    // Simplified (zh-CN, zh-SG, zh-Hans) falls through to English until we ship it.
-    if (typeof navigator !== "undefined" && /^zh-(tw|hk|hant)\b/i.test(navigator.language || "")) {
-      return "zh-TW";
-    }
+    const sniffed = sniffNavigatorLocale();
+    if (sniffed && LOCALES[sniffed]) return sniffed;
   } catch {
     /* ignore */
   }
