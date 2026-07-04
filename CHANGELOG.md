@@ -5,12 +5,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2026-07-04] — feat/72-draw-number-search (#72)
+
+### Added
+
+- **Lucky-draw number search (D-Day)** — the admin D-Day search bar now understands lucky-draw numbers. Type `#123` for an exact draw-number lookup, or a bare `#` to list every guest that has a draw number assigned; any other query still does a case-insensitive substring match on name **or** table number.
+- Matching logic lives in a small pure module `src/lib/guestSearch.js` (`parseGuestSearch` / `guestMatchesSearch`, unit-tested). It is deliberately separate from `src/lib/nameMatch.js`, which does `pg_trgm` fuzzy matching for the public RSVP RPC — admin search is exact/substring. No database change.
+
+---
+
+## [2026-07-04] — feat/71-section-photos (#71)
+
+### Added
+
+- **Section photo galleries** — couples can insert optional photo bands between the public wedding-page sections. Five slots are available (**After hero photo**, **After Our Story**, **After Fun Q&A**, **After Event details**, **After Plan your journey**); each slot toggles on/off, picks a column count (1–4), and holds up to 12 photo URLs. Edited under **Wedding Setup → Wedding Page**, rendered as a **masonry** layout on `/wedding/:slug` so portrait and landscape shots aren't cropped.
+- Slot list + a defensive normalizer are the single source of truth in `src/lib/sectionPhotos.js` (`SECTION_PHOTO_SLOTS`, `normalizeSectionPhotos`, unit-tested) so the admin editor and the public page always agree on shape.
+
+> New migration `0007_section_photos.sql`: adds `weddings.section_photos jsonb` (default `'{}'`) and threads it through `get_wedding_config` / `upsert_wedding_page` / `get_public_wedding`. A `weddings_section_photos_size` check constraint (`pg_column_size < 200000`) is the authoritative server-side cap, since a caller can bypass the client-side limits. Run it in the Supabase SQL editor.
+
+---
+
 ## [2026-07-04] — feat/60-ai-theme-image (#60)
 
 ### Added
 
 - **AI theme from a photo** — under **Wedding Setup → Wedding Page → Page Theme**, upload a picture (flowers, invitation, venue…) and a vision LLM derives a cohesive color palette, applied to the public wedding page + RSVP form as a new **"Custom"** theme alongside Minimal / Garden / Traditional. The palette is stored in a new `weddings.theme_tokens jsonb` column and applied as CSS-variable overrides; an incomplete/invalid palette falls back to the Minimal preset.
 - New serverless endpoint `api/generate-theme.js` + provider layer `api/_lib/themeProvider.js`. Provider is switchable like the email layer via `THEME_AI_PROVIDER` = `anthropic` (default) / `openai` / `nvidia`; the couple's API key is a **server-only** env var (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `NVIDIA_API_KEY`), never `VITE_`-prefixed.
+- **NVIDIA model override + 401 diagnosis (#66, #68)** — a follow-up added the `NVIDIA_MODEL` env var to pin the NVIDIA NIM model to route to (NVIDIA hosts many models; a wrong/unentitled one surfaces as a 401/403). It takes precedence over `THEME_AI_MODEL` for the nvidia provider; default `meta/llama-3.2-90b-vision-instruct`.
 - Colors only by design: the model output is sanitized to hex-only tokens (`src/lib/themeTokens.js`, unit-tested) on the server and again at render, so it can't inject CSS/markup. The endpoint requires the authenticated helper (Supabase token whose email matches `HELPER_EMAIL`/`VITE_HELPER_EMAIL`), applies a best-effort per-helper rate limit, and passes the image as base64 (no SSRF).
 
 > New migration `0006_ai_theme.sql`: adds `theme_tokens` and threads it through `get_wedding_config` / `upsert_wedding_page` / `get_public_wedding`. Run it in the Supabase SQL editor.
@@ -36,6 +57,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - **Auto-translate now prefers DeepL Free** for more natural output, falling back to **MyMemory** for languages DeepL doesn't support (e.g. Malay) or when no key is set. The `/api/translate` caller contract is unchanged. Set the **server-only** `DEEPL_API_KEY` to enable DeepL; `MYMEMORY_EMAIL` still raises the MyMemory quota.
 - Provider logic extracted to `api/_lib/translate.js` (unit-tested): locale→DeepL code map, batched DeepL requests, MyMemory chunking to respect its ~500-byte per-request cap, an 8s upstream timeout, and blank-on-failure so the couple can fill gaps manually.
+- **DeepL Pro endpoint support (#67)** — a follow-up added the `DEEPL_API_URL` env var. Leave it blank for a Free key (default `https://api-free.deepl.com/v2/translate`); set it to `https://api.deepl.com/v2/translate` for a Pro/paid key (whose key does **not** end in `:fx`), otherwise the Free host rejects it with 403. DeepL failures are now surfaced instead of silently blanking.
 
 ---
 

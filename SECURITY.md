@@ -96,6 +96,21 @@ This project is configured so that:
   `OPENAI_API_KEY` / `NVIDIA_API_KEY`) are server-only. A durable per-day quota
   (beyond the in-memory rate limit) is a sensible future hardening.
 
+- **Wedding-page content (incl. section photo galleries) is anon-writable by
+  design.** The `upsert_wedding_page` RPC — which now also carries the
+  `section_photos` JSONB from
+  [`0007_section_photos.sql`](supabase/migrations/0007_section_photos.sql) — is
+  granted to `anon` as well as `authenticated` (the public editor path predates
+  the helper-auth admin console). Since these values, including the gallery photo
+  URLs, render on the public `/wedding/:slug` page, the **authoritative** cap is a
+  server-side `weddings_section_photos_size` check constraint
+  (`pg_column_size(section_photos) < 200000`) — the client-side "12 photos /
+  4 columns per slot" limits can be bypassed by a direct RPC call, so the DB
+  constraint, not the browser, is what bounds the payload. Photo URLs are stored
+  and rendered as plain image `src`s (not HTML), so they can't inject markup;
+  tightening the RPC grant to `authenticated` only is a sensible future hardening
+  if you don't rely on the anon editor path.
+
 ## Reporting a vulnerability
 
 Please open a private security advisory on the repository, or contact the

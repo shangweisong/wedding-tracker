@@ -35,6 +35,7 @@ Open the **SQL Editor** in your Supabase dashboard and run the migrations **in o
 | [`0004_weddings.sql`](../supabase/migrations/0004_weddings.sql) | Singleton `weddings` table; wedding page columns (slug, love story, hero photo, etc.); `get_wedding_config` / `upsert_wedding_config` / `get_public_wedding` RPCs; photo storage bucket |
 | [`0005_email_automation.sql`](../supabase/migrations/0005_email_automation.sql) | `pg_net` extension; RSVP status-change webhook trigger (with `old_rsvp_status` for host change-of-mind notifications); `second_reminder_sent_at` column — **apply only after completing the email setup in step 5** |
 | [`0006_ai_theme.sql`](../supabase/migrations/0006_ai_theme.sql) | `weddings.theme_tokens jsonb` column (AI-generated "Custom" theme palette); re-threads it through `get_wedding_config` / `upsert_wedding_page` / `get_public_wedding` — **only needed if you use AI theme generation** |
+| [`0007_section_photos.sql`](../supabase/migrations/0007_section_photos.sql) | `weddings.section_photos jsonb` column (optional photo galleries between wedding-page sections) + a `weddings_section_photos_size` size-cap check constraint; re-threads it through `get_wedding_config` / `upsert_wedding_page` / `get_public_wedding` — **only needed if you use section photo galleries** |
 
 All migrations are idempotent (`CREATE OR REPLACE`, `IF NOT EXISTS`) — safe to re-run.
 
@@ -112,6 +113,7 @@ HOST_EMAIL=your@email.com               # receives change-of-mind RSVP notificat
 
 # Optional — auto-translate (Wedding Page → Translations). Server-only.
 DEEPL_API_KEY=                           # preferred; falls back to MyMemory if unset
+DEEPL_API_URL=                           # leave blank for Free; set the Pro host for a paid key
 MYMEMORY_EMAIL=you@email.com             # optional, raises the free MyMemory quota
 
 # Optional — AI theme generation (Wedding Page → "Generate theme from an image").
@@ -119,7 +121,12 @@ THEME_AI_PROVIDER=anthropic              # "anthropic" (default) | "openai" | "n
 ANTHROPIC_API_KEY=                       # set ONLY the key for your chosen provider
 OPENAI_API_KEY=
 NVIDIA_API_KEY=
+THEME_AI_MODEL=                          # optional, override the default vision model
+NVIDIA_MODEL=                            # optional, nvidia only — pin the NIM model to route to
+HELPER_EMAIL=                            # optional, server-side override of VITE_HELPER_EMAIL for /api/generate-theme
 ```
+
+> See [`.env.example`](../.env.example) for the full annotated list, including when to set `DEEPL_API_URL` (Pro vs Free) and `NVIDIA_MODEL`.
 
 `.env` is gitignored — never commit it.
 
@@ -335,8 +342,9 @@ Priya Nair,2,,false,bride
    - Optional: under **Wedding Page**, flip **Fun RSVP options** on to add two playful choices to the guest RSVP form — *"It's complicated 😅"* (how they know you) and *"😏 It's a secret"* (friend type). Off by default.
    - Optional: under **Wedding Page → Note to Guests**, add **Parking** and/or **Smoking** notices — these show on the RSVP form (to attending guests) only if filled. Attending guests are also asked *"Would you like to give a speech?"*; the RSVP tab flags volunteers with a 🎤.
    - Attending guests can bring up to **6 additional guests** — each becomes its own guest entry (seatable and checkable-in independently). In the **RSVP tab** these appear as rows labelled *"↳ additional guest of …"*; the confirmed **headcount** stat counts every body, while the confirmed/pending counts track invitations.
-   - The public **Wedding page** and **RSVP form** offer an `EN | 中文` language switch (top-right) — English and Traditional Chinese. The app's own labels are translated automatically and the guest's choice is remembered. The admin dashboard and emails stay in English.
-   - To translate **your own text** into 中文, open **Wedding Setup → Wedding Page → 中文 translations**: fill each field (or click **Auto-translate from English** to draft them, then edit). Blank fields fall back to English on the public page. Auto-translate uses a free service; to raise its daily limit, set the optional `MYMEMORY_EMAIL` env var.
+   - The public **Wedding page** and **RSVP form** offer a language selector (top-right) covering **English, 繁體中文 (Traditional Chinese), 简体中文 (Simplified Chinese), Bahasa Melayu, 日本語, and 한국어**. With more than three languages the toggle becomes a dropdown; the app's own labels are translated automatically, the guest's choice is remembered per browser, and the initial language is sniffed from the browser. The admin dashboard and emails stay in English.
+   - To translate **your own text**, open **Wedding Setup → Wedding Page → Translations** and pick the target language: fill each field (or click **Auto-translate from English** to draft them, then edit). Blank fields fall back to English per-field on the public page. Auto-translate prefers **DeepL** for more natural output (set the server-only `DEEPL_API_KEY`; use `DEEPL_API_URL` for a Pro key) and falls back to **MyMemory** for languages DeepL doesn't cover (e.g. Malay) or when no DeepL key is set; the optional `MYMEMORY_EMAIL` raises MyMemory's daily limit.
+   - Optional: under **Wedding Page**, add **section photo galleries** — photo bands inserted between the public page's sections (after the hero, Our Story, Fun Q&A, event details, or directions). Enable a slot, choose its column count (1–4), and paste the photo URLs (up to 12 per slot); they render as a masonry layout so tall and wide photos aren't cropped. (Requires migration `0007_section_photos.sql`.)
 2. Import your guest list via CSV (or add guests one by one)
 3. Share `https://your-app.vercel.app/rsvp` in your wedding group chat
 4. Guests fill in the RSVP form — responses appear in the **RSVP tab** in real time
@@ -347,6 +355,7 @@ Priya Nair,2,,false,bride
 
 1. Switch to **💒 D-Day** mode in the header
 2. Give helpers the URL — they check guests in as they arrive
+   - The **search bar** filters guests by name or table number, and understands lucky-draw numbers: type `#123` to jump straight to a draw number, or a bare `#` to list everyone who has a draw number assigned.
 3. Track angbaos in the **Angbao Tracker tab**
 4. Export an attendance report afterwards
 

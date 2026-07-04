@@ -18,6 +18,7 @@ A two-phase wedding management app — pre-wedding RSVP collection and seating p
 - **Personalised wedding page** — publish a `/wedding/:slug` page with your love story, event schedule, and RSVP button
 - **Multi-language public pages** — the guest-facing wedding page and RSVP form switch between **English, 繁體中文, 简体中文, Bahasa Melayu, 日本語, and 한국어** (top-right selector, remembered per browser). The couple translate their own content once per language, with a one-click **auto-translate** draft (DeepL, with a MyMemory fallback for languages DeepL doesn't cover)
 - **AI theme from a photo** — upload a picture (your flowers, invite, venue…) and a vision LLM derives a matching color palette applied to the wedding page + RSVP form as a "Custom" theme, alongside the built-in Minimal / Garden / Traditional presets
+- **Section photo galleries** — drop optional photo bands between the wedding-page sections (after the hero, Our Story, Fun Q&A, event details, or directions). Each slot picks its own column count and renders as a masonry layout so portrait and landscape shots aren't cropped
 
 ### 💒 D-Day Mode (wedding day)
 - **Check-in** — tap to mark guests arrived, with timestamp
@@ -25,6 +26,7 @@ A two-phase wedding management app — pre-wedding RSVP collection and seating p
 - **Angbao tracker** — log red packets and amounts per guest, with a running total
 - **PayNow ang-bao QR** — public page where guests scan a pre-filled, amount-locked PayNow QR (Singapore only)
 - **VIP & bride/groom tagging** — starred VIPs; pink/blue colour coding by side
+- **Guest search** — the D-Day search bar filters by name or table, and understands lucky-draw numbers: type `#123` to jump to a draw number, or a bare `#` to list everyone with a number assigned
 - **CSV import/export** — bulk import a guest list; export an attendance report afterwards
 - **JSON backup** — one-tap lossless backup of every guest record
 - **Undo** — check-ins, angbao changes, and deletes can be undone from the toast
