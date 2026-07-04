@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase, isDemoMode } from "../lib/supabase.js";
 import { LOCALES } from "../i18n/index.jsx";
 import { isCompleteThemeTokens } from "../lib/themeTokens.js";
+import { SECTION_PHOTO_SLOTS, MAX_PHOTOS_PER_SLOT, normalizeSectionPhotos } from "../lib/sectionPhotos.js";
 
 // Read a File as a base64 string (without the data: URL prefix) for the vision API.
 function fileToBase64(file) {
@@ -144,6 +145,32 @@ const styles = `
   .wpt-upload-btn:hover { border-color: var(--gold); color: var(--gold-dark); }
   .wpt-upload-btn:disabled { opacity: 0.5; cursor: default; }
 
+  /* Section photo galleries (#71) */
+  .wpt-gallery-slot {
+    padding: 14px 0; border-top: 1px solid rgba(201,168,76,0.15);
+  }
+  .wpt-gallery-slot:first-of-type { border-top: none; }
+  .wpt-gallery-head {
+    display: flex; align-items: center; gap: 10px; cursor: pointer;
+  }
+  .wpt-gallery-name { font-size: 14px; color: var(--brown); font-weight: 500; }
+  .wpt-gallery-body { margin-top: 12px; display: flex; flex-direction: column; gap: 12px; }
+  .wpt-gallery-thumbs {
+    display: flex; flex-wrap: wrap; gap: 8px;
+  }
+  .wpt-gallery-thumb { position: relative; width: 72px; height: 72px; }
+  .wpt-gallery-thumb img {
+    width: 100%; height: 100%; object-fit: cover; border-radius: 8px;
+    border: 1.5px solid rgba(201,168,76,0.2);
+  }
+  .wpt-gallery-remove {
+    position: absolute; top: -6px; right: -6px;
+    width: 20px; height: 20px; border-radius: 50%; cursor: pointer;
+    border: none; background: var(--red, #c0392b); color: white;
+    font-size: 11px; line-height: 1; display: flex; align-items: center; justify-content: center;
+  }
+  .wpt-gallery-actions { display: flex; align-items: center; gap: 12px; }
+
   /* Publish toggle */
   .wpt-publish-row {
     display: flex; align-items: center; justify-content: space-between;
@@ -259,6 +286,11 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
   const [enableFunRsvpOptions, setEnableFunRsvpOptions] = useState(false);
   const [customQA, setCustomQA]    = useState([]);
 
+  // Section photo galleries (#71): per-slot { enabled, cols, photos }.
+  const [sectionPhotos, setSectionPhotos] = useState(() => normalizeSectionPhotos(null));
+  const [galleryUploading, setGalleryUploading] = useState(""); // slot key mid-upload, or ""
+  const galleryInputs = useRef({}); // per-slot hidden <input> refs, keyed by slot key
+
   // All per-locale content translations, keyed by locale code:
   // { "zh-TW": { love_story, …, fun_qa: [{id,q,answer}] }, "ja": {…}, … }.
   const [translations, setTranslations] = useState({});
@@ -299,6 +331,8 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
     setTranslations(wedding.content_translations || {});
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setThemeTokens(wedding.theme_tokens || {});
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSectionPhotos(normalizeSectionPhotos(wedding.section_photos));
   }, [wedding]);
 
   if (wedding === undefined) {
@@ -493,6 +527,63 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
     }
   };
 
+  // ── Section photo galleries (#71) ──
+  const setSlotField = (key, patch) =>
+    setSectionPhotos((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
+
+  const uploadGalleryPhotos = async (key, e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    if (isDemoMode || !supabase) {
+      showToast("Image upload not available in demo mode");
+      return;
+    }
+    const existing = sectionPhotos[key]?.photos?.length || 0;
+    const room = MAX_PHOTOS_PER_SLOT - existing;
+    if (room <= 0) {
+      showToast(`Up to ${MAX_PHOTOS_PER_SLOT} photos per section`);
+      return;
+    }
+    setGalleryUploading(key);
+    try {
+      const uploaded = [];
+      for (const file of files.slice(0, room)) {
+        if (!file.type.startsWith("image/")) continue;
+        const ext = file.name.split(".").pop().toLowerCase();
+        const rand = Math.random().toString(36).slice(2, 8);
+        const path = `gallery/${key}/${existing + uploaded.length}-${rand}.${ext}`;
+        const { error: uploadError } = await supabase.storage
+          .from("wedding-photos")
+          .upload(path, file, { upsert: true, contentType: file.type });
+        if (uploadError) throw uploadError;
+        const { data } = supabase.storage.from("wedding-photos").getPublicUrl(path);
+        uploaded.push(data.publicUrl);
+      }
+      if (uploaded.length) {
+        setSectionPhotos((prev) => ({
+          ...prev,
+          [key]: {
+            ...prev[key],
+            photos: [...prev[key].photos, ...uploaded].slice(0, MAX_PHOTOS_PER_SLOT),
+          },
+        }));
+        showToast(`${uploaded.length} photo${uploaded.length > 1 ? "s" : ""} uploaded!`);
+      }
+    } catch (err) {
+      console.error("[WeddingPageTab] gallery upload error:", err);
+      showToast(`Upload failed: ${err?.message || err?.error || JSON.stringify(err)}`);
+    } finally {
+      setGalleryUploading("");
+      if (galleryInputs.current[key]) galleryInputs.current[key].value = "";
+    }
+  };
+
+  const removeGalleryPhoto = (key, idx) =>
+    setSectionPhotos((prev) => ({
+      ...prev,
+      [key]: { ...prev[key], photos: prev[key].photos.filter((_, i) => i !== idx) },
+    }));
+
   const save = async () => {
     const funQa = customQA
       .filter((item) => item.answer?.trim())
@@ -515,6 +606,7 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
       parking_notice:  parkingNotice.trim(),
       content_translations: { ...(wedding?.content_translations || {}), ...translations },
       theme_tokens:    themeTokens,
+      section_photos:  sectionPhotos,
     });
     setSaving(false);
   };
@@ -620,6 +712,82 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* ── PHOTO GALLERIES ── */}
+        <div className="wpt-card">
+          <div className="wpt-card-title">Photo Galleries <span className="wpt-label-opt">(optional)</span></div>
+          <div className="wpt-card-sub">
+            Add optional photo bands between the sections of your page. Off by default to keep the
+            design simple and uncluttered. Up to {MAX_PHOTOS_PER_SLOT} photos per section.
+          </div>
+
+          {SECTION_PHOTO_SLOTS.map((slot) => {
+            const g = sectionPhotos[slot.key] || { enabled: false, cols: 2, photos: [] };
+            const atMax = g.photos.length >= MAX_PHOTOS_PER_SLOT;
+            return (
+              <div key={slot.key} className="wpt-gallery-slot">
+                <label className="wpt-gallery-head">
+                  <input
+                    type="checkbox"
+                    checked={g.enabled}
+                    onChange={(e) => setSlotField(slot.key, { enabled: e.target.checked })}
+                  />
+                  <span className="wpt-gallery-name">{slot.label}</span>
+                </label>
+
+                {g.enabled && (
+                  <div className="wpt-gallery-body">
+                    <div className="wpt-field" style={{ maxWidth: 160 }}>
+                      <label className="wpt-label">Columns</label>
+                      <select
+                        className="wpt-input"
+                        value={g.cols}
+                        onChange={(e) => setSlotField(slot.key, { cols: Number(e.target.value) })}
+                      >
+                        {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}</option>)}
+                      </select>
+                    </div>
+
+                    {g.photos.length > 0 && (
+                      <div className="wpt-gallery-thumbs">
+                        {g.photos.map((src, i) => (
+                          <div key={i} className="wpt-gallery-thumb">
+                            <img src={src} alt="" />
+                            <button
+                              type="button"
+                              className="wpt-gallery-remove"
+                              onClick={() => removeGalleryPhoto(slot.key, i)}
+                              aria-label="Remove photo"
+                            >✕</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <input
+                      ref={(el) => { galleryInputs.current[slot.key] = el; }}
+                      type="file" accept="image/*" multiple
+                      style={{ display: "none" }}
+                      onChange={(e) => uploadGalleryPhotos(slot.key, e)}
+                    />
+                    <div className="wpt-gallery-actions">
+                      <button
+                        className="wpt-upload-btn"
+                        disabled={galleryUploading === slot.key || atMax}
+                        onClick={() => galleryInputs.current[slot.key]?.click()}
+                      >
+                        {galleryUploading === slot.key ? "Uploading…" : atMax ? "Max photos reached" : "Add photos"}
+                      </button>
+                      <span style={{ fontSize: 11, color: "var(--brown)", opacity: 0.5 }}>
+                        {g.photos.length} / {MAX_PHOTOS_PER_SLOT} photos
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         {/* ── YOUR STORY ── */}
