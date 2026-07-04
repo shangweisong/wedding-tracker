@@ -50,14 +50,16 @@ const DEMO_WEDDING = {
 const styles = theme + `
   .wp { min-height: 100vh; position: relative; }
 
-  /* Section photo galleries (#71) */
-  .wp-gallery-grid { display: grid; gap: 12px; }
+  /* Section photo galleries (#71). Masonry via CSS multi-column so photos keep
+     their natural aspect ratio (no cropping) while still packing tidily. */
+  .wp-gallery-grid { column-gap: 12px; }
   .wp-gallery-img {
-    width: 100%; height: 100%; aspect-ratio: 1 / 1;
-    object-fit: cover; border-radius: 12px; display: block;
+    width: 100%; height: auto; display: block;
+    border-radius: 12px; margin-bottom: 12px;
+    break-inside: avoid; -webkit-column-break-inside: avoid;
   }
   @media (max-width: 640px) {
-    .wp-gallery-grid { grid-template-columns: repeat(2, 1fr) !important; }
+    .wp-gallery-grid { column-count: 2 !important; }
   }
 
   /* ── GARDEN LEAVES ── */
@@ -502,7 +504,7 @@ export default function WeddingPage() {
     if (!g?.enabled || g.photos.length === 0) return null;
     return (
       <section className="wp-section wp-gallery">
-        <div className="wp-gallery-grid" style={{ gridTemplateColumns: `repeat(${g.cols}, 1fr)` }}>
+        <div className="wp-gallery-grid" style={{ columnCount: g.cols }}>
           {g.photos.map((src) => (
             <img key={src} className="wp-gallery-img" src={src} alt="" loading="lazy" />
           ))}
