@@ -994,6 +994,7 @@ export default function WeddingTracker() {
         p_smoking_notice: form.smoking_notice,
         p_parking_notice: form.parking_notice,
         p_content_translations: form.content_translations,
+        p_theme_tokens:   form.theme_tokens,
       });
       await loadWedding();
       showToast("Wedding page saved");

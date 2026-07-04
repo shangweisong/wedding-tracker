@@ -1,6 +1,21 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase, isDemoMode } from "../lib/supabase.js";
 import { LOCALES } from "../i18n/index.jsx";
+import { isCompleteThemeTokens } from "../lib/themeTokens.js";
+
+// Read a File as a base64 string (without the data: URL prefix) for the vision API.
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const res = String(reader.result);
+      const comma = res.indexOf(",");
+      resolve(comma >= 0 ? res.slice(comma + 1) : res);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 
 // Locales the couple can provide content translations for (every locale except
 // the English source of truth). Drives the per-language editor below.
@@ -237,6 +252,10 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
   const [parkingNotice, setParkingNotice] = useState("");
   const [isPublished, setIsPublished]   = useState(false);
   const [pageTheme, setPageTheme]       = useState("minimal");
+  const [themeTokens, setThemeTokens]   = useState({});
+  const [generatingTheme, setGeneratingTheme] = useState(false);
+  const [themeErr, setThemeErr]         = useState("");
+  const themeFileInputRef = useRef(null);
   const [enableFunRsvpOptions, setEnableFunRsvpOptions] = useState(false);
   const [customQA, setCustomQA]    = useState([]);
 
@@ -278,6 +297,8 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
     setCustomQA(buildCustomQA(wedding.fun_qa));
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setTranslations(wedding.content_translations || {});
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setThemeTokens(wedding.theme_tokens || {});
   }, [wedding]);
 
   if (wedding === undefined) {
@@ -326,6 +347,53 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  // ── AI theme generation from an uploaded image (#60) ──
+  const generateThemeFromImage = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setThemeErr("Please select an image file");
+      return;
+    }
+    if (isDemoMode || !supabase) {
+      setThemeErr("Theme generation is not available in demo mode");
+      return;
+    }
+    setGeneratingTheme(true);
+    setThemeErr("");
+    try {
+      const imageBase64 = await fileToBase64(file);
+      const { data: { session } = {} } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const res = await fetch("/api/generate-theme", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ imageBase64, mimeType: file.type }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || `request failed: ${res.status}`);
+      }
+      const data = await res.json();
+      if (data?.tokens && isCompleteThemeTokens(data.tokens)) {
+        setThemeTokens(data.tokens);
+        setPageTheme("custom");
+        showToast("Theme generated from your image!");
+      } else {
+        throw new Error("no usable palette returned");
+      }
+    } catch (err) {
+      console.error("[WeddingPageTab] generate-theme error:", err);
+      setThemeErr("Theme generation failed — try another image or pick a preset below.");
+    } finally {
+      setGeneratingTheme(false);
+      if (themeFileInputRef.current) themeFileInputRef.current.value = "";
     }
   };
 
@@ -446,6 +514,7 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
       smoking_notice:  smokingNotice.trim(),
       parking_notice:  parkingNotice.trim(),
       content_translations: { ...(wedding?.content_translations || {}), ...translations },
+      theme_tokens:    themeTokens,
     });
     setSaving(false);
   };
@@ -694,6 +763,47 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
                 <div className="wpt-theme-sub">{t.sub}</div>
               </button>
             ))}
+            {isCompleteThemeTokens(themeTokens) && (
+              <button
+                type="button"
+                className={`wpt-theme-opt${pageTheme === "custom" ? " active" : ""}`}
+                onClick={() => setPageTheme("custom")}
+              >
+                <div
+                  className="wpt-theme-swatch"
+                  style={{ background: `linear-gradient(135deg, ${themeTokens.accentDark} 0%, ${themeTokens.heading} 60%, ${themeTokens.accent} 100%)` }}
+                />
+                <div className="wpt-theme-name">Custom</div>
+                <div className="wpt-theme-sub">From your image</div>
+              </button>
+            )}
+          </div>
+
+          {/* AI theme from an uploaded image (#60) */}
+          <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid rgba(201,168,76,0.15)" }}>
+            <input
+              ref={themeFileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={generateThemeFromImage}
+              style={{ display: "none" }}
+            />
+            <button
+              type="button"
+              className="wpt-upload-btn"
+              style={{ display: "inline-block", width: "auto" }}
+              disabled={generatingTheme}
+              onClick={() => themeFileInputRef.current?.click()}
+            >
+              {generatingTheme ? "Generating…" : "✨ Generate theme from an image"}
+            </button>
+            <div style={{ fontSize: 11, color: "var(--brown)", opacity: 0.5, lineHeight: 1.4, marginTop: 6 }}>
+              Upload a photo (your flowers, invite, venue…) and AI derives a matching color palette.
+              Applied as the “Custom” theme above — you can always switch back to a preset.
+            </div>
+            {themeErr && (
+              <div style={{ fontSize: 12, color: "var(--red)", marginTop: 8 }}>{themeErr}</div>
+            )}
           </div>
         </div>
 

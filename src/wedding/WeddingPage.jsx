@@ -4,6 +4,7 @@ import { sb, isDemoMode } from "../lib/supabase.js";
 import { theme } from "../shared/theme.js";
 import { useLocale } from "../i18n/index.jsx";
 import { localizeWedding } from "../i18n/content.js";
+import { sanitizeThemeTokens, isCompleteThemeTokens, themeTokenStyle } from "../lib/themeTokens.js";
 import LanguageSwitcher from "../i18n/LanguageSwitcher.jsx";
 
 // Maps a fun-fact id to the i18n key for its fallback question (used only when
@@ -479,19 +480,27 @@ export default function WeddingPage() {
   const { bride_name, groom_name, wedding_date, venue_name, venue_address,
           ceremony_time, dinner_time, tea_ceremony_time, love_story, dress_code,
           hero_image_url, rsvp_deadline, is_published, getting_there,
-          theme: pageTheme = "minimal" } = lw;
+          theme: pageTheme = "minimal", theme_tokens } = lw;
+
+  // Custom (AI-generated) theme (#60): apply the color-only palette as inline CSS
+  // variable overrides. An incomplete/invalid palette falls back to the minimal
+  // preset rather than half-applying.
+  const customTokens = pageTheme === "custom" ? sanitizeThemeTokens(theme_tokens) : {};
+  const hasCustom = isCompleteThemeTokens(customTokens);
+  const effectiveTheme = pageTheme === "custom" ? (hasCustom ? "custom" : "minimal") : pageTheme;
+  const customStyle = hasCustom ? themeTokenStyle(customTokens) : undefined;
 
   const coupleNames = `${groom_name} & ${bride_name}`;
 
   return (
     <>
       <style>{styles}</style>
-      <div className="wp" data-theme={pageTheme}>
+      <div className="wp" data-theme={effectiveTheme} style={customStyle}>
 
         {/* Sit below the sticky preview banner (and above it in z-order) when unpublished. */}
         <LanguageSwitcher style={{ position: "absolute", top: is_published ? 16 : 52, right: 16, zIndex: 201 }} />
 
-        {pageTheme === "garden" && (
+        {effectiveTheme === "garden" && (
           <div className="wp-leaves-bg">
             {GARDEN_LEAVES.map((l, i) => (
               <LeafIcon
@@ -521,10 +530,12 @@ export default function WeddingPage() {
           style={{
             backgroundImage: hero_image_url
               ? `linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.45) 100%), url(${hero_image_url})`
-              : heroGradient(pageTheme),
+              : hasCustom
+                ? `linear-gradient(160deg, ${customTokens.accentDark} 0%, ${customTokens.heading} 60%, ${customTokens.accent} 100%)`
+                : heroGradient(effectiveTheme),
             backgroundSize: "cover",
             backgroundPosition: "center",
-            backgroundColor: heroBgColor(pageTheme),
+            backgroundColor: hasCustom ? customTokens.heading : heroBgColor(effectiveTheme),
           }}
         >
 
