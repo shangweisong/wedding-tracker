@@ -5,6 +5,7 @@ import { sb, isDemoMode, supabase, HELPER_EMAIL } from "../lib/supabase.js";
 import { cleanName, cleanNotes, cleanTable, cleanParty, cleanAmount, MAX_ANGBAO } from "../lib/validation.js";
 import { parseCSV, toCSV, guestImportTemplateCSV } from "../lib/csv.js";
 import { formatTime } from "../lib/format.js";
+import { guestMatchesSearch } from "../lib/guestSearch.js";
 import { Icon } from "../shared/icons.jsx";
 import { theme } from "../shared/theme.js";
 import RsvpTab from "./RsvpTab.jsx";
@@ -1344,8 +1345,7 @@ export default function WeddingTracker() {
   // Filtered guests
   const filtered = guests.filter((g) => {
     if (mode === "dday" && g.rsvp_status !== "confirmed") return false;
-    const q = search.toLowerCase();
-    const matchSearch = g.name.toLowerCase().includes(q) || String(g.table_number).includes(q);
+    const matchSearch = guestMatchesSearch(g, search);
     const matchFilter =
       filter === "all" ? true :
       filter === "arrived" ? g.checked_in :
@@ -1558,7 +1558,7 @@ export default function WeddingTracker() {
             <>
               <div className="search-wrap">
                 <Icon.Search />
-                <input className="search-input" placeholder="Search guests or table…" value={search} onChange={(e) => setSearch(e.target.value)} />
+                <input className="search-input" placeholder="Search name, table, or #draw-number…" value={search} onChange={(e) => setSearch(e.target.value)} />
               </div>
               <div className="filter-tabs">
                 {[["all","All"],["arrived","Arrived"],["pending","Pending"],...(ANGBAO_ENABLED ? [["angbao","🧧 Gave"]] : [])].map(([k,l]) => (
