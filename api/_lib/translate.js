@@ -6,7 +6,9 @@ export const MAX_ITEMS = 80;
 export const MAX_TEXT = 2000;
 
 const MYMEMORY_URL = "https://api.mymemory.translated.net/get";
-const DEEPL_URL = "https://api-free.deepl.com/v2/translate";
+// DeepL Free by default. Pro/paid keys (no `:fx` suffix) live on api.deepl.com —
+// point DEEPL_API_URL there so a Pro key isn't rejected (403) by the Free host.
+const DEFAULT_DEEPL_URL = "https://api-free.deepl.com/v2/translate";
 const DEEPL_BATCH = 50; // DeepL accepts up to 50 `text` params per request.
 const FETCH_TIMEOUT_MS = 8000; // Abort a stalled upstream instead of blocking.
 const MYMEMORY_MAX_BYTES = 450; // MyMemory caps a single `q` at ~500 bytes.
@@ -71,14 +73,14 @@ function splitForMyMemory(text) {
   return chunks;
 }
 
-async function deeplBatch(texts, source, target, key, fetchImpl) {
+async function deeplBatch(texts, source, target, key, fetchImpl, url) {
   const body = new URLSearchParams();
   for (const t of texts) body.append("text", t);
   body.set("target_lang", deeplTargetLang(target));
   const src = DEEPL_SOURCE[source];
   if (src) body.set("source_lang", src);
 
-  const resp = await withTimeout(fetchImpl, DEEPL_URL, {
+  const resp = await withTimeout(fetchImpl, url, {
     method: "POST",
     headers: {
       Authorization: `DeepL-Auth-Key ${key}`,
@@ -122,6 +124,7 @@ export async function translateItems(items, opts = {}) {
     source = "en",
     target,
     deeplKey = process.env.DEEPL_API_KEY || "",
+    deeplUrl = process.env.DEEPL_API_URL || DEFAULT_DEEPL_URL,
     mymemoryEmail = process.env.MYMEMORY_EMAIL || undefined,
     fetchImpl = fetch,
   } = opts;
@@ -143,12 +146,14 @@ export async function translateItems(items, opts = {}) {
   if (supportsDeepl(target, deeplKey)) {
     for (const group of chunk(todo, DEEPL_BATCH)) {
       try {
-        const out = await deeplBatch(group.map((g) => g.text), source, target, deeplKey, fetchImpl);
+        const out = await deeplBatch(group.map((g) => g.text), source, target, deeplKey, fetchImpl, deeplUrl);
         group.forEach((g, j) => {
           results[g.i] = { key: g.key, text: out[j] || "" };
         });
-      } catch {
-        // Leave this group blank; the MyMemory pass below fills the gaps.
+      } catch (err) {
+        // Surface why DeepL was skipped (401 key / 403 wrong-plan / 456 quota /
+        // timeout) so the silent fallback to MyMemory is diagnosable in logs.
+        console.error("[translate] deepl batch failed, falling back to MyMemory:", err?.message || err);
       }
     }
   }

@@ -85,6 +85,37 @@ describe("translateItems", () => {
     expect(results[1].text).toBe("MM:Grand Ballroom");
   });
 
+  it("logs the DeepL failure reason before falling back to MyMemory", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const fetchImpl = fakeFetch({ deeplStatus: 456 });
+      await translateItems(items, { target: "ja", deeplKey: "key", fetchImpl });
+      expect(spy).toHaveBeenCalled();
+      const logged = spy.mock.calls.map((c) => c.map(String).join(" ")).join("\n");
+      expect(logged).toContain("deepl");
+      expect(logged).toContain("456");
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("defaults to the DeepL Free endpoint", async () => {
+    const fetchImpl = fakeFetch();
+    await translateItems(items, { target: "zh-TW", deeplKey: "key", fetchImpl });
+    expect(String(fetchImpl.mock.calls[0][0])).toBe("https://api-free.deepl.com/v2/translate");
+  });
+
+  it("honors a custom DeepL endpoint (Pro) via the deeplUrl option", async () => {
+    const fetchImpl = fakeFetch();
+    await translateItems(items, {
+      target: "zh-TW",
+      deeplKey: "key",
+      deeplUrl: "https://api.deepl.com/v2/translate",
+      fetchImpl,
+    });
+    expect(String(fetchImpl.mock.calls[0][0])).toBe("https://api.deepl.com/v2/translate");
+  });
+
   it("passes through blank/invalid items without translating them", async () => {
     const fetchImpl = fakeFetch();
     const mixed = [
