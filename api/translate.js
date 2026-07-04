@@ -1,21 +1,10 @@
-// Same-origin translation proxy (#53 Phase 2). The public CSP blocks a direct
-// browser fetch to an external translation host, so the Wedding Setup
-// "Auto-translate" button POSTs here and we proxy MyMemory (free, no API key).
-// Optional MYMEMORY_EMAIL env raises the anonymous daily quota.
-const MAX_ITEMS = 80;
-const MAX_TEXT = 2000;
-const MYMEMORY_URL = "https://api.mymemory.translated.net/get";
-
-async function translateOne(text, source, target, email) {
-  const params = new URLSearchParams({ q: text, langpair: `${source}|${target}` });
-  if (email) params.set("de", email);
-  const resp = await fetch(`${MYMEMORY_URL}?${params.toString()}`);
-  if (!resp.ok) throw new Error(`translate upstream ${resp.status}`);
-  const data = await resp.json();
-  const out = data?.responseData?.translatedText;
-  if (typeof out !== "string" || !out.trim()) throw new Error("no translation");
-  return out;
-}
+// Same-origin translation proxy (#53 Phase 2, #59). The public CSP blocks a
+// direct browser fetch to an external translation host, so the Wedding Setup
+// "Auto-translate" button POSTs here. We prefer DeepL Free (higher quality) and
+// fall back to MyMemory for languages DeepL doesn't support (e.g. Malay) or when
+// no DeepL key is set. Provider logic + tests live in ./_lib/translate.js.
+// Env: DEEPL_API_KEY (DeepL Free), MYMEMORY_EMAIL (optional, raises MyMemory quota).
+import { translateItems, MAX_ITEMS } from "./_lib/translate.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
@@ -28,23 +17,6 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: `too many items (max ${MAX_ITEMS})` });
   }
 
-  const email = process.env.MYMEMORY_EMAIL || undefined;
-  const results = [];
-  // Sequential to stay within MyMemory's per-IP rate limits.
-  for (const item of items) {
-    const key = item?.key;
-    const text = typeof item?.text === "string" ? item.text.slice(0, MAX_TEXT) : "";
-    if (!key || !text.trim()) {
-      results.push({ key, text: "" });
-      continue;
-    }
-    try {
-      results.push({ key, text: await translateOne(text, source, target, email) });
-    } catch {
-      // Graceful: leave blank so the couple fills it in manually rather than erroring.
-      results.push({ key, text: "" });
-    }
-  }
-
+  const results = await translateItems(items, { source, target });
   return res.status(200).json({ results });
 }

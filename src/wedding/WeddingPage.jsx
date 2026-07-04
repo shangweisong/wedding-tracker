@@ -4,6 +4,8 @@ import { sb, isDemoMode } from "../lib/supabase.js";
 import { theme } from "../shared/theme.js";
 import { useLocale } from "../i18n/index.jsx";
 import { localizeWedding } from "../i18n/content.js";
+import { sanitizeThemeTokens, isCompleteThemeTokens, themeTokenStyle } from "../lib/themeTokens.js";
+import { normalizeSectionPhotos } from "../lib/sectionPhotos.js";
 import LanguageSwitcher from "../i18n/LanguageSwitcher.jsx";
 
 // Maps a fun-fact id to the i18n key for its fallback question (used only when
@@ -42,10 +44,23 @@ const DEMO_WEDDING = {
   is_published: true,
   meal_options: "Chicken,Fish,Vegetarian",
   getting_there: "By MRT: Alight at Orchard MRT (NS22 / TE14), take Exit B and walk 5 minutes along Orchard Road.\n\nBy car: Parking available at the hotel basement. Enter via Orchard Road. First 2 hours complimentary for wedding guests.\n\nDrop-off: Use the main hotel entrance on Orchard Road — our wedding team will be there to welcome you.",
+  section_photos: {},
 };
 
 const styles = theme + `
   .wp { min-height: 100vh; position: relative; }
+
+  /* Section photo galleries (#71). Masonry via CSS multi-column so photos keep
+     their natural aspect ratio (no cropping) while still packing tidily. */
+  .wp-gallery-grid { column-gap: 12px; }
+  .wp-gallery-img {
+    width: 100%; height: auto; display: block;
+    border-radius: 12px; margin-bottom: 12px;
+    break-inside: avoid; -webkit-column-break-inside: avoid;
+  }
+  @media (max-width: 640px) {
+    .wp-gallery-grid { column-count: 2 !important; }
+  }
 
   /* ── GARDEN LEAVES ── */
   .wp-leaves-bg {
@@ -479,19 +494,44 @@ export default function WeddingPage() {
   const { bride_name, groom_name, wedding_date, venue_name, venue_address,
           ceremony_time, dinner_time, tea_ceremony_time, love_story, dress_code,
           hero_image_url, rsvp_deadline, is_published, getting_there,
-          theme: pageTheme = "minimal" } = lw;
+          theme: pageTheme = "minimal", theme_tokens } = lw;
+
+  // Optional photo galleries between sections (#71). Images are locale-shared,
+  // so this comes straight off the wedding record (not the localized overlay).
+  const galleries = normalizeSectionPhotos(wedding.section_photos);
+  const renderGallery = (key) => {
+    const g = galleries[key];
+    if (!g?.enabled || g.photos.length === 0) return null;
+    return (
+      <section className="wp-section wp-gallery">
+        <div className="wp-gallery-grid" style={{ columnCount: g.cols }}>
+          {g.photos.map((src) => (
+            <img key={src} className="wp-gallery-img" src={src} alt="" loading="lazy" />
+          ))}
+        </div>
+      </section>
+    );
+  };
+
+  // Custom (AI-generated) theme (#60): apply the color-only palette as inline CSS
+  // variable overrides. An incomplete/invalid palette falls back to the minimal
+  // preset rather than half-applying.
+  const customTokens = pageTheme === "custom" ? sanitizeThemeTokens(theme_tokens) : {};
+  const hasCustom = isCompleteThemeTokens(customTokens);
+  const effectiveTheme = pageTheme === "custom" ? (hasCustom ? "custom" : "minimal") : pageTheme;
+  const customStyle = hasCustom ? themeTokenStyle(customTokens) : undefined;
 
   const coupleNames = `${groom_name} & ${bride_name}`;
 
   return (
     <>
       <style>{styles}</style>
-      <div className="wp" data-theme={pageTheme}>
+      <div className="wp" data-theme={effectiveTheme} style={customStyle}>
 
         {/* Sit below the sticky preview banner (and above it in z-order) when unpublished. */}
         <LanguageSwitcher style={{ position: "absolute", top: is_published ? 16 : 52, right: 16, zIndex: 201 }} />
 
-        {pageTheme === "garden" && (
+        {effectiveTheme === "garden" && (
           <div className="wp-leaves-bg">
             {GARDEN_LEAVES.map((l, i) => (
               <LeafIcon
@@ -521,10 +561,12 @@ export default function WeddingPage() {
           style={{
             backgroundImage: hero_image_url
               ? `linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.45) 100%), url(${hero_image_url})`
-              : heroGradient(pageTheme),
+              : hasCustom
+                ? `linear-gradient(160deg, ${customTokens.accentDark} 0%, ${customTokens.heading} 60%, ${customTokens.accent} 100%)`
+                : heroGradient(effectiveTheme),
             backgroundSize: "cover",
             backgroundPosition: "center",
-            backgroundColor: heroBgColor(pageTheme),
+            backgroundColor: hasCustom ? customTokens.heading : heroBgColor(effectiveTheme),
           }}
         >
 
@@ -571,6 +613,8 @@ export default function WeddingPage() {
         {/* ── CONTENT SECTIONS ── */}
         <div className="wp-content">
 
+          {renderGallery("afterHero")}
+
           {/* Our Story */}
           {love_story && (
             <section className="wp-section">
@@ -579,6 +623,8 @@ export default function WeddingPage() {
               <p className="wp-story-text">{love_story}</p>
             </section>
           )}
+
+          {renderGallery("afterOurStory")}
 
           {/* Fun Q&A */}
           {answeredQA.length > 0 && (
@@ -595,6 +641,8 @@ export default function WeddingPage() {
               </div>
             </section>
           )}
+
+          {renderGallery("afterFunQA")}
 
           {/* The Big Day */}
           <section className="wp-section">
@@ -656,6 +704,8 @@ export default function WeddingPage() {
             )}
           </section>
 
+          {renderGallery("afterEventDetails")}
+
           {/* Getting There */}
           {getting_there && (
             <section className="wp-section">
@@ -690,6 +740,8 @@ export default function WeddingPage() {
               )}
             </section>
           )}
+
+          {renderGallery("afterGettingThere")}
 
           {/* RSVP CTA */}
           <section className="wp-section wp-cta">

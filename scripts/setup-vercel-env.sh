@@ -153,14 +153,28 @@ REQUIRED_VARS=(
   "SITE_URL"
 )
 
+# Optional server-only vars — only relevant if you use auto-translate or the AI
+# "Custom" theme. Unset ones are skipped quietly (not counted as "Missing"), so
+# configuring one AI provider (or none) doesn't produce spurious warnings.
+OPTIONAL_VARS=(
+  "DEEPL_API_KEY"
+  "DEEPL_API_URL"
+  "MYMEMORY_EMAIL"
+  "THEME_AI_PROVIDER"
+  "ANTHROPIC_API_KEY"
+  "OPENAI_API_KEY"
+  "NVIDIA_API_KEY"
+  "THEME_AI_MODEL"
+  "NVIDIA_MODEL"
+  "HELPER_EMAIL"
+)
+
 # Provider-specific vars
 if [[ "$PROVIDER" == "gmail" ]]; then
   REQUIRED_VARS+=("GMAIL_FROM" "GMAIL_APP_PASSWORD")
-  OPTIONAL_VARS=()
 else
   REQUIRED_VARS+=("RESEND_API_KEY")
-  # One of these is required; warn if both missing
-  OPTIONAL_VARS=("RESEND_FROM_EMAIL" "RESEND_SENDING_DOMAIN")
+  # One of RESEND_FROM_EMAIL / RESEND_SENDING_DOMAIN is required (handled below).
 fi
 
 # ── Push required vars ────────────────────────────────────────────────────────
@@ -170,8 +184,20 @@ for var in "${REQUIRED_VARS[@]}"; do
   push_var "$var" "$value"
 done
 
+# ── Push optional vars (skip-quietly when unset) ──────────────────────────────
+echo ""
+log "Pushing optional vars (auto-translate / AI theme)..."
+for var in "${OPTIONAL_VARS[@]}"; do
+  value=$(env_get "$var")
+  if [[ -z "$value" ]]; then
+    dim "  ${var} — not set, skipping"
+    continue
+  fi
+  push_var "$var" "$value"
+done
+
 # ── Handle Resend from-address (either RESEND_FROM_EMAIL or RESEND_SENDING_DOMAIN) ──
-if [[ "$PROVIDER" != "brevo" && "$PROVIDER" != "gmail" ]]; then
+if [[ "$PROVIDER" != "gmail" ]]; then
   from_email=$(env_get "RESEND_FROM_EMAIL")
   sending_domain=$(env_get "RESEND_SENDING_DOMAIN")
 

@@ -1,5 +1,26 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase, isDemoMode } from "../lib/supabase.js";
+import { LOCALES } from "../i18n/index.jsx";
+import { isCompleteThemeTokens } from "../lib/themeTokens.js";
+import { SECTION_PHOTO_SLOTS, MAX_PHOTOS_PER_SLOT, normalizeSectionPhotos } from "../lib/sectionPhotos.js";
+
+// Read a File as a base64 string (without the data: URL prefix) for the vision API.
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const res = String(reader.result);
+      const comma = res.indexOf(",");
+      resolve(comma >= 0 ? res.slice(comma + 1) : res);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// Locales the couple can provide content translations for (every locale except
+// the English source of truth). Drives the per-language editor below.
+const TRANSLATABLE_LOCALES = Object.keys(LOCALES).filter((code) => code !== "en");
 
 const FUN_QUESTIONS = [
   { id: "how_met",     q: "How did you two meet?" },
@@ -124,6 +145,32 @@ const styles = `
   .wpt-upload-btn:hover { border-color: var(--gold); color: var(--gold-dark); }
   .wpt-upload-btn:disabled { opacity: 0.5; cursor: default; }
 
+  /* Section photo galleries (#71) */
+  .wpt-gallery-slot {
+    padding: 14px 0; border-top: 1px solid rgba(201,168,76,0.15);
+  }
+  .wpt-gallery-slot:first-of-type { border-top: none; }
+  .wpt-gallery-head {
+    display: flex; align-items: center; gap: 10px; cursor: pointer;
+  }
+  .wpt-gallery-name { font-size: 14px; color: var(--brown); font-weight: 500; }
+  .wpt-gallery-body { margin-top: 12px; display: flex; flex-direction: column; gap: 12px; }
+  .wpt-gallery-thumbs {
+    display: flex; flex-wrap: wrap; gap: 8px;
+  }
+  .wpt-gallery-thumb { position: relative; width: 72px; height: 72px; }
+  .wpt-gallery-thumb img {
+    width: 100%; height: 100%; object-fit: cover; border-radius: 8px;
+    border: 1.5px solid rgba(201,168,76,0.2);
+  }
+  .wpt-gallery-remove {
+    position: absolute; top: -6px; right: -6px;
+    width: 20px; height: 20px; border-radius: 50%; cursor: pointer;
+    border: none; background: var(--red, #c0392b); color: white;
+    font-size: 11px; line-height: 1; display: flex; align-items: center; justify-content: center;
+  }
+  .wpt-gallery-actions { display: flex; align-items: center; gap: 12px; }
+
   /* Publish toggle */
   .wpt-publish-row {
     display: flex; align-items: center; justify-content: space-between;
@@ -232,10 +279,22 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
   const [parkingNotice, setParkingNotice] = useState("");
   const [isPublished, setIsPublished]   = useState(false);
   const [pageTheme, setPageTheme]       = useState("minimal");
+  const [themeTokens, setThemeTokens]   = useState({});
+  const [generatingTheme, setGeneratingTheme] = useState(false);
+  const [themeErr, setThemeErr]         = useState("");
+  const themeFileInputRef = useRef(null);
   const [enableFunRsvpOptions, setEnableFunRsvpOptions] = useState(false);
   const [customQA, setCustomQA]    = useState([]);
 
-  const [zhTr, setZhTr]            = useState({});
+  // Section photo galleries (#71): per-slot { enabled, cols, photos }.
+  const [sectionPhotos, setSectionPhotos] = useState(() => normalizeSectionPhotos(null));
+  const [galleryUploading, setGalleryUploading] = useState(""); // slot key mid-upload, or ""
+  const galleryInputs = useRef({}); // per-slot hidden <input> refs, keyed by slot key
+
+  // All per-locale content translations, keyed by locale code:
+  // { "zh-TW": { love_story, …, fun_qa: [{id,q,answer}] }, "ja": {…}, … }.
+  const [translations, setTranslations] = useState({});
+  const [activeLocale, setActiveLocale] = useState(TRANSLATABLE_LOCALES[0]);
   const [translating, setTranslating] = useState(false);
   const [translateErr, setTranslateErr] = useState("");
 
@@ -269,7 +328,11 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setCustomQA(buildCustomQA(wedding.fun_qa));
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setZhTr(wedding.content_translations?.["zh-TW"] || {});
+    setTranslations(wedding.content_translations || {});
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setThemeTokens(wedding.theme_tokens || {});
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSectionPhotos(normalizeSectionPhotos(wedding.section_photos));
   }, [wedding]);
 
   if (wedding === undefined) {
@@ -321,8 +384,55 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
     }
   };
 
-  // ── zh-TW translation helpers ──
-  const zhTextFields = [
+  // ── AI theme generation from an uploaded image (#60) ──
+  const generateThemeFromImage = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setThemeErr("Please select an image file");
+      return;
+    }
+    if (isDemoMode || !supabase) {
+      setThemeErr("Theme generation is not available in demo mode");
+      return;
+    }
+    setGeneratingTheme(true);
+    setThemeErr("");
+    try {
+      const imageBase64 = await fileToBase64(file);
+      const { data: { session } = {} } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const res = await fetch("/api/generate-theme", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ imageBase64, mimeType: file.type }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || `request failed: ${res.status}`);
+      }
+      const data = await res.json();
+      if (data?.tokens && isCompleteThemeTokens(data.tokens)) {
+        setThemeTokens(data.tokens);
+        setPageTheme("custom");
+        showToast("Theme generated from your image!");
+      } else {
+        throw new Error("no usable palette returned");
+      }
+    } catch (err) {
+      console.error("[WeddingPageTab] generate-theme error:", err);
+      setThemeErr("Theme generation failed — try another image or pick a preset below.");
+    } finally {
+      setGeneratingTheme(false);
+      if (themeFileInputRef.current) themeFileInputRef.current.value = "";
+    }
+  };
+
+  // ── Per-locale content-translation helpers (edit the active locale) ──
+  const sourceFields = [
     { key: "love_story",     label: "Your Story",      en: loveStory },
     { key: "dress_code",     label: "Dress Code",      en: dresscode },
     { key: "venue_name",     label: "Venue Name",      en: wedding?.venue_name || "" },
@@ -332,29 +442,38 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
     { key: "parking_notice", label: "Parking notice",  en: parkingNotice },
   ];
 
-  const setZhField = (key, value) => setZhTr((p) => ({ ...p, [key]: value }));
+  // The translation object for the locale currently being edited.
+  const activeTr = translations[activeLocale] || {};
 
-  const zhFunQaValue = (id, field) => {
-    const arr = Array.isArray(zhTr.fun_qa) ? zhTr.fun_qa : [];
+  const setTrField = (key, value) =>
+    setTranslations((p) => ({
+      ...p,
+      [activeLocale]: { ...(p[activeLocale] || {}), [key]: value },
+    }));
+
+  const trFunQaValue = (id, field) => {
+    const arr = Array.isArray(activeTr.fun_qa) ? activeTr.fun_qa : [];
     const found = arr.find((r) => r.id === id);
     return (found && found[field]) || "";
   };
 
-  const setZhFunQa = (id, field, value) => setZhTr((p) => {
-    const arr = Array.isArray(p.fun_qa) ? p.fun_qa : [];
-    const exists = arr.some((r) => r.id === id);
-    const next = exists
-      ? arr.map((r) => r.id === id ? { ...r, [field]: value } : r)
-      : [...arr, { id, q: "", answer: "", [field]: value }];
-    return { ...p, fun_qa: next };
-  });
+  const setTrFunQa = (id, field, value) =>
+    setTranslations((p) => {
+      const cur = p[activeLocale] || {};
+      const arr = Array.isArray(cur.fun_qa) ? cur.fun_qa : [];
+      const exists = arr.some((r) => r.id === id);
+      const next = exists
+        ? arr.map((r) => (r.id === id ? { ...r, [field]: value } : r))
+        : [...arr, { id, q: "", answer: "", [field]: value }];
+      return { ...p, [activeLocale]: { ...cur, fun_qa: next } };
+    });
 
   const autoTranslate = async () => {
     setTranslating(true);
     setTranslateErr("");
     try {
       const items = [];
-      zhTextFields.forEach(({ key, en }) => {
+      sourceFields.forEach(({ key, en }) => {
         if (en && en.trim()) items.push({ key, text: en.trim() });
       });
       customQA.forEach((item) => {
@@ -367,13 +486,14 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
       const res = await fetch("/api/translate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items, source: "en", target: "zh-TW" }),
+        body: JSON.stringify({ items, source: "en", target: activeLocale }),
       });
       if (!res.ok) throw new Error(`translate request failed: ${res.status}`);
       const data = await res.json();
       const results = Array.isArray(data?.results) ? data.results : [];
 
-      setZhTr((prev) => {
+      setTranslations((prevAll) => {
+        const prev = prevAll[activeLocale] || {};
         const next = { ...prev };
         const funQa = Array.isArray(prev.fun_qa) ? [...prev.fun_qa] : [];
         const upsertFq = (id, field, value) => {
@@ -397,7 +517,7 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
           }
         });
         next.fun_qa = funQa;
-        return next;
+        return { ...prevAll, [activeLocale]: next };
       });
     } catch (err) {
       console.error("[WeddingPageTab] auto-translate error:", err);
@@ -406,6 +526,67 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
       setTranslating(false);
     }
   };
+
+  // ── Section photo galleries (#71) ──
+  const setSlotField = (key, patch) =>
+    setSectionPhotos((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
+
+  const uploadGalleryPhotos = async (key, e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    if (isDemoMode || !supabase) {
+      showToast("Image upload not available in demo mode");
+      return;
+    }
+    const existing = sectionPhotos[key]?.photos?.length || 0;
+    const room = MAX_PHOTOS_PER_SLOT - existing;
+    if (room <= 0) {
+      showToast(`Up to ${MAX_PHOTOS_PER_SLOT} photos per section`);
+      return;
+    }
+    setGalleryUploading(key);
+    // Upload each file independently so a mid-batch failure keeps (and persists)
+    // the successes rather than orphaning already-uploaded objects in the bucket.
+    const uploaded = [];
+    let failed = 0;
+    for (const file of files.slice(0, room)) {
+      if (!file.type.startsWith("image/")) continue;
+      try {
+        const ext = file.name.split(".").pop().toLowerCase();
+        const rand = Math.random().toString(36).slice(2, 8);
+        const path = `gallery/${key}/${existing + uploaded.length}-${rand}.${ext}`;
+        const { error: uploadError } = await supabase.storage
+          .from("wedding-photos")
+          .upload(path, file, { upsert: true, contentType: file.type });
+        if (uploadError) throw uploadError;
+        const { data } = supabase.storage.from("wedding-photos").getPublicUrl(path);
+        uploaded.push(data.publicUrl);
+      } catch (err) {
+        failed += 1;
+        console.error("[WeddingPageTab] gallery upload error:", err);
+      }
+    }
+    if (uploaded.length) {
+      setSectionPhotos((prev) => ({
+        ...prev,
+        [key]: {
+          ...prev[key],
+          photos: [...prev[key].photos, ...uploaded].slice(0, MAX_PHOTOS_PER_SLOT),
+        },
+      }));
+    }
+    if (failed && uploaded.length) showToast(`${uploaded.length} uploaded, ${failed} failed`);
+    else if (failed) showToast(`${failed} photo${failed > 1 ? "s" : ""} failed to upload`);
+    else if (uploaded.length) showToast(`${uploaded.length} photo${uploaded.length > 1 ? "s" : ""} uploaded!`);
+    setGalleryUploading("");
+    if (galleryInputs.current[key]) galleryInputs.current[key].value = "";
+  };
+
+  const removeGalleryPhoto = (key, idx) =>
+    setSectionPhotos((prev) => ({
+      ...prev,
+      [key]: { ...prev[key], photos: prev[key].photos.filter((_, i) => i !== idx) },
+    }));
 
   const save = async () => {
     const funQa = customQA
@@ -427,7 +608,9 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
       enable_fun_rsvp_options: enableFunRsvpOptions,
       smoking_notice:  smokingNotice.trim(),
       parking_notice:  parkingNotice.trim(),
-      content_translations: { ...(wedding?.content_translations || {}), "zh-TW": zhTr },
+      content_translations: { ...(wedding?.content_translations || {}), ...translations },
+      theme_tokens:    themeTokens,
+      section_photos:  sectionPhotos,
     });
     setSaving(false);
   };
@@ -533,6 +716,82 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* ── PHOTO GALLERIES ── */}
+        <div className="wpt-card">
+          <div className="wpt-card-title">Photo Galleries <span className="wpt-label-opt">(optional)</span></div>
+          <div className="wpt-card-sub">
+            Add optional photo bands between the sections of your page. Off by default to keep the
+            design simple and uncluttered. Up to {MAX_PHOTOS_PER_SLOT} photos per section.
+          </div>
+
+          {SECTION_PHOTO_SLOTS.map((slot) => {
+            const g = sectionPhotos[slot.key] || { enabled: false, cols: 2, photos: [] };
+            const atMax = g.photos.length >= MAX_PHOTOS_PER_SLOT;
+            return (
+              <div key={slot.key} className="wpt-gallery-slot">
+                <label className="wpt-gallery-head">
+                  <input
+                    type="checkbox"
+                    checked={g.enabled}
+                    onChange={(e) => setSlotField(slot.key, { enabled: e.target.checked })}
+                  />
+                  <span className="wpt-gallery-name">{slot.label}</span>
+                </label>
+
+                {g.enabled && (
+                  <div className="wpt-gallery-body">
+                    <div className="wpt-field" style={{ maxWidth: 160 }}>
+                      <label className="wpt-label">Columns</label>
+                      <select
+                        className="wpt-input"
+                        value={g.cols}
+                        onChange={(e) => setSlotField(slot.key, { cols: Number(e.target.value) })}
+                      >
+                        {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}</option>)}
+                      </select>
+                    </div>
+
+                    {g.photos.length > 0 && (
+                      <div className="wpt-gallery-thumbs">
+                        {g.photos.map((src, i) => (
+                          <div key={src} className="wpt-gallery-thumb">
+                            <img src={src} alt="" />
+                            <button
+                              type="button"
+                              className="wpt-gallery-remove"
+                              onClick={() => removeGalleryPhoto(slot.key, i)}
+                              aria-label="Remove photo"
+                            >✕</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <input
+                      ref={(el) => { galleryInputs.current[slot.key] = el; }}
+                      type="file" accept="image/*" multiple
+                      style={{ display: "none" }}
+                      onChange={(e) => uploadGalleryPhotos(slot.key, e)}
+                    />
+                    <div className="wpt-gallery-actions">
+                      <button
+                        className="wpt-upload-btn"
+                        disabled={galleryUploading === slot.key || atMax}
+                        onClick={() => galleryInputs.current[slot.key]?.click()}
+                      >
+                        {galleryUploading === slot.key ? "Uploading…" : atMax ? "Max photos reached" : "Add photos"}
+                      </button>
+                      <span style={{ fontSize: 11, color: "var(--brown)", opacity: 0.5 }}>
+                        {g.photos.length} / {MAX_PHOTOS_PER_SLOT} photos
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         {/* ── YOUR STORY ── */}
@@ -676,6 +935,47 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
                 <div className="wpt-theme-sub">{t.sub}</div>
               </button>
             ))}
+            {isCompleteThemeTokens(themeTokens) && (
+              <button
+                type="button"
+                className={`wpt-theme-opt${pageTheme === "custom" ? " active" : ""}`}
+                onClick={() => setPageTheme("custom")}
+              >
+                <div
+                  className="wpt-theme-swatch"
+                  style={{ background: `linear-gradient(135deg, ${themeTokens.accentDark} 0%, ${themeTokens.heading} 60%, ${themeTokens.accent} 100%)` }}
+                />
+                <div className="wpt-theme-name">Custom</div>
+                <div className="wpt-theme-sub">From your image</div>
+              </button>
+            )}
+          </div>
+
+          {/* AI theme from an uploaded image (#60) */}
+          <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid rgba(201,168,76,0.15)" }}>
+            <input
+              ref={themeFileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={generateThemeFromImage}
+              style={{ display: "none" }}
+            />
+            <button
+              type="button"
+              className="wpt-upload-btn"
+              style={{ display: "inline-block", width: "auto" }}
+              disabled={generatingTheme}
+              onClick={() => themeFileInputRef.current?.click()}
+            >
+              {generatingTheme ? "Generating…" : "✨ Generate theme from an image"}
+            </button>
+            <div style={{ fontSize: 11, color: "var(--brown)", opacity: 0.5, lineHeight: 1.4, marginTop: 6 }}>
+              Upload a photo (your flowers, invite, venue…) and AI derives a matching color palette.
+              Applied as the “Custom” theme above — you can always switch back to a preset.
+            </div>
+            {themeErr && (
+              <div style={{ fontSize: 12, color: "var(--red)", marginTop: 8 }}>{themeErr}</div>
+            )}
           </div>
         </div>
 
@@ -729,12 +1029,45 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
           </div>
         </div>
 
-        {/* ── ZH-TW TRANSLATIONS ── */}
+        {/* ── CONTENT TRANSLATIONS (per language) ── */}
         <div className="wpt-card">
-          <div className="wpt-card-title">中文 translations (Traditional Chinese)</div>
+          <div className="wpt-card-title">Translations</div>
           <div className="wpt-card-sub">
-            These show on your public wedding page and RSVP form when a guest switches to 中文.
+            These show on your public wedding page and RSVP form when a guest switches language.
             Any field left blank falls back to the English version.
+          </div>
+
+          {/* Language picker — choose which language you're editing. */}
+          <div
+            role="tablist"
+            aria-label="Translation language"
+            style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}
+          >
+            {TRANSLATABLE_LOCALES.map((code) => {
+              const active = code === activeLocale;
+              return (
+                <button
+                  key={code}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setActiveLocale(code)}
+                  style={{
+                    border: active ? "1px solid var(--gold)" : "1px solid rgba(201,168,76,0.25)",
+                    background: active ? "var(--gold)" : "transparent",
+                    color: active ? "#fff" : "var(--brown)",
+                    cursor: "pointer",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    padding: "6px 14px",
+                    borderRadius: 999,
+                    transition: "background 0.15s, color 0.15s",
+                  }}
+                >
+                  {LOCALES[code].label}
+                </button>
+              );
+            })}
           </div>
 
           <div style={{ marginBottom: 16 }}>
@@ -757,7 +1090,7 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
             )}
           </div>
 
-          {zhTextFields.map(({ key, label, en }) => (
+          {sourceFields.map(({ key, label, en }) => (
             <div className="wpt-field" key={key}>
               <label className="wpt-label">{label}</label>
               {en && en.trim() ? (
@@ -772,9 +1105,9 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
               <textarea
                 className="wpt-textarea"
                 style={{ minHeight: 64 }}
-                value={zhTr[key] || ""}
-                onChange={(e) => setZhField(key, e.target.value)}
-                placeholder="中文…"
+                value={activeTr[key] || ""}
+                onChange={(e) => setTrField(key, e.target.value)}
+                placeholder={`${LOCALES[activeLocale].label}…`}
               />
             </div>
           ))}
@@ -790,18 +1123,18 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
                     </div>
                     <input
                       className="wpt-input"
-                      value={zhFunQaValue(item.id, "q")}
-                      onChange={(e) => setZhFunQa(item.id, "q", e.target.value)}
-                      placeholder="問題（中文）…"
+                      value={trFunQaValue(item.id, "q")}
+                      onChange={(e) => setTrFunQa(item.id, "q", e.target.value)}
+                      placeholder={`Question (${LOCALES[activeLocale].label})…`}
                     />
                     <div style={{ fontSize: 11, color: "var(--brown)", opacity: 0.45, lineHeight: 1.4, margin: "10px 0 6px", whiteSpace: "pre-wrap" }}>
                       EN A: {item.answer}
                     </div>
                     <textarea
                       className="wpt-input wpt-qa-answer"
-                      value={zhFunQaValue(item.id, "answer")}
-                      onChange={(e) => setZhFunQa(item.id, "answer", e.target.value)}
-                      placeholder="答案（中文）…"
+                      value={trFunQaValue(item.id, "answer")}
+                      onChange={(e) => setTrFunQa(item.id, "answer", e.target.value)}
+                      placeholder={`Answer (${LOCALES[activeLocale].label})…`}
                       rows={3}
                     />
                   </div>

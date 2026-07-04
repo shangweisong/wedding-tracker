@@ -5,6 +5,7 @@ import { theme } from "../shared/theme.js";
 import { cleanName, cleanNotes, cleanParty, cleanRelationshipGroup, cleanFriendSubgroup, cleanEmail, cleanSpeech } from "../lib/validation.js";
 import { useLocale } from "../i18n/index.jsx";
 import { localizeWedding } from "../i18n/content.js";
+import { sanitizeThemeTokens, isCompleteThemeTokens, themeTokenStyle } from "../lib/themeTokens.js";
 import LanguageSwitcher from "../i18n/LanguageSwitcher.jsx";
 
 const MEAL_OPTIONS = [
@@ -292,6 +293,15 @@ export default function RsvpPage() {
   const [wedding, setWedding]         = useState(null);
   // Couple content in the active language (per-field fallback to English) — #53 Phase 2.
   const w = localizeWedding(wedding, locale);
+
+  // Custom (AI-generated) theme (#60): apply the palette on the RSVP form too, so
+  // it matches the wedding page. Incomplete/invalid → fall back to the minimal preset.
+  const rsvpTheme = wedding?.theme || "minimal";
+  const customTokens = rsvpTheme === "custom" ? sanitizeThemeTokens(wedding?.theme_tokens) : {};
+  const hasCustomTheme = isCompleteThemeTokens(customTokens);
+  const effectiveTheme = rsvpTheme === "custom" ? (hasCustomTheme ? "custom" : "minimal") : rsvpTheme;
+  const customThemeStyle = hasCustomTheme ? themeTokenStyle(customTokens) : null;
+
   // name: confirmed display name (set by token pre-fill or by guest selecting from list)
   const [name, setName]               = useState("");
   const [email, setEmail]             = useState("");
@@ -454,7 +464,7 @@ export default function RsvpPage() {
   return (
     <>
       <style>{styles}</style>
-      <div className="rsvp-wrap" data-theme={wedding?.theme || "minimal"} style={{ position: "relative" }}>
+      <div className="rsvp-wrap" data-theme={effectiveTheme} style={{ position: "relative", ...(customThemeStyle || {}) }}>
         <LanguageSwitcher style={{ position: "absolute", top: 16, right: 16, zIndex: 20 }} />
         <div className="rsvp-card">
           <div className="rsvp-logo">

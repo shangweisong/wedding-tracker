@@ -32,4 +32,23 @@ dist-ssr
 .env.local
 .env.*.local
 
+# Added by code-review-graph
+.code-review-graph/
+
+# AI-related
 CLAUDE.MD
+.claude
+.gemini
+.kiro
+.qoder
+.cursorrules
+.mcp.json
+.opencode.json
+.windsurfrules
+AGENTS.md
+GEMINI.md
+QODER.md
+skills-lock.json
+.agents
+.github/hooks/impeccable.json
+.github/code-review-graph.instruction.md

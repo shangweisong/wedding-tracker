@@ -1,31 +1,37 @@
 import { describe, it, expect } from "vitest";
 import en from "./locales/en.js";
-import zhTW from "./locales/zh-TW.js";
 import { translate, LOCALES, DEFAULT_LOCALE } from "./index.jsx";
 
+const enKeys = Object.keys(en).sort();
+const nonEnLocales = Object.keys(LOCALES).filter((c) => c !== "en");
+
 describe("locale catalogs", () => {
-  it("zh-TW mirrors en's key set exactly (no missing/extra keys)", () => {
-    const enKeys = Object.keys(en).sort();
-    const zhKeys = Object.keys(zhTW).sort();
-    expect(zhKeys).toEqual(enKeys);
+  it("registers en plus the supported additional locales (#53, #63)", () => {
+    expect(Object.keys(LOCALES)).toEqual(
+      expect.arrayContaining(["en", "zh-TW", "zh-CN", "ms", "ja", "ko"]),
+    );
+    expect(DEFAULT_LOCALE).toBe("en");
   });
 
-  it("has no empty translations", () => {
-    for (const [k, v] of Object.entries(zhTW)) {
-      expect(v, `zh-TW["${k}"] is empty`).toBeTruthy();
+  it.each(nonEnLocales)("%s mirrors en's key set exactly (no missing/extra keys)", (code) => {
+    const keys = Object.keys(LOCALES[code].messages).sort();
+    expect(keys).toEqual(enKeys);
+  });
+
+  it.each(nonEnLocales)("%s has no empty translations", (code) => {
+    for (const [k, v] of Object.entries(LOCALES[code].messages)) {
+      expect(v, `${code}["${k}"] is empty`).toBeTruthy();
     }
   });
 
-  it("registers en and zh-TW as available locales", () => {
-    expect(Object.keys(LOCALES)).toContain("en");
-    expect(Object.keys(LOCALES)).toContain("zh-TW");
-    expect(DEFAULT_LOCALE).toBe("en");
+  it.each(nonEnLocales)("%s has a non-empty switcher label", (code) => {
+    expect(LOCALES[code].label, `${code} label`).toBeTruthy();
   });
 });
 
 describe("translate()", () => {
   it("returns the active locale's message", () => {
-    expect(translate("zh-TW", "rsvp.submit")).toBe(zhTW["rsvp.submit"]);
+    expect(translate("zh-TW", "rsvp.submit")).toBe(LOCALES["zh-TW"].messages["rsvp.submit"]);
     expect(translate("en", "rsvp.submit")).toBe(en["rsvp.submit"]);
   });
 
@@ -37,8 +43,7 @@ describe("translate()", () => {
   });
 
   it("falls back to English when a key is absent in the locale", () => {
-    // Every key exists in both today, so simulate via a made-up key: falls back to the key.
-    expect(translate("zh-TW", "does.not.exist")).toBe("does.not.exist");
+    expect(translate("ja", "does.not.exist")).toBe("does.not.exist");
   });
 
   it("falls back to the key itself when unknown in every locale", () => {
