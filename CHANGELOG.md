@@ -5,6 +5,40 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2026-07-04] — feat/60-ai-theme-image (#60)
+
+### Added
+
+- **AI theme from a photo** — under **Wedding Setup → Wedding Page → Page Theme**, upload a picture (flowers, invitation, venue…) and a vision LLM derives a cohesive color palette, applied to the public wedding page + RSVP form as a new **"Custom"** theme alongside Minimal / Garden / Traditional. The palette is stored in a new `weddings.theme_tokens jsonb` column and applied as CSS-variable overrides; an incomplete/invalid palette falls back to the Minimal preset.
+- New serverless endpoint `api/generate-theme.js` + provider layer `api/_lib/themeProvider.js`. Provider is switchable like the email layer via `THEME_AI_PROVIDER` = `anthropic` (default) / `openai` / `nvidia`; the couple's API key is a **server-only** env var (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `NVIDIA_API_KEY`), never `VITE_`-prefixed.
+- Colors only by design: the model output is sanitized to hex-only tokens (`src/lib/themeTokens.js`, unit-tested) on the server and again at render, so it can't inject CSS/markup. The endpoint requires the authenticated helper (Supabase token whose email matches `HELPER_EMAIL`/`VITE_HELPER_EMAIL`), applies a best-effort per-helper rate limit, and passes the image as base64 (no SSRF).
+
+> New migration `0006_ai_theme.sql`: adds `theme_tokens` and threads it through `get_wedding_config` / `upsert_wedding_page` / `get_public_wedding`. Run it in the Supabase SQL editor.
+
+---
+
+## [2026-07-04] — feat/63-multi-language (#63)
+
+### Added
+
+- **More public-page languages** — beyond English + Traditional Chinese, the guest-facing pages now also offer **Simplified Chinese (zh-CN), Bahasa Melayu (ms), Japanese (ja), and Korean (ko)**. The top-right selector switches to a dropdown once there are more than three languages; the choice is remembered per browser and sniffed from the browser language on first visit.
+- Full UI-chrome catalogs `src/i18n/locales/{zh-CN,ms,ja,ko}.js`, each mirroring `en.js` key-for-key (enforced by a data-driven `i18n.test.js` that now checks every registered locale). The couple can author content translations per language — the Wedding Page **Translations** editor gained a language picker, and auto-translate targets the selected language.
+
+### Notes
+
+- The i18n engine (`content.js`, `api/translate.js`, `content_translations`) was already locale-generic, so no schema change was needed. Native-speaker proofreading of the new catalogs is welcome.
+
+---
+
+## [2026-07-04] — feat/59-deepl-translation (#59)
+
+### Changed
+
+- **Auto-translate now prefers DeepL Free** for more natural output, falling back to **MyMemory** for languages DeepL doesn't support (e.g. Malay) or when no key is set. The `/api/translate` caller contract is unchanged. Set the **server-only** `DEEPL_API_KEY` to enable DeepL; `MYMEMORY_EMAIL` still raises the MyMemory quota.
+- Provider logic extracted to `api/_lib/translate.js` (unit-tested): locale→DeepL code map, batched DeepL requests, MyMemory chunking to respect its ~500-byte per-request cap, an 8s upstream timeout, and blank-on-failure so the couple can fill gaps manually.
+
+---
+
 ## [2026-07-03] — feat/53-content-translations (#53, Phase 2)
 
 ### Added

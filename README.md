@@ -16,6 +16,8 @@ A two-phase wedding management app — pre-wedding RSVP collection and seating p
 - **Seating plan** — create tables with capacity limits, assign confirmed guests by dropdown or drag-and-drop, lock tables when done, export as CSV, print-ready layout
 - **Draft seating suggestion** — one click groups unassigned confirmed guests by side / relationship / friend group and packs them into open tables as a starting draft to rearrange by hand — no AI involved, just deterministic clustering
 - **Personalised wedding page** — publish a `/wedding/:slug` page with your love story, event schedule, and RSVP button
+- **Multi-language public pages** — the guest-facing wedding page and RSVP form switch between **English, 繁體中文, 简体中文, Bahasa Melayu, 日本語, and 한국어** (top-right selector, remembered per browser). The couple translate their own content once per language, with a one-click **auto-translate** draft (DeepL, with a MyMemory fallback for languages DeepL doesn't cover)
+- **AI theme from a photo** — upload a picture (your flowers, invite, venue…) and a vision LLM derives a matching color palette applied to the wedding page + RSVP form as a "Custom" theme, alongside the built-in Minimal / Garden / Traditional presets
 
 ### 💒 D-Day Mode (wedding day)
 - **Check-in** — tap to mark guests arrived, with timestamp

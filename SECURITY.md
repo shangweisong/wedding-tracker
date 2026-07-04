@@ -36,12 +36,21 @@ This project is configured so that:
    the lock screen at runtime and verified server-side; it must never appear in
    any env file.
 4. For email automation (Phase 3, optional): run
-   `supabase/migrations/0006_email_automation.sql`, then create the two
+   `supabase/migrations/0005_email_automation.sql`, then create the two
    Supabase Vault secrets it documents (`rsvp_email_webhook_url`,
    `rsvp_email_webhook_secret`), and set the server-only env vars listed in
    `.env.example` (`SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`,
    `RSVP_WEBHOOK_SECRET`, `CRON_SECRET`, etc.) on the Vercel project. **Never**
    give these a `VITE_` prefix.
+5. For auto-translation (optional): set `DEEPL_API_KEY` (and/or
+   `MYMEMORY_EMAIL`) as **server-only** Vercel env vars — the browser calls the
+   same-origin `/api/translate` proxy, never the translation host directly.
+6. For AI theme generation (optional, migration
+   `supabase/migrations/0006_ai_theme.sql`): pick a provider with
+   `THEME_AI_PROVIDER` and set only its **server-only** key (`ANTHROPIC_API_KEY`
+   / `OPENAI_API_KEY` / `NVIDIA_API_KEY`). Never give any of these a `VITE_`
+   prefix. Keep public sign-ups disabled (step 2) — `/api/generate-theme` is
+   gated on the helper account, and that gate assumes strangers can't self-register.
 
 ## Residual risks (by design)
 
@@ -69,6 +78,23 @@ This project is configured so that:
   header), not by Supabase auth, since the caller is a Postgres trigger, not
   a logged-in helper. `api/send-reminders.js` is gated the same way via
   Vercel's `CRON_SECRET` mechanism.
+
+- **AI theme generation** (`api/generate-theme.js`, optional) is a paid,
+  metered call, so it is gated more tightly than the other endpoints. It
+  requires a valid Supabase access token **and** that the token's email matches
+  the configured helper (`HELPER_EMAIL` / `VITE_HELPER_EMAIL`) — verified
+  server-side via the service-role key — so a stranger who self-registers can't
+  spend the couple's vision-API budget. **Set `HELPER_EMAIL` (or `VITE_HELPER_EMAIL`)
+  for this endpoint: if neither is configured it falls back to accepting *any*
+  authenticated user, so disabling public sign-ups (step 2) alone is not enough
+  to lock it down.** It fails closed, applies a best-effort
+  per-helper rate limit, and never fetches an attacker-supplied URL (the image
+  is passed to the model as inline base64, so there is no SSRF surface). The
+  model's reply is constrained to a hex-color-only palette, sanitized on the
+  server and **again** when the public page renders it as CSS variables, so it
+  cannot inject arbitrary CSS or markup. Provider keys (`ANTHROPIC_API_KEY` /
+  `OPENAI_API_KEY` / `NVIDIA_API_KEY`) are server-only. A durable per-day quota
+  (beyond the in-memory rate limit) is a sensible future hardening.
 
 ## Reporting a vulnerability
 

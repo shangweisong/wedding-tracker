@@ -34,6 +34,7 @@ Open the **SQL Editor** in your Supabase dashboard and run the migrations **in o
 | [`0003_rsvp_seating.sql`](../supabase/migrations/0003_rsvp_seating.sql) | `tables` table; all RSVP columns on guests (`rsvp_status`, `meal_choice`, `email`, etc.); fuzzy name-match RPC (`submit_rsvp_by_name`); relationship taxonomy columns |
 | [`0004_weddings.sql`](../supabase/migrations/0004_weddings.sql) | Singleton `weddings` table; wedding page columns (slug, love story, hero photo, etc.); `get_wedding_config` / `upsert_wedding_config` / `get_public_wedding` RPCs; photo storage bucket |
 | [`0005_email_automation.sql`](../supabase/migrations/0005_email_automation.sql) | `pg_net` extension; RSVP status-change webhook trigger (with `old_rsvp_status` for host change-of-mind notifications); `second_reminder_sent_at` column — **apply only after completing the email setup in step 5** |
+| [`0006_ai_theme.sql`](../supabase/migrations/0006_ai_theme.sql) | `weddings.theme_tokens jsonb` column (AI-generated "Custom" theme palette); re-threads it through `get_wedding_config` / `upsert_wedding_page` / `get_public_wedding` — **only needed if you use AI theme generation** |
 
 All migrations are idempotent (`CREATE OR REPLACE`, `IF NOT EXISTS`) — safe to re-run.
 
@@ -108,6 +109,16 @@ RESEND_SENDING_DOMAIN=mail.yourdomain.com # if using Resend
 RSVP_WEBHOOK_SECRET=a-random-secret      # shared between Supabase Vault and Vercel
 SITE_URL=https://your-app.vercel.app     # base URL for token links in emails
 HOST_EMAIL=your@email.com               # receives change-of-mind RSVP notifications
+
+# Optional — auto-translate (Wedding Page → Translations). Server-only.
+DEEPL_API_KEY=                           # preferred; falls back to MyMemory if unset
+MYMEMORY_EMAIL=you@email.com             # optional, raises the free MyMemory quota
+
+# Optional — AI theme generation (Wedding Page → "Generate theme from an image").
+THEME_AI_PROVIDER=anthropic              # "anthropic" (default) | "openai" | "nvidia"
+ANTHROPIC_API_KEY=                       # set ONLY the key for your chosen provider
+OPENAI_API_KEY=
+NVIDIA_API_KEY=
 ```
 
 `.env` is gitignored — never commit it.
