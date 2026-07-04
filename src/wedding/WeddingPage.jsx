@@ -5,6 +5,7 @@ import { theme } from "../shared/theme.js";
 import { useLocale } from "../i18n/index.jsx";
 import { localizeWedding } from "../i18n/content.js";
 import { sanitizeThemeTokens, isCompleteThemeTokens, themeTokenStyle } from "../lib/themeTokens.js";
+import { normalizeSectionPhotos } from "../lib/sectionPhotos.js";
 import LanguageSwitcher from "../i18n/LanguageSwitcher.jsx";
 
 // Maps a fun-fact id to the i18n key for its fallback question (used only when
@@ -43,10 +44,21 @@ const DEMO_WEDDING = {
   is_published: true,
   meal_options: "Chicken,Fish,Vegetarian",
   getting_there: "By MRT: Alight at Orchard MRT (NS22 / TE14), take Exit B and walk 5 minutes along Orchard Road.\n\nBy car: Parking available at the hotel basement. Enter via Orchard Road. First 2 hours complimentary for wedding guests.\n\nDrop-off: Use the main hotel entrance on Orchard Road — our wedding team will be there to welcome you.",
+  section_photos: {},
 };
 
 const styles = theme + `
   .wp { min-height: 100vh; position: relative; }
+
+  /* Section photo galleries (#71) */
+  .wp-gallery-grid { display: grid; gap: 12px; }
+  .wp-gallery-img {
+    width: 100%; height: 100%; aspect-ratio: 1 / 1;
+    object-fit: cover; border-radius: 12px; display: block;
+  }
+  @media (max-width: 640px) {
+    .wp-gallery-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  }
 
   /* ── GARDEN LEAVES ── */
   .wp-leaves-bg {
@@ -482,6 +494,23 @@ export default function WeddingPage() {
           hero_image_url, rsvp_deadline, is_published, getting_there,
           theme: pageTheme = "minimal", theme_tokens } = lw;
 
+  // Optional photo galleries between sections (#71). Images are locale-shared,
+  // so this comes straight off the wedding record (not the localized overlay).
+  const galleries = normalizeSectionPhotos(wedding.section_photos);
+  const renderGallery = (key) => {
+    const g = galleries[key];
+    if (!g?.enabled || g.photos.length === 0) return null;
+    return (
+      <section className="wp-section wp-gallery">
+        <div className="wp-gallery-grid" style={{ gridTemplateColumns: `repeat(${g.cols}, 1fr)` }}>
+          {g.photos.map((src) => (
+            <img key={src} className="wp-gallery-img" src={src} alt="" loading="lazy" />
+          ))}
+        </div>
+      </section>
+    );
+  };
+
   // Custom (AI-generated) theme (#60): apply the color-only palette as inline CSS
   // variable overrides. An incomplete/invalid palette falls back to the minimal
   // preset rather than half-applying.
@@ -582,6 +611,8 @@ export default function WeddingPage() {
         {/* ── CONTENT SECTIONS ── */}
         <div className="wp-content">
 
+          {renderGallery("afterHero")}
+
           {/* Our Story */}
           {love_story && (
             <section className="wp-section">
@@ -590,6 +621,8 @@ export default function WeddingPage() {
               <p className="wp-story-text">{love_story}</p>
             </section>
           )}
+
+          {renderGallery("afterOurStory")}
 
           {/* Fun Q&A */}
           {answeredQA.length > 0 && (
@@ -606,6 +639,8 @@ export default function WeddingPage() {
               </div>
             </section>
           )}
+
+          {renderGallery("afterFunQA")}
 
           {/* The Big Day */}
           <section className="wp-section">
@@ -667,6 +702,8 @@ export default function WeddingPage() {
             )}
           </section>
 
+          {renderGallery("afterEventDetails")}
+
           {/* Getting There */}
           {getting_there && (
             <section className="wp-section">
@@ -701,6 +738,8 @@ export default function WeddingPage() {
               )}
             </section>
           )}
+
+          {renderGallery("afterGettingThere")}
 
           {/* RSVP CTA */}
           <section className="wp-section wp-cta">
