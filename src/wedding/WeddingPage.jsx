@@ -108,12 +108,13 @@ const styles = theme + `
   }
   .wp-hero-content {
     position: relative; z-index: 10;
-    text-align: center; max-width: 680px;
+    text-align: center; max-width: 680px; width: 100%; box-sizing: border-box;
     display: flex; flex-direction: column; align-items: center; gap: 0;
   }
   .wp-invite-tag {
     font-size: 10px; letter-spacing: 0.35em; text-transform: uppercase;
     color: var(--gold-light); opacity: 0.8; margin-bottom: 28px;
+    overflow-wrap: break-word; word-break: break-word; max-width: 100%;
   }
   .wp-couple {
     font-family: 'Cormorant Garamond', serif;
@@ -278,7 +279,13 @@ const styles = theme + `
     .wp-hero { padding: 80px 20px 60px; }
     .wp-content { padding: 0 16px 60px; }
     .wp-section { padding: 48px 0; }
+    .wp-rsvp-btn { padding: 14px 32px; }
     .wp-cta-btn { padding: 16px 40px; }
+  }
+  @media (max-width: 380px) {
+    .wp-rsvp-btn { padding: 13px 24px; font-size: 13px; }
+    .wp-cta-btn { padding: 14px 28px; font-size: 13px; }
+    .wp-cta { padding: 40px 20px; }
   }
   @media (max-width: 560px) and (orientation: portrait) {
     .wp-hero {
