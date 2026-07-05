@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2026-07-05] — fix/ui-polish-65-64-61 (#74)
+
+### Fixed
+
+- **Meal label derived from banquet time (#61)** — the wedding page timeline no longer hardcodes "Dinner Reception". A `getMealType()` helper maps `dinner_time` to **Brunch** (09:00–10:59), **Lunch** (11:00–16:59), or **Dinner** (17:00+). All six locale files updated with `brunch` and `lunch` keys.
+- **Add Guest button size inconsistency (#65)** — `WeddingPageTab.jsx` was injecting a `.btn-gold` style that leaked into the AdminApp header, making the Add Guest button appear larger on the Wedding Setup tab than all other tabs. Renamed the scoped class to `.wpt-btn-gold` to contain it.
+- **Language switcher overflow on narrow screens (#64)** — the language pill container now wraps (`flex-wrap`) and is capped at `calc(100vw - 32px)` so buttons don't clip off the left edge on narrow viewports. Hero content gains `width: 100%` and the invite tag gets `overflow-wrap` to prevent overflow with long names and letter-spacing. Added tighter RSVP button padding at ≤560px and a new ≤380px breakpoint.
+- **Hero background image tiling on mobile portrait** — `background-size: contain` was causing the photo to repeat vertically. Removed the mobile portrait override so `cover` (set inline) applies on all screen sizes, filling the hero with a dynamic centre-crop.
+
+---
+
 ## [2026-07-04] — feat/72-draw-number-search (#72)
 
 ### Added
