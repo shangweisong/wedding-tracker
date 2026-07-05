@@ -985,6 +985,7 @@ export default function WeddingTracker() {
         p_love_story:     form.love_story,
         p_dress_code:     form.dress_code,
         p_hero_image_url: form.hero_image_url,
+        p_hero_focal_point: form.hero_focal_point,
         p_fun_qa:         form.fun_qa,
         p_rsvp_deadline:  form.rsvp_deadline,
         p_is_published:   form.is_published,

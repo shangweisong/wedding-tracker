@@ -6,6 +6,7 @@ import { useLocale } from "../i18n/index.jsx";
 import { localizeWedding } from "../i18n/content.js";
 import { sanitizeThemeTokens, isCompleteThemeTokens, themeTokenStyle } from "../lib/themeTokens.js";
 import { normalizeSectionPhotos } from "../lib/sectionPhotos.js";
+import { normalizeFocalPoint } from "../lib/heroFocalPoint.js";
 import LanguageSwitcher from "../i18n/LanguageSwitcher.jsx";
 
 // Returns the meal type key based on HH:MM time string (24h).
@@ -511,6 +512,10 @@ export default function WeddingPage() {
           hero_image_url, rsvp_deadline, is_published, getting_there,
           theme: pageTheme = "minimal", theme_tokens } = lw;
 
+  // Hero focal point (#75). Layout preset, not translatable — read straight off
+  // the wedding record and whitelist it before it reaches background-position.
+  const heroFocalPoint = normalizeFocalPoint(wedding.hero_focal_point);
+
   // Optional photo galleries between sections (#71). Images are locale-shared,
   // so this comes straight off the wedding record (not the localized overlay).
   const galleries = normalizeSectionPhotos(wedding.section_photos);
@@ -580,7 +585,7 @@ export default function WeddingPage() {
                 ? `linear-gradient(160deg, ${customTokens.accentDark} 0%, ${customTokens.heading} 60%, ${customTokens.accent} 100%)`
                 : heroGradient(effectiveTheme),
             backgroundSize: "cover",
-            backgroundPosition: "center",
+            backgroundPosition: heroFocalPoint,
             backgroundColor: hasCustom ? customTokens.heading : heroBgColor(effectiveTheme),
           }}
         >
