@@ -223,14 +223,14 @@ const styles = `
 
   /* Save button */
   .wpt-save-row { display: flex; justify-content: flex-end; padding-top: 4px; }
-  .btn-gold {
+  .wpt-btn-gold {
     padding: 11px 28px; border-radius: 10px; border: none;
     background: var(--gold); color: white; cursor: pointer;
     font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500;
     transition: background 0.15s; letter-spacing: 0.02em;
   }
-  .btn-gold:hover { background: var(--gold-dark); }
-  .btn-gold:disabled { opacity: 0.6; cursor: default; }
+  .wpt-btn-gold:hover { background: var(--gold-dark); }
+  .wpt-btn-gold:disabled { opacity: 0.6; cursor: default; }
 
   @media (max-width: 600px) {
     .wpt { padding: 16px 16px 40px; }
@@ -1146,7 +1146,7 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
 
         {/* ── SAVE ── */}
         <div className="wpt-save-row">
-          <button className="btn-gold" onClick={save} disabled={saving}>
+          <button className="wpt-btn-gold" onClick={save} disabled={saving}>
             {saving ? "Saving…" : "Save wedding page"}
           </button>
         </div>

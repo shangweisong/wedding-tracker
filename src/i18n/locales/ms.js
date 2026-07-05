@@ -35,6 +35,8 @@ export default {
 
   "wedding.timeline.tea": "Upacara Minum Teh",
   "wedding.timeline.solemnisation": "Majlis Akad Nikah",
+  "wedding.timeline.brunch": "Jamuan Tengah Hari Pagi",
+  "wedding.timeline.lunch": "Jamuan Makan Tengah Hari",
   "wedding.timeline.dinner": "Jamuan Makan Malam",
   "wedding.timeline.venue": "Lokasi",
 

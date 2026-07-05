@@ -48,6 +48,9 @@ export default function LanguageSwitcher({ style }) {
       aria-label={t("common.language")}
       style={{
         display: "inline-flex",
+        flexWrap: "wrap",
+        justifyContent: "flex-end",
+        maxWidth: "calc(100vw - 32px)",
         gap: 2,
         padding: 3,
         borderRadius: 999,

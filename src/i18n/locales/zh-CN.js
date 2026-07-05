@@ -35,6 +35,8 @@ export default {
 
   "wedding.timeline.tea": "奉茶仪式",
   "wedding.timeline.solemnisation": "证婚仪式",
+  "wedding.timeline.brunch": "早午宴",
+  "wedding.timeline.lunch": "午宴",
   "wedding.timeline.dinner": "晚宴",
   "wedding.timeline.venue": "地点",
 

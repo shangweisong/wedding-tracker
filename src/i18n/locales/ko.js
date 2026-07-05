@@ -35,6 +35,8 @@ export default {
 
   "wedding.timeline.tea": "다도 예식",
   "wedding.timeline.solemnisation": "혼인 예식",
+  "wedding.timeline.brunch": "브런치 연회",
+  "wedding.timeline.lunch": "점심 연회",
   "wedding.timeline.dinner": "저녁 연회",
   "wedding.timeline.venue": "장소",
 

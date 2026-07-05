@@ -8,6 +8,16 @@ import { sanitizeThemeTokens, isCompleteThemeTokens, themeTokenStyle } from "../
 import { normalizeSectionPhotos } from "../lib/sectionPhotos.js";
 import LanguageSwitcher from "../i18n/LanguageSwitcher.jsx";
 
+// Returns the meal type key based on HH:MM time string (24h).
+// Brunch: 09:00–10:59 · Lunch: 11:00–16:59 · Dinner: everything else.
+function getMealType(time) {
+  if (!time) return "dinner";
+  const [h] = time.split(":").map(Number);
+  if (h >= 9 && h <= 10) return "brunch";
+  if (h >= 11 && h <= 16) return "lunch";
+  return "dinner";
+}
+
 // Maps a fun-fact id to the i18n key for its fallback question (used only when
 // the couple didn't supply their own question text).
 const FUN_QUESTION_KEYS = {
@@ -98,12 +108,13 @@ const styles = theme + `
   }
   .wp-hero-content {
     position: relative; z-index: 10;
-    text-align: center; max-width: 680px;
+    text-align: center; max-width: 680px; width: 100%; box-sizing: border-box;
     display: flex; flex-direction: column; align-items: center; gap: 0;
   }
   .wp-invite-tag {
     font-size: 10px; letter-spacing: 0.35em; text-transform: uppercase;
     color: var(--gold-light); opacity: 0.8; margin-bottom: 28px;
+    overflow-wrap: break-word; word-break: break-word; max-width: 100%;
   }
   .wp-couple {
     font-family: 'Cormorant Garamond', serif;
@@ -268,12 +279,16 @@ const styles = theme + `
     .wp-hero { padding: 80px 20px 60px; }
     .wp-content { padding: 0 16px 60px; }
     .wp-section { padding: 48px 0; }
+    .wp-rsvp-btn { padding: 14px 32px; }
     .wp-cta-btn { padding: 16px 40px; }
+  }
+  @media (max-width: 380px) {
+    .wp-rsvp-btn { padding: 13px 24px; font-size: 13px; }
+    .wp-cta-btn { padding: 14px 28px; font-size: 13px; }
+    .wp-cta { padding: 40px 20px; }
   }
   @media (max-width: 560px) and (orientation: portrait) {
     .wp-hero {
-      background-size: contain !important;
-      background-position: top center !important;
       min-height: 100svh;
     }
   }
@@ -673,7 +688,7 @@ export default function WeddingPage() {
                 <div className="wp-tl-item">
                   <div className="wp-tl-node"><div className="wp-tl-icon">🍽</div><div className="wp-tl-connector" /></div>
                   <div className="wp-tl-body">
-                    <div className="wp-tl-label">{t("wedding.timeline.dinner")}</div>
+                    <div className="wp-tl-label">{t(`wedding.timeline.${getMealType(dinner_time)}`)}</div>
                     <div className="wp-tl-value">{fmt12h(dinner_time)}</div>
                   </div>
                 </div>

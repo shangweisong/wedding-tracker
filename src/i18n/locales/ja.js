@@ -35,6 +35,8 @@ export default {
 
   "wedding.timeline.tea": "お茶の儀式",
   "wedding.timeline.solemnisation": "結婚の儀",
+  "wedding.timeline.brunch": "ブランチレセプション",
+  "wedding.timeline.lunch": "ランチレセプション",
   "wedding.timeline.dinner": "ディナーレセプション",
   "wedding.timeline.venue": "会場",
 

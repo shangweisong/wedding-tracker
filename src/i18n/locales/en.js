@@ -35,6 +35,8 @@ export default {
 
   "wedding.timeline.tea": "Tea Ceremony",
   "wedding.timeline.solemnisation": "Solemnisation",
+  "wedding.timeline.brunch": "Brunch Reception",
+  "wedding.timeline.lunch": "Lunch Reception",
   "wedding.timeline.dinner": "Dinner Reception",
   "wedding.timeline.venue": "Venue",
 
