@@ -289,9 +289,6 @@ const styles = theme + `
   }
   @media (max-width: 560px) and (orientation: portrait) {
     .wp-hero {
-      background-size: contain !important;
-      background-position: top center !important;
-      background-repeat: no-repeat !important;
       min-height: 100svh;
     }
   }
