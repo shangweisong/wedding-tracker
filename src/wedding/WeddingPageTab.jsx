@@ -3,6 +3,7 @@ import { supabase, isDemoMode } from "../lib/supabase.js";
 import { LOCALES } from "../i18n/index.jsx";
 import { isCompleteThemeTokens } from "../lib/themeTokens.js";
 import { SECTION_PHOTO_SLOTS, MAX_PHOTOS_PER_SLOT, normalizeSectionPhotos } from "../lib/sectionPhotos.js";
+import { FOCAL_POINTS, normalizeFocalPoint } from "../lib/heroFocalPoint.js";
 
 // Read a File as a base64 string (without the data: URL prefix) for the vision API.
 function fileToBase64(file) {
@@ -145,6 +146,28 @@ const styles = `
   .wpt-upload-btn:hover { border-color: var(--gold); color: var(--gold-dark); }
   .wpt-upload-btn:disabled { opacity: 0.5; cursor: default; }
 
+  /* Hero focal point (#75) — 3×3 crop-anchor grid */
+  .wpt-focal { margin-top: 16px; }
+  .wpt-focal-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 6px; width: 132px;
+  }
+  .wpt-focal-cell {
+    aspect-ratio: 1; border-radius: 6px; cursor: pointer;
+    border: 1.5px solid rgba(201,168,76,0.3); background: var(--warm-white);
+    display: flex; align-items: center; justify-content: center; padding: 0;
+    transition: all 0.15s;
+  }
+  .wpt-focal-cell:hover { border-color: var(--gold); background: white; }
+  .wpt-focal-cell.is-active {
+    border-color: var(--gold); background: rgba(201,168,76,0.14);
+  }
+  .wpt-focal-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: rgba(140,120,70,0.35); transition: background 0.15s;
+  }
+  .wpt-focal-cell.is-active .wpt-focal-dot { background: var(--gold-dark); }
+
   /* Section photo galleries (#71) */
   .wpt-gallery-slot {
     padding: 14px 0; border-top: 1px solid rgba(201,168,76,0.15);
@@ -272,6 +295,7 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
   const [loveStory, setLoveStory]  = useState("");
   const [dresscode, setDresscode]  = useState("");
   const [heroUrl, setHeroUrl]      = useState("");
+  const [heroFocalPoint, setHeroFocalPoint] = useState("center");
   const [rsvpDeadline, setRsvpDeadline] = useState("");
   const [mealOptions, setMealOptions]   = useState("");
   const [gettingThere, setGettingThere] = useState("");
@@ -309,6 +333,8 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
     setDresscode(wedding.dress_code || "");
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setHeroUrl(wedding.hero_image_url || "");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setHeroFocalPoint(normalizeFocalPoint(wedding.hero_focal_point));
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setRsvpDeadline(wedding.rsvp_deadline || "");
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -599,6 +625,7 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
       love_story:      loveStory.trim(),
       dress_code:      dresscode.trim(),
       hero_image_url:  heroUrl.trim(),
+      hero_focal_point: normalizeFocalPoint(heroFocalPoint),
       fun_qa:          funQa,
       rsvp_deadline:   rsvpDeadline || null,
       is_published:    isPublished,
@@ -716,6 +743,39 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
               </div>
             </div>
           </div>
+
+          {heroUrl && (
+            <div className="wpt-focal">
+              <label className="wpt-label">Focus / crop position</label>
+              <div className="wpt-card-sub" style={{ marginBottom: 12 }}>
+                The photo fills the header and is cropped to fit. Pick where to
+                anchor the crop so the couple stays in frame.
+              </div>
+              <div
+                className="wpt-focal-grid"
+                role="radiogroup"
+                aria-label="Hero photo focus position"
+              >
+                {FOCAL_POINTS.map((fp) => {
+                  const active = heroFocalPoint === fp.css;
+                  return (
+                    <button
+                      key={fp.key}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      aria-label={fp.label}
+                      title={fp.label}
+                      className={`wpt-focal-cell${active ? " is-active" : ""}`}
+                      onClick={() => setHeroFocalPoint(fp.css)}
+                    >
+                      <span className="wpt-focal-dot" />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── PHOTO GALLERIES ── */}
