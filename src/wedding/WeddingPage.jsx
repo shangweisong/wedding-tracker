@@ -172,6 +172,7 @@ const styles = theme + `
   }
   .wp-section:last-child { border-bottom: none; }
   .wp-section.wp-visible { opacity: 1; transform: translateY(0); }
+  @media (prefers-reduced-motion: reduce) { .wp-section { opacity: 1; transform: none; transition: none; } }
 
   .wp-section-eyebrow {
     font-size: 10px; letter-spacing: 0.35em; text-transform: uppercase;
@@ -545,7 +546,7 @@ export default function WeddingPage() {
   const effectiveTheme = pageTheme === "custom" ? (hasCustom ? "custom" : "minimal") : pageTheme;
   const customStyle = hasCustom ? themeTokenStyle(customTokens) : undefined;
 
-  const coupleNames = `${groom_name} & ${bride_name}`;
+  const coupleNames = `${bride_name} & ${groom_name}`;
 
   return (
     <>
@@ -603,8 +604,8 @@ export default function WeddingPage() {
 
             <div className="wp-couple">
               <span className="wp-couple-amp">♡</span>
-              {groom_name}
-              <br />& {bride_name}
+              {bride_name}
+              <br />& {groom_name}
             </div>
 
             <div className="wp-hero-divider" />
@@ -629,6 +630,11 @@ export default function WeddingPage() {
             )}
 
             <a className="wp-rsvp-btn" href={rsvpHref}>{t("wedding.rsvpNow")}</a>
+            {!token && (
+              <div style={{ marginTop: 8, fontSize: 12, color: "rgba(255,255,255,0.55)", textAlign: "center" }}>
+                Use the personal link in your invitation for a faster experience
+              </div>
+            )}
           </div>
 
           <div className="wp-scroll-hint">↓</div>

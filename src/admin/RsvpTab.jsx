@@ -59,7 +59,7 @@ const styles = `
   .rsvp-btn-save { border-color: var(--green); background: var(--green); color: white; }
   .rsvp-btn-save:hover { background: #1e4d38; }
   .rsvp-btn-cancel { border-color: rgba(92,74,42,0.2); background: white; color: var(--brown); }
-  .rsvp-btn-delete { border-color: rgba(192,57,43,0.25); background: white; color: #c0392b; opacity: 0.7; }
+  .rsvp-btn-delete { border-color: rgba(192,57,43,0.25); background: white; color: #c0392b; opacity: 0.7; margin-left: 8px; }
   .rsvp-btn-delete:hover { opacity: 1; border-color: #c0392b; background: rgba(192,57,43,0.05); }
 
   .rsvp-edit-panel { border-top: 1px solid rgba(201,168,76,0.15); padding: 14px 18px; background: var(--warm-white); display: grid; grid-template-columns: 1fr 1fr; gap: 12px; animation: fadeIn 0.15s ease; }
@@ -84,6 +84,7 @@ export default function RsvpTab({ guests, onUpdate, onDelete, showToast }) {
   const [partyFilter, setPartyFilter] = useState("all");
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({});
+  const [savingId, setSavingId] = useState(null);
 
   // Plus-ones (#38) are their own child guest rows. Responder stats count only
   // primaries (the invitations); headcount counts every confirmed body.
@@ -139,9 +140,14 @@ export default function RsvpTab({ guests, onUpdate, onDelete, showToast }) {
     if (editForm.rsvp_status !== (g.rsvp_status || "pending")) {
       patch.rsvp_at = new Date().toISOString();
     }
-    await onUpdate(g.id, patch);
-    setEditingId(null);
-    showToast("RSVP updated");
+    setSavingId(g.id);
+    try {
+      await onUpdate(g.id, patch);
+      setEditingId(null);
+      showToast("RSVP updated");
+    } finally {
+      setSavingId(null);
+    }
   };
 
   const copyLink = async (g) => {
@@ -413,8 +419,9 @@ export default function RsvpTab({ guests, onUpdate, onDelete, showToast }) {
                       <button
                         className="rsvp-btn rsvp-btn-save"
                         onClick={() => saveEdit(g)}
+                        disabled={savingId === g.id}
                       >
-                        Save Changes
+                        {savingId === g.id ? "Saving…" : "Save Changes"}
                       </button>
                     </div>
                   </div>

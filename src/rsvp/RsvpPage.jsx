@@ -63,6 +63,7 @@ const styles = theme + `
     0%, 100% { transform: scale(1); }
     50%       { transform: scale(1.15); }
   }
+  @keyframes rsvp-spin { to { transform: rotate(360deg); } }
   .rsvp-eyebrow {
     font-size: 11px; color: var(--brown); opacity: 0.5;
     letter-spacing: 0.35em; text-transform: uppercase;
@@ -171,7 +172,7 @@ const styles = theme + `
     border-bottom: 1px solid rgba(201,168,76,0.1);
   }
   .rsvp-suggestion-item:last-child { border-bottom: none; }
-  .rsvp-suggestion-item:hover { background: rgba(201,168,76,0.07); }
+  .rsvp-suggestion-item:hover, .rsvp-suggestion-item.focused { background: rgba(201,168,76,0.07); }
   .rsvp-suggestion-empty {
     padding: 11px 14px; font-size: 13px; color: var(--brown); opacity: 0.5;
   }
@@ -247,6 +248,30 @@ const styles = theme + `
   [data-theme="chinese"] .rsvp-submit:hover { background: #4a0000; }
 `;
 
+function buildIcsDataUrl(wedding) {
+  if (!wedding?.wedding_date) return null;
+  const [y, m, d] = wedding.wedding_date.split("-").map(Number);
+  const pad = (n) => String(n).padStart(2, "0");
+  const dateStr = `${y}${pad(m)}${pad(d)}`;
+  const summary = wedding.bride_name && wedding.groom_name
+    ? `${wedding.bride_name} & ${wedding.groom_name}'s Wedding`
+    : "Wedding";
+  const location = [wedding.venue_name, wedding.venue_address].filter(Boolean).join(", ");
+  const ics = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//WeddingTracker//EN",
+    "BEGIN:VEVENT",
+    `DTSTART;VALUE=DATE:${dateStr}`,
+    `DTEND;VALUE=DATE:${dateStr}`,
+    `SUMMARY:${summary}`,
+    location ? `LOCATION:${location}` : "",
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].filter(Boolean).join("\r\n");
+  return "data:text/calendar;charset=utf-8," + encodeURIComponent(ics);
+}
+
 function ConfirmationView({ name, attending, wedding }) {
   const { t, locale } = useLocale();
   const dtLocale = locale === "zh-TW" ? "zh-TW" : "en-GB";
@@ -255,6 +280,7 @@ function ConfirmationView({ name, attending, wedding }) {
     : t("rsvp.confirm.coupleFallback");
   const date = wedding?.wedding_date ? formatDate(wedding.wedding_date, dtLocale) : null;
   const venue = wedding?.venue_name || null;
+  const icsUrl = attending ? buildIcsDataUrl(wedding) : null;
   return (
     <div className="rsvp-confirm">
       <div className="rsvp-confirm-heart">{attending ? "♡" : "💌"}</div>
@@ -272,6 +298,15 @@ function ConfirmationView({ name, attending, wedding }) {
           {date  && <div className="rsvp-confirm-detail-row">📅 {date}</div>}
           {venue && <div className="rsvp-confirm-detail-row">📍 {venue}</div>}
         </div>
+      )}
+      {icsUrl && (
+        <a
+          href={icsUrl}
+          download="wedding.ics"
+          style={{ display: "inline-block", marginTop: 16, fontSize: 13, color: "var(--gold-dark)", textDecoration: "underline", cursor: "pointer" }}
+        >
+          📅 Add to Calendar
+        </a>
       )}
     </div>
   );
@@ -319,11 +354,14 @@ export default function RsvpPage() {
   const [done, setDone]               = useState(false);
   const [tokenLoading, setTokenLoading] = useState(!!urlToken);
 
+  const [configError, setConfigError]   = useState(false);
+
   // No-token name search state
   const [nameQuery, setNameQuery]       = useState("");
   const [nameResults, setNameResults]   = useState([]);
   const [nameSearching, setNameSearching] = useState(false);
   const [selectedToken, setSelectedToken] = useState("");
+  const [suggestionFocus, setSuggestionFocus] = useState(-1);
 
   // activeToken: URL token takes precedence, then one selected from the name dropdown
   const activeToken = urlToken || selectedToken;
@@ -343,7 +381,7 @@ export default function RsvpPage() {
       if (Array.isArray(rows) && rows.length) {
         setWedding(rows[0]);
       }
-    }).catch(() => {});
+    }).catch(() => { setConfigError(true); });
   }, []);
 
   // Keep the document title in sync with the couple + active locale.
@@ -481,8 +519,17 @@ export default function RsvpPage() {
           <div className="rsvp-eyebrow">{t("rsvp.eyebrow")}</div>
           <div className="rsvp-divider" />
 
+          {configError && (
+            <div style={{ textAlign: "center", color: "var(--brown)", opacity: 0.7, fontSize: 13, marginBottom: 12 }}>
+              Could not load event details — please try refreshing.
+            </div>
+          )}
+
           {tokenLoading ? (
-            <p style={{ textAlign: "center", color: "var(--brown)", opacity: 0.6, fontSize: 14 }}>{t("rsvp.loading")}</p>
+            <div style={{ textAlign: "center", padding: "32px 0" }}>
+              <div style={{ fontSize: 28, opacity: 0.4, animation: "rsvp-spin 1.2s linear infinite", display: "inline-block" }}>✦</div>
+              <div style={{ marginTop: 10, color: "var(--brown)", opacity: 0.55, fontSize: 13 }}>{t("rsvp.loading")}</div>
+            </div>
           ) : done ? (
             <ConfirmationView name={cleanName(name)} attending={attending} wedding={w} />
           ) : (
@@ -525,22 +572,46 @@ export default function RsvpPage() {
                       className="rsvp-input"
                       placeholder={t("rsvp.name.searchPlaceholder")}
                       value={nameQuery}
-                      onChange={(e) => { setNameQuery(e.target.value); setError(""); }}
+                      onChange={(e) => { setNameQuery(e.target.value); setError(""); setSuggestionFocus(-1); }}
                       autoFocus
                       autoComplete="off"
+                      role="combobox"
+                      aria-expanded={showSuggestions && nameResults.length > 0}
+                      aria-autocomplete="list"
+                      aria-activedescendant={suggestionFocus >= 0 ? `rsvp-suggestion-${suggestionFocus}` : undefined}
+                      onKeyDown={(e) => {
+                        if (!showSuggestions || nameResults.length === 0) return;
+                        if (e.key === "ArrowDown") {
+                          e.preventDefault();
+                          setSuggestionFocus((i) => Math.min(i + 1, nameResults.length - 1));
+                        } else if (e.key === "ArrowUp") {
+                          e.preventDefault();
+                          setSuggestionFocus((i) => Math.max(i - 1, 0));
+                        } else if (e.key === "Enter" && suggestionFocus >= 0) {
+                          e.preventDefault();
+                          selectGuest(nameResults[suggestionFocus]);
+                          setSuggestionFocus(-1);
+                        } else if (e.key === "Escape") {
+                          setSuggestionFocus(-1);
+                        }
+                      }}
                     />
                     {showSuggestions && nameSearching && (
-                      <div className="rsvp-suggestions">
+                      <div className="rsvp-suggestions" role="listbox">
                         <div className="rsvp-suggestion-empty">{t("rsvp.searching")}</div>
                       </div>
                     )}
                     {showSuggestions && !nameSearching && nameResults.length > 0 && (
-                      <div className="rsvp-suggestions">
-                        {nameResults.map((r) => (
+                      <div className="rsvp-suggestions" role="listbox">
+                        {nameResults.map((r, i) => (
                           <div
                             key={r.id}
-                            className="rsvp-suggestion-item"
+                            id={`rsvp-suggestion-${i}`}
+                            className={`rsvp-suggestion-item${suggestionFocus === i ? " focused" : ""}`}
+                            role="option"
+                            aria-selected={suggestionFocus === i}
                             onMouseDown={(e) => { e.preventDefault(); selectGuest(r); }}
+                            onMouseEnter={() => setSuggestionFocus(i)}
                           >
                             {r.name}
                           </div>
@@ -548,7 +619,7 @@ export default function RsvpPage() {
                       </div>
                     )}
                     {showSuggestions && !nameSearching && nameResults.length === 0 && (
-                      <div className="rsvp-suggestions">
+                      <div className="rsvp-suggestions" role="listbox">
                         <div className="rsvp-suggestion-empty">{t("rsvp.noMatch")}</div>
                       </div>
                     )}

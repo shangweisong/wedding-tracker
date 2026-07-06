@@ -383,13 +383,20 @@ export default function SeatingTab({ guests, onUpdate, onResetSeating, showToast
     }
     if (isDemoMode) {
       setTables((prev) => prev.filter((x) => x.id !== t.id));
-      showToast("Table removed");
+      showToast(`Table ${t.table_number} removed`, () => setTables((prev) => [...prev, t].sort((a, b) => Number(a.table_number) - Number(b.table_number))));
       return;
     }
     try {
       await sb.delete("tables", t.id);
       setTables((prev) => prev.filter((x) => x.id !== t.id));
-      showToast("Table removed");
+      showToast(`Table ${t.table_number} removed`, async () => {
+        try {
+          const [inserted] = await sb.insert("tables", { table_number: t.table_number, capacity: t.capacity, is_locked: false });
+          setTables((prev) => [...prev, inserted].sort((a, b) => Number(a.table_number) - Number(b.table_number)));
+        } catch {
+          showToast("Could not undo — please re-add the table manually");
+        }
+      });
     } catch {
       showToast("Could not delete table");
     }
@@ -539,7 +546,7 @@ export default function SeatingTab({ guests, onUpdate, onResetSeating, showToast
           </div>
 
           {/* Unassigned pool */}
-          {unassigned.length > 0 && (
+          {!loading && unassigned.length > 0 && (
             <div>
               <div className="seat-section-title">
                 Unassigned Confirmed Guests ({unassigned.length})

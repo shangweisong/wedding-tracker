@@ -156,6 +156,7 @@ const styles = theme + `
     background: transparent; color: var(--brown); transition: all 0.15s;
   }
   .filter-tab.active { background: var(--charcoal); color: var(--gold-light); }
+  .filter-tab-count { opacity: 0.55; font-size: 11px; }
 
   .btn {
     display: flex; align-items: center; gap: 6px;
@@ -1515,7 +1516,7 @@ export default function WeddingTracker() {
                 )}
               </>
             )}
-            <button className="gear-btn" onClick={() => setSetupOpen(true)} title="Wedding Setup">
+            <button className="gear-btn" onClick={() => setSetupOpen(true)} title="Wedding Setup" aria-label="Wedding Setup">
               <Icon.Settings />
             </button>
             <div className="mode-toggle">
@@ -1578,8 +1579,15 @@ export default function WeddingTracker() {
                 <input className="search-input" placeholder="Search name, table, or #draw-number…" value={search} onChange={(e) => setSearch(e.target.value)} />
               </div>
               <div className="filter-tabs">
-                {[["all","All"],["arrived","Arrived"],["pending","Pending"],...(ANGBAO_ENABLED ? [["angbao","🧧 Gave"]] : [])].map(([k,l]) => (
-                  <button key={k} className={`filter-tab ${filter === k ? "active" : ""}`} onClick={() => setFilter(k)}>{l}</button>
+                {[
+                  ["all", "All", guests.length],
+                  ["arrived", "Arrived", arrived],
+                  ["pending", "Pending", guests.length - arrived],
+                  ...(ANGBAO_ENABLED ? [["angbao", "🧧 Gave", angbaoCount]] : []),
+                ].map(([k, l, count]) => (
+                  <button key={k} className={`filter-tab ${filter === k ? "active" : ""}`} onClick={() => setFilter(k)}>
+                    {l} <span className="filter-tab-count">({count})</span>
+                  </button>
                 ))}
               </div>
             </>
