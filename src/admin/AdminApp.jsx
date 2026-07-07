@@ -7,6 +7,7 @@ import { parseCSV, toCSV, guestImportTemplateCSV } from "../lib/csv.js";
 import { formatTime } from "../lib/format.js";
 import { guestMatchesSearch } from "../lib/guestSearch.js";
 import { diffEvents } from "../lib/eventDiff.js";
+import { seedInviteRow } from "../lib/eventTargeting.js";
 import { Icon } from "../shared/icons.jsx";
 import { theme } from "../shared/theme.js";
 import RsvpTab from "./RsvpTab.jsx";
@@ -829,6 +830,7 @@ export default function WeddingTracker() {
   const [approveAmount, setApproveAmount] = useState("");
   const [wedding, setWedding] = useState(undefined); // undefined = not fetched, null = no row yet, object = configured
   const [weddingEvents, setWeddingEvents] = useState([]); // smart-RSVP event list (#78)
+  const [eventRsvps, setEventRsvps] = useState([]); // guest_event_rsvps rows for the targeting grid (#78)
   const [setupOpen, setSetupOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
@@ -957,11 +959,25 @@ export default function WeddingTracker() {
     }
   }, []);
 
+  const loadEventRsvps = useCallback(async () => {
+    if (isDemoMode) return;
+    try {
+      const { data, error } = await supabase
+        .from("guest_event_rsvps")
+        .select("guest_id, event_id, invited, status, meal_choice");
+      if (error) throw error;
+      setEventRsvps(Array.isArray(data) ? data : []);
+    } catch {
+      /* table may not exist yet on un-migrated DBs — leave empty */
+    }
+  }, []);
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadWedding();
     loadEvents();
-  }, [loadWedding, loadEvents]);
+    loadEventRsvps();
+  }, [loadWedding, loadEvents, loadEventRsvps]);
 
   const saveWedding = async (form) => {
     if (isDemoMode) {
@@ -1015,6 +1031,67 @@ export default function WeddingTracker() {
     } catch {
       showToast("Could not save events — check connection");
       return false;
+    }
+  };
+
+  // Per-guest event targeting (#78, Phase 4) — writes guest_event_rsvps.invited.
+  // guest_event_rsvps has a composite PK, so the generic sb.update/delete (which
+  // key on `id`) don't apply; go through supabase directly.
+  const applyInvite = async (guest, eventId, invited) => {
+    const existing = eventRsvps.find((r) => r.guest_id === guest.id && r.event_id === eventId);
+    if (!invited) {
+      // Un-invite keeps the row (reversible) and just clears eligibility.
+      const { error } = await supabase.from("guest_event_rsvps")
+        .update({ invited: false }).eq("guest_id", guest.id).eq("event_id", eventId);
+      if (error) throw error;
+    } else if (existing) {
+      const { error } = await supabase.from("guest_event_rsvps")
+        .update({ invited: true }).eq("guest_id", guest.id).eq("event_id", eventId);
+      if (error) throw error;
+    } else {
+      // First enrollment: seed status/meal from the guest's legacy RSVP so the
+      // mirror trigger doesn't regress an already-answered guest to pending.
+      const { error } = await supabase.from("guest_event_rsvps").insert({
+        guest_id: guest.id,
+        event_id: eventId,
+        ...seedInviteRow(guest, eventId, wedding?.primary_meal_event_id || null),
+      });
+      if (error) throw error;
+    }
+  };
+
+  const setGuestInvited = async (guest, eventId, invited) => {
+    if (isDemoMode) {
+      setEventRsvps((prev) => [
+        ...prev.filter((r) => !(r.guest_id === guest.id && r.event_id === eventId)),
+        { guest_id: guest.id, event_id: eventId, invited, status: "pending" },
+      ]);
+      return;
+    }
+    try {
+      await applyInvite(guest, eventId, invited);
+      await loadEventRsvps();
+    } catch {
+      showToast("Could not update invitation — check connection");
+    }
+  };
+
+  const bulkInvite = async (guestList, eventId, invited) => {
+    if (isDemoMode) {
+      const ids = new Set(guestList.map((g) => g.id));
+      setEventRsvps((prev) => [
+        ...prev.filter((r) => !(r.event_id === eventId && ids.has(r.guest_id))),
+        ...guestList.map((g) => ({ guest_id: g.id, event_id: eventId, invited, status: "pending" })),
+      ]);
+      showToast(`${invited ? "Invited" : "Removed"} ${guestList.length}`);
+      return;
+    }
+    try {
+      for (const g of guestList) await applyInvite(g, eventId, invited);
+      await loadEventRsvps();
+      showToast(`${invited ? "Invited" : "Removed"} ${guestList.length} guest${guestList.length !== 1 ? "s" : ""}`);
+    } catch {
+      showToast("Could not update invitations — check connection");
     }
   };
 
@@ -1789,7 +1866,17 @@ export default function WeddingTracker() {
               )}
             </div>
           ) : view === "rsvp" ? (
-            <RsvpTab guests={guests} onUpdate={updateGuest} onDelete={(g) => { setPendingDelete(g); setDeleteConfirmText(""); setModal("delete-confirm"); }} showToast={showToast} />
+            <RsvpTab
+              guests={guests}
+              onUpdate={updateGuest}
+              onDelete={(g) => { setPendingDelete(g); setDeleteConfirmText(""); setModal("delete-confirm"); }}
+              showToast={showToast}
+              enableSmartRsvp={!!wedding?.enable_smart_rsvp}
+              events={weddingEvents}
+              eventRsvps={eventRsvps}
+              onSetInvited={setGuestInvited}
+              onBulkInvite={bulkInvite}
+            />
           ) : view === "seating" ? (
             <SeatingTab guests={guests} onUpdate={updateGuest} onResetSeating={resetSeating} showToast={showToast} />
           ) : view === "wedding-page" ? (

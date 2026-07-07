@@ -1,4 +1,6 @@
 import { useState } from "react";
+import EventTargeting from "./EventTargeting.jsx";
+import { buildInviteSet } from "../lib/eventTargeting.js";
 
 const MEAL_OPTIONS = ["", "Halal", "Vegetarian", "Normal"];
 
@@ -79,7 +81,10 @@ const styles = `
   }
 `;
 
-export default function RsvpTab({ guests, onUpdate, onDelete, showToast }) {
+export default function RsvpTab({
+  guests, onUpdate, onDelete, showToast,
+  enableSmartRsvp = false, events = [], eventRsvps = [], onSetInvited, onBulkInvite,
+}) {
   const [statusFilter, setStatusFilter] = useState("all");
   const [partyFilter, setPartyFilter] = useState("all");
   const [editingId, setEditingId] = useState(null);
@@ -88,6 +93,12 @@ export default function RsvpTab({ guests, onUpdate, onDelete, showToast }) {
   // Plus-ones (#38) are their own child guest rows. Responder stats count only
   // primaries (the invitations); headcount counts every confirmed body.
   const primaries = guests.filter((g) => !g.primary_guest_id);
+
+  // Per-guest event targeting (#78, Phase 4). Only primaries are targeted;
+  // plus-ones inherit their primary's invited events at submit time.
+  const activeEvents = (events || []).filter((e) => e.is_active !== false);
+  const inviteSet = buildInviteSet(eventRsvps);
+  const showTargeting = enableSmartRsvp && activeEvents.length > 0 && onSetInvited && onBulkInvite;
   const confirmed = primaries.filter((g) => g.rsvp_status === "confirmed");
   const declined = primaries.filter((g) => g.rsvp_status === "declined");
   const pending = primaries.filter((g) => g.rsvp_status === "pending");
@@ -158,6 +169,17 @@ export default function RsvpTab({ guests, onUpdate, onDelete, showToast }) {
     <>
       <style>{styles}</style>
       <div className="rsvp-tab">
+        {/* Per-guest event targeting (#78) */}
+        {showTargeting && (
+          <EventTargeting
+            primaries={primaries}
+            events={activeEvents}
+            inviteSet={inviteSet}
+            onSetInvited={onSetInvited}
+            onBulkInvite={onBulkInvite}
+          />
+        )}
+
         {/* Stats */}
         <div className="rsvp-stats-grid">
           <div className="rsvp-stat-card">
