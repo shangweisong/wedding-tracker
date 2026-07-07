@@ -6,6 +6,7 @@ import { cleanName, cleanNotes, cleanTable, cleanParty, cleanAmount, MAX_ANGBAO 
 import { parseCSV, toCSV, guestImportTemplateCSV } from "../lib/csv.js";
 import { formatTime } from "../lib/format.js";
 import { guestMatchesSearch } from "../lib/guestSearch.js";
+import { diffEvents } from "../lib/eventDiff.js";
 import { Icon } from "../shared/icons.jsx";
 import { theme } from "../shared/theme.js";
 import RsvpTab from "./RsvpTab.jsx";
@@ -827,6 +828,7 @@ export default function WeddingTracker() {
   const [approveSearch, setApproveSearch] = useState("");
   const [approveAmount, setApproveAmount] = useState("");
   const [wedding, setWedding] = useState(undefined); // undefined = not fetched, null = no row yet, object = configured
+  const [weddingEvents, setWeddingEvents] = useState([]); // smart-RSVP event list (#78)
   const [setupOpen, setSetupOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
@@ -942,10 +944,24 @@ export default function WeddingTracker() {
     }
   }, []);
 
+  const loadEvents = useCallback(async () => {
+    if (isDemoMode) return; // demo events are edited locally, not persisted
+    try {
+      const rows = await sb.select("wedding_events");
+      const sorted = [...rows].sort(
+        (a, b) => (a.sort_order - b.sort_order) || String(a.start_time || "").localeCompare(String(b.start_time || ""))
+      );
+      setWeddingEvents(sorted);
+    } catch {
+      /* table may not exist yet on un-migrated DBs — leave events empty */
+    }
+  }, []);
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadWedding();
-  }, [loadWedding]);
+    loadEvents();
+  }, [loadWedding, loadEvents]);
 
   const saveWedding = async (form) => {
     if (isDemoMode) {
@@ -963,12 +979,41 @@ export default function WeddingTracker() {
         p_ceremony_time: form.ceremony_time,
         p_dinner_time: form.dinner_time,
         p_tea_ceremony_time: form.tea_ceremony_time || null,
+        p_enable_smart_rsvp: !!form.enable_smart_rsvp,
+        p_primary_meal_event_id: form.primary_meal_event_id || null,
       });
       await loadWedding();
       showToast("Wedding details saved");
       return true;
     } catch {
       showToast("Could not save wedding details — check connection");
+      return false;
+    }
+  };
+
+  // Batch-persist the smart-RSVP event list edited in Wedding Setup (#78).
+  const saveEvents = async (draft) => {
+    const { toCreate, toUpdate, toDelete } = diffEvents(weddingEvents, draft);
+    if (isDemoMode) {
+      // Demo mode has no backend — reflect the edited list locally with stable ids.
+      setWeddingEvents(draft.filter((e) => String(e.name || "").trim())
+        .map((e, i) => ({ ...e, id: e.id || `demo_${i}`, sort_order: i })));
+      showToast("Events saved");
+      return true;
+    }
+    if (!wedding?.id) {
+      showToast("Save your wedding details first, then add events");
+      return false;
+    }
+    try {
+      for (const id of toDelete) await sb.delete("wedding_events", id);
+      for (const { id, patch } of toUpdate) await sb.update("wedding_events", id, patch);
+      for (const row of toCreate) await sb.insert("wedding_events", { ...row, wedding_id: wedding.id });
+      await loadEvents();
+      showToast("Events saved");
+      return true;
+    } catch {
+      showToast("Could not save events — check connection");
       return false;
     }
   };
@@ -1938,6 +1983,8 @@ export default function WeddingTracker() {
               </div>
               <WeddingSetupTab
                 wedding={wedding}
+                events={weddingEvents}
+                onSaveEvents={saveEvents}
                 onSave={async (form) => { const ok = await saveWedding(form); if (ok) setSetupOpen(false); }}
                 showToast={showToast}
               />
