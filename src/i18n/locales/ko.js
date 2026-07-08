@@ -133,6 +133,7 @@ export default {
   "rsvp.friend.secret": "😏 비밀이에요",
 
   "rsvp.confirm.coupleFallback": "신랑 신부",
+  "rsvp.confirm.eventTitleFallback": "결혼식",
   "rsvp.confirm.seeYou": "그곳에서 뵙겠습니다!",
   "rsvp.confirm.miss": "보고 싶을 거예요!",
   "rsvp.confirm.yesMsg": "참석 회신이 확정되었습니다. {couple}가 함께 축하할 날을 손꼽아 기다립니다.",

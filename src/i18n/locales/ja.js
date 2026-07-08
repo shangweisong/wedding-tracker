@@ -133,6 +133,7 @@ export default {
   "rsvp.friend.secret": "😏 秘密です",
 
   "rsvp.confirm.coupleFallback": "新郎新婦",
+  "rsvp.confirm.eventTitleFallback": "結婚式",
   "rsvp.confirm.seeYou": "当日お会いしましょう！",
   "rsvp.confirm.miss": "お会いできず残念です！",
   "rsvp.confirm.yesMsg": "ご出欠を承りました。{couple} は一緒にお祝いできるのを楽しみにしています。",

@@ -133,6 +133,7 @@ export default {
   "rsvp.friend.secret": "😏 Ia rahsia",
 
   "rsvp.confirm.coupleFallback": "pasangan pengantin",
+  "rsvp.confirm.eventTitleFallback": "Majlis Perkahwinan",
   "rsvp.confirm.seeYou": "Jumpa di sana!",
   "rsvp.confirm.miss": "Kami akan merindui anda!",
   "rsvp.confirm.yesMsg": "Kehadiran anda telah disahkan. {couple} tidak sabar untuk meraikannya bersama anda.",
