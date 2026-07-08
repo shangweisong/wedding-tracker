@@ -195,7 +195,8 @@ export default function RsvpTab({
     }
     setSavingId(g.id);
     try {
-      await onUpdate(g.id, patch);
+      const ok = await onUpdate(g.id, patch);
+      if (ok === false) return; // save failed — keep editor open; error toast already shown
       setEditingId(null);
       showToast("RSVP updated");
     } finally {
