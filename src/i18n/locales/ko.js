@@ -75,6 +75,11 @@ export default {
   "rsvp.attending.yes": "✓ 네, 참석합니다!",
   "rsvp.attending.no": "✗ 죄송하지만 참석할 수 없습니다",
 
+  "rsvp.smart.title": "어떤 행사에 참석하시나요?",
+  "rsvp.smart.hint": "일행 각 분에 대해 알려주세요.",
+  "rsvp.smart.you": "본인",
+
+
   "rsvp.rel.q": "신랑 신부와 어떤 사이신가요?",
   "rsvp.friend.q": "어떤 친구인가요?",
   "rsvp.closerTo": "누구와 더 가까운지",
@@ -133,6 +138,7 @@ export default {
   "rsvp.err.nameSelect": "위에 성함을 입력하고 목록에서 선택해 주세요.",
   "rsvp.err.nameEnter": "성함을 입력해 주세요.",
   "rsvp.err.attendingSelect": "참석 여부를 선택해 주세요.",
+  "rsvp.err.answerAllEvents": "각 행사에 대해 참석 여부를 선택해 주세요.",
   "rsvp.err.emailInvalid": "유효한 이메일 주소를 입력해 주세요.",
   "rsvp.err.notSetup": "참석 회신이 아직 설정되지 않았습니다 — 데이터베이스 마이그레이션이 실행되지 않았습니다. 신랑 신부에게 문의하세요.",
   "rsvp.err.linkExpired": "참석 회신 링크가 만료되었습니다. 새 링크는 신랑 신부에게 문의하세요.",

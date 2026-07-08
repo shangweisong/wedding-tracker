@@ -76,6 +76,10 @@ export default {
   "rsvp.attending.yes": "✓ Yes, I'll be there!",
   "rsvp.attending.no": "✗ Sorry, I can't make it",
 
+  "rsvp.smart.title": "Which events will you join?",
+  "rsvp.smart.hint": "Let us know for each guest in your party.",
+  "rsvp.smart.you": "You",
+
   "rsvp.rel.q": "How do you know the couple?",
   "rsvp.friend.q": "Which kind of friend?",
   "rsvp.closerTo": "Closer to",
@@ -139,6 +143,7 @@ export default {
   "rsvp.err.nameSelect": "Please type your name above and select it from the list.",
   "rsvp.err.nameEnter": "Please enter your name.",
   "rsvp.err.attendingSelect": "Please select whether you'll be attending.",
+  "rsvp.err.answerAllEvents": "Please answer yes or no for each event.",
   "rsvp.err.emailInvalid": "Please enter a valid email address.",
   "rsvp.err.notSetup": "RSVP is not set up yet — the database migration hasn't been run. Contact the couple.",
   "rsvp.err.linkExpired": "Your RSVP link has expired. Please contact the couple for a new link.",
