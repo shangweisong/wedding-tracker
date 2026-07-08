@@ -1096,19 +1096,34 @@ export default function WeddingTracker() {
   };
 
   // Manual per-event attendance logging (#78, Phase 6) — the issue's fallback.
-  // Updates an existing invited guest_event_rsvps row; the mirror trigger keeps
-  // the legacy guests columns in sync. `patch` is { status } and/or { meal_choice }.
+  // Upserts the guest_event_rsvps row (a plus-one may not have one yet for an
+  // inherited event); the mirror trigger keeps the legacy guests columns in sync.
+  // `patch` is { status } and/or { meal_choice }. responded_at is only stamped
+  // for a real answer (confirmed/declined) and cleared when reset to pending.
   const setEventResponse = async (guest, eventId, patch) => {
+    const stamp = patch.status === "pending" ? { responded_at: null }
+      : (patch.status === "confirmed" || patch.status === "declined") ? { responded_at: new Date().toISOString() }
+      : {};
     if (isDemoMode) {
-      setEventRsvps((prev) => prev.map((r) =>
-        r.guest_id === guest.id && r.event_id === eventId ? { ...r, ...patch } : r));
+      setEventRsvps((prev) => {
+        const exists = prev.some((r) => r.guest_id === guest.id && r.event_id === eventId);
+        if (exists) return prev.map((r) => r.guest_id === guest.id && r.event_id === eventId ? { ...r, ...patch } : r);
+        return [...prev, { guest_id: guest.id, event_id: eventId, invited: true, status: "pending", meal_choice: "", ...patch }];
+      });
       return;
     }
     try {
-      const { error } = await supabase.from("guest_event_rsvps")
-        .update({ ...patch, responded_at: new Date().toISOString() })
-        .eq("guest_id", guest.id).eq("event_id", eventId);
-      if (error) throw error;
+      const exists = eventRsvps.some((r) => r.guest_id === guest.id && r.event_id === eventId);
+      if (exists) {
+        const { error } = await supabase.from("guest_event_rsvps")
+          .update({ ...patch, ...stamp })
+          .eq("guest_id", guest.id).eq("event_id", eventId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("guest_event_rsvps")
+          .insert({ guest_id: guest.id, event_id: eventId, invited: true, status: "pending", ...patch, ...stamp });
+        if (error) throw error;
+      }
       await loadEventRsvps();
     } catch {
       showToast("Could not update attendance — check connection");

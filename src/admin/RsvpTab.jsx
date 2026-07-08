@@ -147,12 +147,17 @@ export default function RsvpTab({
   }, {});
 
   // The editing guest's invited events + their current per-event answer (Phase 6).
-  const guestEventRows = (g) => activeEvents
-    .filter((ev) => inviteSet.has(inviteKey(g.id, ev.id)))
-    .map((ev) => {
-      const row = eventRsvps.find((r) => r.guest_id === g.id && r.event_id === ev.id);
-      return { ev, status: row?.status || "pending", meal: row?.meal_choice || "" };
-    });
+  // Plus-ones inherit their primary's invited set, so resolve eligibility against
+  // the owning primary (a plus-one may not have its own row for a later-added event).
+  const guestEventRows = (g) => {
+    const ownerId = g.primary_guest_id || g.id;
+    return activeEvents
+      .filter((ev) => inviteSet.has(inviteKey(ownerId, ev.id)))
+      .map((ev) => {
+        const row = eventRsvps.find((r) => r.guest_id === g.id && r.event_id === ev.id);
+        return { ev, status: row?.status || "pending", meal: row?.meal_choice || "" };
+      });
+  };
 
   const filtered = guests
     .filter((g) => statusFilter === "all" || g.rsvp_status === statusFilter)
@@ -524,7 +529,12 @@ export default function RsvpTab({
                             <select
                               className="rsvp-edit-select"
                               value={status}
-                              onChange={(e) => onSetEventResponse(g, ev.id, { status: e.target.value })}
+                              onChange={(e) => {
+                                const next = e.target.value;
+                                // Clear a stale meal when leaving 'confirmed' so it
+                                // doesn't keep feeding the mirror / catering counts.
+                                onSetEventResponse(g, ev.id, next === "confirmed" ? { status: next } : { status: next, meal_choice: "" });
+                              }}
                             >
                               <option value="pending">Pending</option>
                               <option value="confirmed">Confirmed</option>
