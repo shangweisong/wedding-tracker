@@ -733,6 +733,17 @@ export default function RsvpPage() {
                           while (next.length < n) next.push("");
                           return next;
                         });
+                        // Drop removed bodies' per-event answers so a re-added slot
+                        // (same p{i} key) doesn't inherit the prior occupant's state.
+                        const prune = (obj) => {
+                          const out = { ...obj };
+                          Object.keys(out).forEach((k) => {
+                            if (k !== PRIMARY_KEY && Number(k.slice(1)) >= n) delete out[k];
+                          });
+                          return out;
+                        };
+                        setAttendance(prune);
+                        setEventMeals(prune);
                       }}
                     >
                       {[0, 1, 2, 3, 4, 5, 6].map((n) => (
