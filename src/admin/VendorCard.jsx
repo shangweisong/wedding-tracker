@@ -89,11 +89,11 @@ export default function VendorCard({ vendor, onEdit, onDelete }) {
         {committed > 0 && (
           <div className="vendor-milestone-line">
             {(vendor.milestones ?? []).length > 0
-              ? `${fmtMoney(paid)} paid · ${fmtMoney(committed - paid)} remaining`
+              ? `${fmtMoney(paid)} paid · ${fmtMoney(Math.max(0, committed - paid))} remaining`
               : paid > 0
                 ? `${fmtMoney(paid)} paid`
                 : "No payments recorded yet"}
-            {ms.overdueCount > 0 && (
+            {ms.overdueCount > 0 && !vendor.is_fully_paid && (
               <span className="vendor-overdue">
                 {" "}· {ms.overdueCount} overdue
               </span>

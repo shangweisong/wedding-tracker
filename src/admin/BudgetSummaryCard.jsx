@@ -138,7 +138,7 @@ export default function BudgetSummaryCard({
   const { totalCommitted, totalPaid, isOverBudget } = computeOverallStats(overallCap, vendors);
   const catStats = computeCategoryStats(categories, vendors);
 
-  const totalToPayOut = totalCommitted - totalPaid;
+  const totalToPayOut = Math.max(0, totalCommitted - totalPaid);
   const available = overallCap > 0 ? overallCap - totalCommitted : 0;
 
   // Three-segment bar — each as % of overallCap, capped so they don't overflow visually

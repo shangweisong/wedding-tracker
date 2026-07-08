@@ -1,5 +1,6 @@
 import { useState } from "react";
 import MilestoneEditor from "./MilestoneEditor.jsx";
+import { fmtMoney } from "../lib/budgetUtils.js";
 
 const BLANK = {
   company_name: "",
@@ -30,17 +31,20 @@ export default function VendorModal({ mode, vendor, categories, onSave, onClose 
   const handleSave = async () => {
     if (!form.company_name.trim()) return;
     setSaving(true);
-    await onSave({
-      ...form,
-      company_name: form.company_name.trim(),
-      quoted_price: Number(form.quoted_price) || 0,
-      arrival_time: form.arrival_time || null,
-      milestones: form.milestones.map((m) => ({
-        ...m,
-        amount: Number(m.amount) || 0,
-      })),
-    });
-    setSaving(false);
+    try {
+      await onSave({
+        ...form,
+        company_name: form.company_name.trim(),
+        quoted_price: Number(form.quoted_price) || 0,
+        arrival_time: form.arrival_time || null,
+        milestones: form.milestones.map((m) => ({
+          ...m,
+          amount: Number(m.amount) || 0,
+        })),
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -215,7 +219,7 @@ export default function VendorModal({ mode, vendor, categories, onSave, onClose 
             </div>
             {form.is_fully_paid ? (
               <div style={{ padding: "10px 14px", background: "rgba(46,125,79,0.07)", borderRadius: 8, fontSize: 13, color: "#2e7d4f", border: "1.5px solid rgba(46,125,79,0.2)" }}>
-                Marked as fully paid — total paid = contract total ({form.quoted_price ? `$${Number(form.quoted_price).toLocaleString()}` : "$0"})
+                Marked as fully paid — total paid = contract total ({fmtMoney(Number(form.quoted_price) || 0)})
               </div>
             ) : (
               <MilestoneEditor

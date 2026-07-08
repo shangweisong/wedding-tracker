@@ -70,8 +70,9 @@ alter table public.vendors
   add column if not exists is_fully_paid boolean not null default false;
 
 -- Migrate old status values and replace the check constraint.
-update public.vendors set status = 'enquiring' where status in ('enquired', 'quoted', 'paid');
+-- DROP first so the UPDATE can write 'enquiring' without violating the old constraint.
 alter table public.vendors drop constraint if exists vendors_status_check;
+update public.vendors set status = 'enquiring' where status in ('enquired', 'quoted', 'paid');
 alter table public.vendors
   add constraint vendors_status_check check (status in ('enquiring', 'booked'));
 

@@ -28,7 +28,7 @@ const styles = `
   .catmgr-add:hover { opacity: 1; border-color: var(--gold); color: var(--gold-dark); }
 `;
 
-export default function CategoryManagerModal({ categories, vendors, onSave, onClose }) {
+export default function CategoryManagerModal({ categories, vendors, onSave, onClose, showToast }) {
   const [cats, setCats] = useState(() => categories.map((c) => ({ ...c })));
   const [saving, setSaving] = useState(false);
 
@@ -49,9 +49,14 @@ export default function CategoryManagerModal({ categories, vendors, onSave, onCl
 
   const handleSave = async () => {
     const valid = cats.filter((c) => c.label.trim());
+    const dropped = cats.length - valid.length;
+    if (dropped > 0) showToast(`${dropped} unnamed ${dropped === 1 ? "category" : "categories"} skipped`);
     setSaving(true);
-    await onSave(valid.map((c) => ({ ...c, cap: Number(c.cap) || 0 })));
-    setSaving(false);
+    try {
+      await onSave(valid.map((c) => ({ ...c, cap: Number(c.cap) || 0 })));
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (

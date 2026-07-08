@@ -65,11 +65,12 @@ export default function BudgetTab({ wedding, onSaveBudget, showToast, isCouple }
       showToast("Failed to load vendors");
     }
     setLoading(false);
-  }, [showToast]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadVendors();
+    if (isDemoMode) return;
     const unsub = sb.subscribeToChanges("vendors", loadVendors);
     return unsub;
   }, [loadVendors]);
@@ -84,7 +85,7 @@ export default function BudgetTab({ wedding, onSaveBudget, showToast, isCouple }
         budget_categories: DEFAULT_CATEGORIES,
       });
     }
-  }, [wedding?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [wedding?.id, isCouple]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Guard: couple only — placed after all hooks to satisfy rules-of-hooks.
   if (!isCouple) {
@@ -122,10 +123,11 @@ export default function BudgetTab({ wedding, onSaveBudget, showToast, isCouple }
         }
         showToast("Vendor updated");
       }
+      setVendorModal(null); // only close on success
     } catch {
       showToast("Could not save vendor — check connection");
+      // modal stays open so user can retry
     }
-    setVendorModal(null);
   };
 
   const confirmDelete = async (vendor) => {
@@ -245,6 +247,7 @@ export default function BudgetTab({ wedding, onSaveBudget, showToast, isCouple }
           vendors={vendors}
           onSave={saveCategories}
           onClose={() => setCatModal(false)}
+          showToast={showToast}
         />
       )}
 
