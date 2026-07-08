@@ -687,18 +687,20 @@ export default function RsvpPage() {
                 </div>
               )}
 
-              <div className="rsvp-field">
-                <label className="rsvp-label">{t("rsvp.closerTo")}</label>
-                <select
-                  className="rsvp-input"
-                  value={closerTo}
-                  onChange={(e) => setCloserTo(e.target.value)}
-                >
-                  <option value="">{t("common.selectOne")}</option>
-                  <option value="bride">💐 {wedding?.bride_name || t("rsvp.side.brideFallback")}</option>
-                  <option value="groom">🤵 {wedding?.groom_name || t("rsvp.side.groomFallback")}</option>
-                </select>
-              </div>
+              {attending && (
+                <div className="rsvp-field">
+                  <label className="rsvp-label">{t("rsvp.closerTo")}</label>
+                  <select
+                    className="rsvp-input"
+                    value={closerTo}
+                    onChange={(e) => setCloserTo(e.target.value)}
+                  >
+                    <option value="">{t("common.selectOne")}</option>
+                    <option value="bride">💐 {wedding?.bride_name || t("rsvp.side.brideFallback")}</option>
+                    <option value="groom">🤵 {wedding?.groom_name || t("rsvp.side.groomFallback")}</option>
+                  </select>
+                </div>
+              )}
 
               {/* Meal + dietary — only if attending, animated expand */}
               <div className={`rsvp-collapse${attending === true ? ' open' : ''}`}>

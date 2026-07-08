@@ -716,11 +716,11 @@ export default function WeddingPage() {
                     {venue_name && <div className="wp-tl-value">{venue_name}</div>}
                     {venue_address && (
                       <div className="wp-tl-sub">
-                        <a href={`https://maps.google.com/?q=${encodeURIComponent(venue_address)}`}
-                          target="_blank" rel="noopener noreferrer"
-                          style={{ color: "var(--gold-dark)", textDecoration: "none" }}>
-                          {venue_address} ↗
-                        </a>
+                        <span style={{ color: "var(--brown)", opacity: 0.8 }}>{venue_address}</span>
+                        <span style={{ display: "flex", gap: 10, marginTop: 4, flexWrap: "wrap" }}>
+                          <a href={`https://maps.google.com/?q=${encodeURIComponent(venue_address)}`} target="_blank" rel="noopener noreferrer" style={{ color: "var(--gold-dark)", fontSize: 12 }}>Google Maps ↗</a>
+                          <a href={`https://maps.apple.com/?q=${encodeURIComponent(venue_address)}`} target="_blank" rel="noopener noreferrer" style={{ color: "var(--gold-dark)", fontSize: 12 }}>Apple Maps ↗</a>
+                        </span>
                       </div>
                     )}
                   </div>
@@ -757,14 +757,22 @@ export default function WeddingPage() {
                 })}
               </div>
               {venue_address && (
-                <div style={{ marginTop: 24 }}>
+                <div style={{ marginTop: 24, display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
                   <a
                     href={`https://maps.google.com/?q=${encodeURIComponent(venue_address)}`}
                     target="_blank" rel="noopener noreferrer"
                     className="wp-rsvp-btn"
                     style={{ fontSize: 13, padding: "12px 28px", letterSpacing: "0.06em" }}
                   >
-                    {t("wedding.openMaps")}
+                    Google Maps ↗
+                  </a>
+                  <a
+                    href={`https://maps.apple.com/?q=${encodeURIComponent(venue_address)}`}
+                    target="_blank" rel="noopener noreferrer"
+                    className="wp-rsvp-btn"
+                    style={{ fontSize: 13, padding: "12px 28px", letterSpacing: "0.06em" }}
+                  >
+                    Apple Maps ↗
                   </a>
                 </div>
               )}

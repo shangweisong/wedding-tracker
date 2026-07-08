@@ -820,6 +820,7 @@ export default function WeddingTracker() {
   const [view, setView] = useState("rsvp");
   const [modal, setModal] = useState(null); // 'add' | 'edit' | 'upload' | 'setup'
   const [editGuest, setEditGuest] = useState(null);
+  const [formNameError, setFormNameError] = useState("");
   const [toast, setToast] = useState(null);
   const [form, setForm] = useState({ name: "", table_number: "", notes: "", party: "", is_vip: false });
   const [csvText, setCsvText] = useState("");
@@ -1220,7 +1221,8 @@ export default function WeddingTracker() {
 
   // Save guest (add/edit)
   const saveGuest = async () => {
-    if (!cleanName(form.name)) return;
+    if (!cleanName(form.name)) { setFormNameError("Please enter a guest name"); return; }
+    setFormNameError("");
     const data = {
       name: cleanName(form.name),
       table_number: cleanTable(form.table_number),
@@ -1463,9 +1465,11 @@ export default function WeddingTracker() {
         <header className="header">
           <div className="header-left">
             <div className="header-title">
-              {wedding?.bride_name && wedding?.groom_name
-                ? `♡ ${wedding.bride_name} & ${wedding.groom_name}`
-                : mode === "planning" ? "♡ Wedding Planner" : "♡ Wedding Day"}
+              {wedding === undefined
+                ? "♡ —"
+                : wedding?.bride_name && wedding?.groom_name
+                  ? `♡ ${wedding.bride_name} & ${wedding.groom_name}`
+                  : mode === "planning" ? "♡ Wedding Planner" : "♡ Wedding Day"}
             </div>
             <div className="header-subtitle">
               {mode === "planning" ? "RSVP & Seating Plan" : "Guest Attendance Tracker"}
@@ -1867,14 +1871,15 @@ export default function WeddingTracker() {
 
         {/* ADD/EDIT MODAL */}
         {(modal === "add" || modal === "edit") && (
-          <div className="modal-overlay" onClick={() => setModal(null)}>
+          <div className="modal-overlay" onClick={() => { setModal(null); setFormNameError(""); }}>
             <div className="modal" onClick={(e) => e.stopPropagation()}>
               <div className="modal-title">{modal === "edit" ? "Edit Guest" : "Add Guest"}</div>
               <div className="form-grid">
                 <div className="form-row">
                   <div className="form-group" style={{flex:2}}>
                     <label className="form-label">Guest Name *</label>
-                    <input className="form-input" placeholder="Full name" value={form.name} onChange={(e) => setForm({...form, name: e.target.value})} autoFocus />
+                    <input className="form-input" placeholder="Full name" value={form.name} onChange={(e) => { setForm({...form, name: e.target.value}); setFormNameError(""); }} autoFocus />
+                    {formNameError && <div style={{ color: "#c0392b", fontSize: 12, marginTop: 4 }}>{formNameError}</div>}
                   </div>
                   <div className="form-group">
                     <label className="form-label">Table No.</label>
@@ -1899,7 +1904,7 @@ export default function WeddingTracker() {
                 </label>
               </div>
               <div className="modal-actions">
-                <button className="btn btn-outline" onClick={() => setModal(null)}>Cancel</button>
+                <button className="btn btn-outline" onClick={() => { setModal(null); setFormNameError(""); }}>Cancel</button>
                 <button className="btn btn-gold" onClick={saveGuest}>
                   {modal === "edit" ? "Save Changes" : "Add Guest"}
                 </button>
