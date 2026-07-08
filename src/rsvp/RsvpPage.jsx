@@ -275,8 +275,9 @@ function buildIcsDataUrl(wedding) {
 function ConfirmationView({ name, attending, wedding }) {
   const { t, locale } = useLocale();
   const dtLocale = locale === "zh-TW" ? "zh-TW" : "en-GB";
-  const couple = wedding?.bride_name && wedding?.groom_name
-    ? `${wedding.bride_name} & ${wedding.groom_name}`
+  const lw = localizeWedding(wedding, locale);
+  const couple = lw?.bride_name && lw?.groom_name
+    ? `${lw.bride_name} & ${lw.groom_name}`
     : t("rsvp.confirm.coupleFallback");
   const date = wedding?.wedding_date ? formatDate(wedding.wedding_date, dtLocale) : null;
   const venue = wedding?.venue_name || null;
@@ -386,10 +387,10 @@ export default function RsvpPage() {
 
   // Keep the document title in sync with the couple + active locale.
   useEffect(() => {
-    if (wedding?.bride_name && wedding?.groom_name) {
-      document.title = t("rsvp.docTitle", { bride: wedding.bride_name, groom: wedding.groom_name });
+    if (w?.bride_name && w?.groom_name) {
+      document.title = t("rsvp.docTitle", { bride: w.bride_name, groom: w.groom_name });
     }
-  }, [wedding, t]);
+  }, [wedding, t, locale]);
 
   // Pre-fill form from URL token when arriving via an "Update RSVP" link.
   useEffect(() => {
@@ -507,8 +508,8 @@ export default function RsvpPage() {
         <div className="rsvp-card">
           <div className="rsvp-logo">
             <span className="rsvp-logo-heart">♡</span>
-            {wedding?.bride_name && wedding?.groom_name
-              ? `${wedding.bride_name} & ${wedding.groom_name}`
+            {w?.bride_name && w?.groom_name
+              ? `${w.bride_name} & ${w.groom_name}`
               : t("rsvp.invited")}
           </div>
           {wedding?.wedding_date || wedding?.venue_name ? (
@@ -696,8 +697,8 @@ export default function RsvpPage() {
                     onChange={(e) => setCloserTo(e.target.value)}
                   >
                     <option value="">{t("common.selectOne")}</option>
-                    <option value="bride">💐 {wedding?.bride_name || t("rsvp.side.brideFallback")}</option>
-                    <option value="groom">🤵 {wedding?.groom_name || t("rsvp.side.groomFallback")}</option>
+                    <option value="bride">💐 {w?.bride_name || t("rsvp.side.brideFallback")}</option>
+                    <option value="groom">🤵 {w?.groom_name || t("rsvp.side.groomFallback")}</option>
                   </select>
                 </div>
               )}

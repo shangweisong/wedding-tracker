@@ -7,6 +7,8 @@
 
 // Plain text fields on the wedding object that can be translated.
 export const TRANSLATABLE_FIELDS = [
+  "bride_name",
+  "groom_name",
   "love_story",
   "dress_code",
   "venue_name",

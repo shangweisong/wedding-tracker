@@ -484,10 +484,10 @@ export default function WeddingPage() {
   }, [slug]);
 
   useEffect(() => {
-    if (wedding?.bride_name && wedding?.groom_name) {
-      document.title = t("wedding.docTitle", { bride: wedding.bride_name, groom: wedding.groom_name });
+    if (lw?.bride_name && lw?.groom_name) {
+      document.title = t("wedding.docTitle", { bride: lw.bride_name, groom: lw.groom_name });
     }
-  }, [wedding, t]);
+  }, [wedding, t, locale]);
 
   useEffect(() => {
     if (!wedding) return;
