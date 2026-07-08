@@ -1,6 +1,7 @@
 import { useState } from "react";
 import EventTargeting from "./EventTargeting.jsx";
-import { buildInviteSet } from "../lib/eventTargeting.js";
+import { buildInviteSet, inviteKey } from "../lib/eventTargeting.js";
+import { aggregateEventStats } from "../lib/eventStats.js";
 
 const MEAL_OPTIONS = ["", "Halal", "Vegetarian", "Normal"];
 
@@ -74,6 +75,26 @@ const styles = `
 
   .rsvp-empty { text-align: center; padding: 48px; color: var(--brown); opacity: 0.45; font-size: 14px; }
 
+  /* Per-event stats + warnings (#78, Phase 6) */
+  .rsvp-warn-banner { background: #fff8e6; border: 1px solid rgba(201,168,76,0.4); border-radius: 10px; padding: 12px 16px; font-size: 13px; color: var(--gold-dark); }
+  .rsvp-section-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--brown); opacity: 0.7; font-weight: 600; margin-bottom: 8px; }
+  .rsvp-evstats { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+  .rsvp-evstat-card { background: white; border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
+  .rsvp-evstat-name { font-size: 14px; font-weight: 600; color: var(--charcoal); }
+  .rsvp-evstat-time { font-size: 11px; color: var(--brown); opacity: 0.6; font-weight: 400; margin-left: 6px; }
+  .rsvp-evstat-nums { display: flex; gap: 14px; margin-top: 10px; }
+  .rsvp-evstat-num { font-family: 'Cormorant Garamond', serif; font-size: 26px; line-height: 1; }
+  .rsvp-evstat-num.green { color: var(--green); }
+  .rsvp-evstat-num.red { color: var(--red); }
+  .rsvp-evstat-num.gold { color: var(--gold); }
+  .rsvp-evstat-numlabel { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--brown); opacity: 0.6; margin-top: 3px; }
+  .rsvp-evstat-meals { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+
+  /* Manual per-event attendance editor inside the edit panel */
+  .rsvp-event-edit { grid-column: 1 / -1; border-top: 1px dashed rgba(201,168,76,0.3); padding-top: 10px; }
+  .rsvp-event-edit-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; flex-wrap: wrap; }
+  .rsvp-event-edit-name { flex: 1; min-width: 110px; font-size: 13px; color: var(--charcoal); }
+
   @media (max-width: 640px) {
     .rsvp-stats-grid { grid-template-columns: repeat(2, 1fr); }
     .rsvp-meal-col { display: none; }
@@ -83,7 +104,8 @@ const styles = `
 
 export default function RsvpTab({
   guests, onUpdate, onDelete, showToast,
-  enableSmartRsvp = false, events = [], eventRsvps = [], onSetInvited, onBulkInvite,
+  enableSmartRsvp = false, events = [], eventRsvps = [], primaryMealEventId = null,
+  onSetInvited, onBulkInvite, onSetEventResponse,
 }) {
   const [statusFilter, setStatusFilter] = useState("all");
   const [partyFilter, setPartyFilter] = useState("all");
@@ -99,6 +121,13 @@ export default function RsvpTab({
   const activeEvents = (events || []).filter((e) => e.is_active !== false);
   const inviteSet = buildInviteSet(eventRsvps);
   const showTargeting = enableSmartRsvp && activeEvents.length > 0 && onSetInvited && onBulkInvite;
+
+  // Per-event stats + the meal-event misconfiguration warning (#78, Phase 6).
+  const showEventStats = enableSmartRsvp && activeEvents.length > 0;
+  const eventStats = showEventStats ? aggregateEventStats(activeEvents, eventRsvps) : [];
+  const mealEventMissing = enableSmartRsvp
+    && activeEvents.some((e) => e.requires_meal)
+    && !primaryMealEventId;
   const confirmed = primaries.filter((g) => g.rsvp_status === "confirmed");
   const declined = primaries.filter((g) => g.rsvp_status === "declined");
   const pending = primaries.filter((g) => g.rsvp_status === "pending");
@@ -116,6 +145,19 @@ export default function RsvpTab({
     acc[m] = (acc[m] || 0) + 1;
     return acc;
   }, {});
+
+  // The editing guest's invited events + their current per-event answer (Phase 6).
+  // Plus-ones inherit their primary's invited set, so resolve eligibility against
+  // the owning primary (a plus-one may not have its own row for a later-added event).
+  const guestEventRows = (g) => {
+    const ownerId = g.primary_guest_id || g.id;
+    return activeEvents
+      .filter((ev) => inviteSet.has(inviteKey(ownerId, ev.id)))
+      .map((ev) => {
+        const row = eventRsvps.find((r) => r.guest_id === g.id && r.event_id === ev.id);
+        return { ev, status: row?.status || "pending", meal: row?.meal_choice || "" };
+      });
+  };
 
   const filtered = guests
     .filter((g) => statusFilter === "all" || g.rsvp_status === statusFilter)
@@ -178,6 +220,56 @@ export default function RsvpTab({
             onSetInvited={onSetInvited}
             onBulkInvite={onBulkInvite}
           />
+        )}
+
+        {/* Meal-event misconfiguration warning (#78, Phase 6) */}
+        {mealEventMissing && (
+          <div className="rsvp-warn-banner">
+            ⚠️ Smart RSVP is on and an event collects a meal, but no “meal choice comes from”
+            event is designated in Wedding Setup — guest meal choices won’t feed seating &amp; catering
+            until you pick one.
+          </div>
+        )}
+
+        {/* Per-event stats (#78, Phase 6) */}
+        {showEventStats && (
+          <div>
+            <div className="rsvp-section-label">Per-event attendance</div>
+            <div className="rsvp-evstats">
+              {eventStats.map((s) => {
+                const ev = activeEvents.find((e) => e.id === s.eventId);
+                return (
+                  <div key={s.eventId} className="rsvp-evstat-card">
+                    <div className="rsvp-evstat-name">
+                      {s.name || "Untitled"}
+                      {ev?.start_time && <span className="rsvp-evstat-time">{String(ev.start_time).slice(0, 5)}</span>}
+                    </div>
+                    <div className="rsvp-evstat-nums">
+                      <div>
+                        <div className="rsvp-evstat-num green">{s.confirmed}</div>
+                        <div className="rsvp-evstat-numlabel">Coming</div>
+                      </div>
+                      <div>
+                        <div className="rsvp-evstat-num red">{s.declined}</div>
+                        <div className="rsvp-evstat-numlabel">Declined</div>
+                      </div>
+                      <div>
+                        <div className="rsvp-evstat-num gold">{s.pending}</div>
+                        <div className="rsvp-evstat-numlabel">Pending</div>
+                      </div>
+                    </div>
+                    {ev?.requires_meal && Object.keys(s.mealCounts).length > 0 && (
+                      <div className="rsvp-evstat-meals">
+                        {Object.entries(s.mealCounts).map(([m, c]) => (
+                          <span key={m} className="rsvp-meal-chip">{m}: {c}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         )}
 
         {/* Stats */}
@@ -425,6 +517,45 @@ export default function RsvpTab({
                         ))}
                       </select>
                     </div>
+
+                    {/* Manual per-event attendance (#78, Phase 6). Writes immediately;
+                        the derived RSVP status/meal above follow via the mirror trigger. */}
+                    {enableSmartRsvp && onSetEventResponse && guestEventRows(g).length > 0 && (
+                      <div className="rsvp-event-edit">
+                        <label className="rsvp-edit-label">Per-event attendance</label>
+                        {guestEventRows(g).map(({ ev, status, meal }) => (
+                          <div key={ev.id} className="rsvp-event-edit-row">
+                            <span className="rsvp-event-edit-name">{ev.name || "Untitled"}</span>
+                            <select
+                              className="rsvp-edit-select"
+                              value={status}
+                              onChange={(e) => {
+                                const next = e.target.value;
+                                // Clear a stale meal when leaving 'confirmed' so it
+                                // doesn't keep feeding the mirror / catering counts.
+                                onSetEventResponse(g, ev.id, next === "confirmed" ? { status: next } : { status: next, meal_choice: "" });
+                              }}
+                            >
+                              <option value="pending">Pending</option>
+                              <option value="confirmed">Confirmed</option>
+                              <option value="declined">Declined</option>
+                            </select>
+                            {ev.requires_meal && status === "confirmed" && (
+                              <select
+                                className="rsvp-edit-select"
+                                value={meal}
+                                onChange={(e) => onSetEventResponse(g, ev.id, { meal_choice: e.target.value })}
+                              >
+                                {MEAL_OPTIONS.map((m) => (
+                                  <option key={m} value={m}>{m || "Not set"}</option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
                     <div className="rsvp-edit-footer">
                       <button
                         className="rsvp-btn rsvp-btn-cancel"
