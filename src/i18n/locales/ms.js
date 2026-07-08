@@ -75,6 +75,11 @@ export default {
   "rsvp.attending.yes": "✓ Ya, saya akan hadir!",
   "rsvp.attending.no": "✗ Maaf, saya tidak dapat hadir",
 
+  "rsvp.smart.title": "Acara mana yang akan anda hadiri?",
+  "rsvp.smart.hint": "Beritahu kami untuk setiap tetamu dalam kumpulan anda.",
+  "rsvp.smart.you": "Anda",
+
+
   "rsvp.rel.q": "Bagaimana anda mengenali pasangan pengantin?",
   "rsvp.friend.q": "Kawan jenis apa?",
   "rsvp.closerTo": "Lebih rapat dengan",
@@ -133,6 +138,7 @@ export default {
   "rsvp.err.nameSelect": "Sila taip nama anda di atas dan pilih daripada senarai.",
   "rsvp.err.nameEnter": "Sila masukkan nama anda.",
   "rsvp.err.attendingSelect": "Sila pilih sama ada anda akan hadir.",
+  "rsvp.err.answerAllEvents": "Sila jawab ya atau tidak untuk setiap acara.",
   "rsvp.err.emailInvalid": "Sila masukkan alamat e-mel yang sah.",
   "rsvp.err.notSetup": "RSVP belum disediakan — migrasi pangkalan data belum dijalankan. Hubungi pasangan pengantin.",
   "rsvp.err.linkExpired": "Pautan RSVP anda telah tamat tempoh. Sila hubungi pasangan pengantin untuk pautan baharu.",

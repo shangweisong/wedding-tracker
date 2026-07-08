@@ -75,6 +75,10 @@ export default {
   "rsvp.attending.yes": "✓ 會，我一定到！",
   "rsvp.attending.no": "✗ 抱歉，我無法出席",
 
+  "rsvp.smart.title": "您會參加哪些活動？",
+  "rsvp.smart.hint": "請為同行的每位賓客告訴我們。",
+  "rsvp.smart.you": "您",
+
   "rsvp.rel.q": "您與新人是什麼關係？",
   "rsvp.friend.q": "是哪一類朋友？",
   "rsvp.closerTo": "與哪一方較熟",
@@ -133,6 +137,7 @@ export default {
   "rsvp.err.nameSelect": "請在上方輸入您的名字並從清單中選擇。",
   "rsvp.err.nameEnter": "請輸入您的名字。",
   "rsvp.err.attendingSelect": "請選擇您是否出席。",
+  "rsvp.err.answerAllEvents": "請為每項活動選擇是否出席。",
   "rsvp.err.emailInvalid": "請輸入有效的電子郵件地址。",
   "rsvp.err.notSetup": "回覆功能尚未設定 — 資料庫尚未完成遷移，請聯絡新人。",
   "rsvp.err.linkExpired": "您的回覆連結已失效，請聯絡新人取得新連結。",

@@ -5,6 +5,8 @@ import { theme } from "../shared/theme.js";
 import { cleanName, cleanNotes, cleanParty, cleanRelationshipGroup, cleanFriendSubgroup, cleanEmail, cleanSpeech } from "../lib/validation.js";
 import { useLocale } from "../i18n/index.jsx";
 import { localizeWedding } from "../i18n/content.js";
+import { localizeEvents } from "../lib/eventLocalize.js";
+import { buildEventResponses, hydrateEventState, primaryAnsweredAllEvents } from "../lib/rsvpFormPayload.js";
 import { sanitizeThemeTokens, isCompleteThemeTokens, themeTokenStyle } from "../lib/themeTokens.js";
 import LanguageSwitcher from "../i18n/LanguageSwitcher.jsx";
 
@@ -150,6 +152,21 @@ const styles = theme + `
   .rsvp-confirm-detail-row { font-size: 13px; color: var(--brown); line-height: 1.5; }
   .rsvp-event-info { font-size: 13px; color: var(--brown); opacity: 0.65; text-align: center; margin-bottom: 6px; line-height: 1.5; }
 
+  /* Smart RSVP per-event cards (#78) */
+  .rsvp-event-card { border: 1px solid rgba(201,168,76,0.25); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; background: var(--warm-white); }
+  .rsvp-event-hd { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .rsvp-event-name { font-weight: 600; font-size: 15px; color: var(--charcoal); }
+  .rsvp-event-time { font-size: 12px; color: var(--brown); opacity: 0.7; white-space: nowrap; }
+  .rsvp-event-loc { font-size: 12px; color: var(--brown); opacity: 0.65; margin-top: 2px; }
+  .rsvp-body-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 9px 0; border-top: 1px solid rgba(201,168,76,0.12); margin-top: 8px; }
+  .rsvp-body-name { font-size: 13px; color: var(--charcoal); flex: 1; min-width: 80px; }
+  .rsvp-yn { display: flex; gap: 6px; }
+  .rsvp-yn-btn { padding: 6px 12px; border-radius: 8px; border: 1.5px solid rgba(201,168,76,0.25); background: white; cursor: pointer; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--brown); transition: all 0.15s; }
+  .rsvp-yn-btn:hover { border-color: var(--gold); }
+  .rsvp-yn-btn.yes.active { background: rgba(201,168,76,0.12); border-color: var(--gold); color: var(--gold-dark); }
+  .rsvp-yn-btn.no.active { background: rgba(44,36,22,0.06); border-color: rgba(44,36,22,0.3); color: var(--charcoal); }
+  .rsvp-body-meal { flex-basis: 100%; margin-top: 4px; }
+
   .demo-badge {
     display: inline-block; font-size: 11px; letter-spacing: 0.1em;
     text-transform: uppercase; padding: 3px 10px; border-radius: 20px;
@@ -284,6 +301,14 @@ function formatDate(dateStr, dtLocale = "en-GB") {
     .format(new Date(y, m - 1, d));
 }
 
+// 'HH:MM' → localized 12-hour label (e.g. "2:00 PM"). Empty string if unset.
+function formatEventTime(hhmm, dtLocale = "en-GB") {
+  if (!hhmm) return "";
+  const [h, m] = hhmm.split(":").map(Number);
+  return new Intl.DateTimeFormat(dtLocale, { hour: "numeric", minute: "2-digit", hour12: true })
+    .format(new Date(2000, 0, 1, h, m));
+}
+
 export default function RsvpPage() {
   const { t, locale } = useLocale();
   const dtLocale = locale === "zh-TW" ? "zh-TW" : "en-GB";
@@ -328,6 +353,24 @@ export default function RsvpPage() {
   // activeToken: URL token takes precedence, then one selected from the name dropdown
   const activeToken = urlToken || selectedToken;
 
+  // Smart RSVP (#78): per-event attendance. `invitedEvents` comes from the token
+  // lookup (empty unless the couple enabled smart RSVP and invited this guest).
+  const PRIMARY_KEY = "__primary__";
+  const [invitedEvents, setInvitedEvents] = useState([]);
+  const [attendance, setAttendance] = useState({}); // { bodyKey: { eventId: 'confirmed'|'declined' } }
+  const [eventMeals, setEventMeals] = useState({}); // { bodyKey: { eventId: mealString } }
+  const locEvents = localizeEvents(invitedEvents, locale);
+  const useSmartForm = locEvents.length > 0;
+  // Bodies = the primary + each named plus-one (blank plus-ones are ignored).
+  const bodies = [
+    { key: PRIMARY_KEY, name, is_primary: true },
+    ...plusOneNames.map((nm, i) => ({ key: `p${i}`, name: nm, is_primary: false })),
+  ];
+  const setBodyStatus = (bodyKey, eventId, status) =>
+    setAttendance((prev) => ({ ...prev, [bodyKey]: { ...(prev[bodyKey] || {}), [eventId]: status } }));
+  const setBodyMeal = (bodyKey, eventId, meal) =>
+    setEventMeals((prev) => ({ ...prev, [bodyKey]: { ...(prev[bodyKey] || {}), [eventId]: meal } }));
+
   // Playful options are shown only when the couple opted in (#42).
   const funOptions = !!wedding?.enable_fun_rsvp_options;
   const relationshipOptions = funOptions
@@ -353,13 +396,17 @@ export default function RsvpPage() {
     }
   }, [wedding, t]);
 
-  // Pre-fill form from URL token when arriving via an "Update RSVP" link.
+  // Hydrate the form from the active token — both the "Update RSVP" deep link and
+  // a guest picked from the name search. Also loads the guest's invited events and
+  // any existing per-event answers (#78). The full-page spinner only shows for the
+  // deep link; the search flow already has the form on screen.
   useEffect(() => {
-    if (!urlToken || isDemoMode) return;
-    sb.rpc("get_guest_by_rsvp_token", { p_token: urlToken })
+    if (!activeToken || isDemoMode) return;
+    let cancelled = false;
+    sb.rpc("get_guest_by_rsvp_token", { p_token: activeToken })
       .then((rows) => {
         const g = Array.isArray(rows) ? rows[0] : rows;
-        if (!g) return;
+        if (!g || cancelled) return;
         setName(g.name ?? "");
         setEmail(g.email ?? "");
         setAttending(g.rsvp_status === "confirmed" ? true : g.rsvp_status === "declined" ? false : null);
@@ -369,12 +416,23 @@ export default function RsvpPage() {
         setFriendSubgroup(g.friend_subgroup ?? "");
         setCloserTo(g.party ?? "");
         setWantsToSpeak(g.wants_to_speak ?? "");
-        setPlusOneNames(Array.isArray(g.plus_one_names) ? g.plus_one_names : []);
+        const pous = Array.isArray(g.plus_one_names) ? g.plus_one_names : [];
+        setPlusOneNames(pous);
         setMessage(g.rsvp_message ?? "");
+        setInvitedEvents(Array.isArray(g.invited_events) ? g.invited_events : []);
+        const hbodies = [
+          { key: PRIMARY_KEY, name: g.name ?? "", is_primary: true },
+          ...pous.map((nm, i) => ({ key: `p${i}`, name: nm, is_primary: false })),
+        ];
+        const { attendance: att, meals: ml } = hydrateEventState(g.event_responses, hbodies);
+        setAttendance(att);
+        setEventMeals(ml);
       })
       .catch(() => {})
-      .finally(() => setTokenLoading(false));
-  }, [urlToken]);
+      .finally(() => { if (urlToken && !cancelled) setTokenLoading(false); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeToken]);
 
   // Debounced name search — fires when guest types in the no-token name field.
   useEffect(() => {
@@ -417,7 +475,13 @@ export default function RsvpPage() {
       return;
     }
     if (isDemoMode && !name.trim()) { setError(t("rsvp.err.nameEnter")); return; }
-    if (attending === null) { setError(t("rsvp.err.attendingSelect")); return; }
+    if (useSmartForm) {
+      if (!primaryAnsweredAllEvents(attendance, PRIMARY_KEY, locEvents)) {
+        setError(t("rsvp.err.answerAllEvents")); return;
+      }
+    } else if (attending === null) {
+      setError(t("rsvp.err.attendingSelect")); return;
+    }
     if (!cleanEmail(email)) { setError(t("rsvp.err.emailInvalid")); return; }
     setError("");
     setSubmitting(true);
@@ -430,21 +494,37 @@ export default function RsvpPage() {
     }
 
     try {
-      await sb.rpc("submit_rsvp", {
-        p_token:              activeToken,
-        p_status:             attending ? "confirmed" : "declined",
-        p_meal_choice:        attending ? mealChoice : "",
-        p_dietary_notes:      cleanNotes(dietary),
-        p_message:            cleanNotes(message),
-        p_relationship_group: cleanRelationshipGroup(relationshipGroup),
-        p_friend_subgroup:    relationshipGroup === "friends" ? cleanFriendSubgroup(friendSubgroup) : "",
-        p_party:              cleanParty(closerTo),
-        p_email:              cleanEmail(email),
-        p_wants_to_speak:     attending ? cleanSpeech(wantsToSpeak) : "",
-        p_plus_one_names:     attending
-          ? plusOneNames.map((n) => cleanName(n)).filter(Boolean).slice(0, 6)
-          : [],
-      });
+      if (useSmartForm) {
+        await sb.rpc("submit_rsvp_events", {
+          p_token:              activeToken,
+          p_email:              cleanEmail(email),
+          p_message:            cleanNotes(message),
+          p_wants_to_speak:     cleanSpeech(wantsToSpeak),
+          p_relationship_group: cleanRelationshipGroup(relationshipGroup),
+          p_friend_subgroup:    relationshipGroup === "friends" ? cleanFriendSubgroup(friendSubgroup) : "",
+          p_party:              cleanParty(closerTo),
+          p_plus_one_names:     plusOneNames.map((n) => cleanName(n)).filter(Boolean).slice(0, 6),
+          p_event_responses:    buildEventResponses({
+            bodies, attendance, meals: eventMeals, events: locEvents, dietary: cleanNotes(dietary),
+          }),
+        });
+      } else {
+        await sb.rpc("submit_rsvp", {
+          p_token:              activeToken,
+          p_status:             attending ? "confirmed" : "declined",
+          p_meal_choice:        attending ? mealChoice : "",
+          p_dietary_notes:      cleanNotes(dietary),
+          p_message:            cleanNotes(message),
+          p_relationship_group: cleanRelationshipGroup(relationshipGroup),
+          p_friend_subgroup:    relationshipGroup === "friends" ? cleanFriendSubgroup(friendSubgroup) : "",
+          p_party:              cleanParty(closerTo),
+          p_email:              cleanEmail(email),
+          p_wants_to_speak:     attending ? cleanSpeech(wantsToSpeak) : "",
+          p_plus_one_names:     attending
+            ? plusOneNames.map((n) => cleanName(n)).filter(Boolean).slice(0, 6)
+            : [],
+        });
+      }
       setDone(true);
     } catch (err) {
       const msg = (err?.message ?? "").toLowerCase();
@@ -484,7 +564,13 @@ export default function RsvpPage() {
           {tokenLoading ? (
             <p style={{ textAlign: "center", color: "var(--brown)", opacity: 0.6, fontSize: 14 }}>{t("rsvp.loading")}</p>
           ) : done ? (
-            <ConfirmationView name={cleanName(name)} attending={attending} wedding={w} />
+            <ConfirmationView
+              name={cleanName(name)}
+              attending={useSmartForm
+                ? locEvents.some((ev) => attendance[PRIMARY_KEY]?.[ev.id] === "confirmed")
+                : attending}
+              wedding={w}
+            />
           ) : (
             <form onSubmit={submit}>
               {isDemoMode && <div className="demo-badge">{t("rsvp.demoBadge")}</div>}
@@ -568,22 +654,24 @@ export default function RsvpPage() {
                 />
               </div>
 
-              {/* Attendance */}
-              <div className="rsvp-field">
-                <span className="rsvp-label">{t("rsvp.attending.q")}</span>
-                <div className="attend-btns">
-                  <button type="button"
-                    className={`attend-btn yes ${attending === true ? "active" : ""}`}
-                    onClick={() => { setAttending(true); setError(""); }}>
-                    {t("rsvp.attending.yes")}
-                  </button>
-                  <button type="button"
-                    className={`attend-btn no ${attending === false ? "active" : ""}`}
-                    onClick={() => { setAttending(false); setError(""); }}>
-                    {t("rsvp.attending.no")}
-                  </button>
+              {/* Attendance — single yes/no (legacy). Smart RSVP asks per event below. */}
+              {!useSmartForm && (
+                <div className="rsvp-field">
+                  <span className="rsvp-label">{t("rsvp.attending.q")}</span>
+                  <div className="attend-btns">
+                    <button type="button"
+                      className={`attend-btn yes ${attending === true ? "active" : ""}`}
+                      onClick={() => { setAttending(true); setError(""); }}>
+                      {t("rsvp.attending.yes")}
+                    </button>
+                    <button type="button"
+                      className={`attend-btn no ${attending === false ? "active" : ""}`}
+                      onClick={() => { setAttending(false); setError(""); }}>
+                      {t("rsvp.attending.no")}
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Relationship to the couple */}
               <div className="rsvp-field">
@@ -629,7 +717,140 @@ export default function RsvpPage() {
                 </select>
               </div>
 
-              {/* Meal + dietary — only if attending, animated expand */}
+              {/* ── SMART RSVP: per-event attendance (#78) ── */}
+              {useSmartForm && (
+                <>
+                  {/* Additional guests first, so each appears in the per-event grid */}
+                  <div className="rsvp-field">
+                    <label className="rsvp-label">{t("rsvp.plus.q")}</label>
+                    <select
+                      className="rsvp-input"
+                      value={plusOneNames.length}
+                      onChange={(e) => {
+                        const n = Number(e.target.value);
+                        setPlusOneNames((prev) => {
+                          const next = prev.slice(0, n);
+                          while (next.length < n) next.push("");
+                          return next;
+                        });
+                        // Drop removed bodies' per-event answers so a re-added slot
+                        // (same p{i} key) doesn't inherit the prior occupant's state.
+                        const prune = (obj) => {
+                          const out = { ...obj };
+                          Object.keys(out).forEach((k) => {
+                            if (k !== PRIMARY_KEY && Number(k.slice(1)) >= n) delete out[k];
+                          });
+                          return out;
+                        };
+                        setAttendance(prune);
+                        setEventMeals(prune);
+                      }}
+                    >
+                      {[0, 1, 2, 3, 4, 5, 6].map((n) => (
+                        <option key={n} value={n}>
+                          {n === 0 ? t("rsvp.plus.justMe") : t(n === 1 ? "rsvp.plus.more_one" : "rsvp.plus.more_other", { n })}
+                        </option>
+                      ))}
+                    </select>
+                    {plusOneNames.map((nm, i) => (
+                      <input
+                        key={i}
+                        className="rsvp-input"
+                        style={{ marginTop: 8 }}
+                        placeholder={t("rsvp.plus.namePlaceholder", { i: i + 1 })}
+                        value={nm}
+                        onChange={(e) => setPlusOneNames((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))}
+                      />
+                    ))}
+                  </div>
+
+                  <div className="rsvp-field">
+                    <span className="rsvp-label">{t("rsvp.smart.title")}</span>
+                    <div style={{ fontSize: 12, color: "var(--brown)", opacity: 0.6, margin: "2px 0 10px" }}>
+                      {t("rsvp.smart.hint")}
+                    </div>
+                    {locEvents.map((ev) => (
+                      <div key={ev.id} className="rsvp-event-card">
+                        <div className="rsvp-event-hd">
+                          <span className="rsvp-event-name">{ev.name}</span>
+                          {ev.start_time && <span className="rsvp-event-time">{formatEventTime(ev.start_time, dtLocale)}</span>}
+                        </div>
+                        {ev.location && <div className="rsvp-event-loc">📍 {ev.location}</div>}
+                        {bodies.filter((b) => b.is_primary || b.name.trim()).map((body) => {
+                          const st = attendance[body.key]?.[ev.id];
+                          return (
+                            <div key={body.key} className="rsvp-body-row">
+                              <span className="rsvp-body-name">{body.is_primary ? t("rsvp.smart.you") : body.name}</span>
+                              <div className="rsvp-yn">
+                                <button type="button" className={`rsvp-yn-btn yes ${st === "confirmed" ? "active" : ""}`}
+                                  onClick={() => { setBodyStatus(body.key, ev.id, "confirmed"); setError(""); }}>
+                                  {t("rsvp.attending.yes")}
+                                </button>
+                                <button type="button" className={`rsvp-yn-btn no ${st === "declined" ? "active" : ""}`}
+                                  onClick={() => { setBodyStatus(body.key, ev.id, "declined"); setError(""); }}>
+                                  {t("rsvp.attending.no")}
+                                </button>
+                              </div>
+                              {ev.requires_meal && st === "confirmed" && (
+                                <select className="rsvp-input rsvp-body-meal"
+                                  value={eventMeals[body.key]?.[ev.id] || ""}
+                                  onChange={(e) => setBodyMeal(body.key, ev.id, e.target.value)}>
+                                  <option value="">{t("rsvp.meal.label")}</option>
+                                  {MEAL_OPTIONS.map((o) => <option key={o.value} value={o.value}>{t(o.labelKey)}</option>)}
+                                </select>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="rsvp-field">
+                    <label className="rsvp-label">
+                      {t("rsvp.dietary.label")}
+                      <span style={{ opacity: 0.45, fontWeight: 400, marginLeft: 4 }}>{t("common.optional")}</span>
+                    </label>
+                    <input className="rsvp-input" placeholder={t("rsvp.dietary.placeholder")}
+                      value={dietary} onChange={(e) => setDietary(e.target.value)} />
+                  </div>
+
+                  <div className="rsvp-field">
+                    <span className="rsvp-label">{t("rsvp.speech.q")}</span>
+                    <div className="attend-btns">
+                      <button type="button" className={`attend-btn yes ${wantsToSpeak === "yes" ? "active" : ""}`}
+                        onClick={() => setWantsToSpeak(wantsToSpeak === "yes" ? "" : "yes")}>
+                        {t("rsvp.speech.yes")}
+                      </button>
+                      <button type="button" className={`attend-btn no ${wantsToSpeak === "no" ? "active" : ""}`}
+                        onClick={() => setWantsToSpeak(wantsToSpeak === "no" ? "" : "no")}>
+                        {t("rsvp.speech.no")}
+                      </button>
+                    </div>
+                  </div>
+
+                  {(w?.parking_notice || w?.smoking_notice) && (
+                    <div className="rsvp-field">
+                      <span className="rsvp-label">{t("rsvp.notes.title")}</span>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        {w?.parking_notice && (
+                          <div style={{ fontSize: 14, lineHeight: 1.5, padding: "10px 12px", borderRadius: 10, background: "rgba(0,0,0,0.04)" }}>
+                            <strong>{t("rsvp.notes.parking")}</strong> {w.parking_notice}
+                          </div>
+                        )}
+                        {w?.smoking_notice && (
+                          <div style={{ fontSize: 14, lineHeight: 1.5, padding: "10px 12px", borderRadius: 10, background: "rgba(0,0,0,0.04)" }}>
+                            <strong>{t("rsvp.notes.smoking")}</strong> {w.smoking_notice}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Meal + dietary — legacy single-attendance flow, animated expand */}
+              {!useSmartForm && (
               <div className={`rsvp-collapse${attending === true ? ' open' : ''}`}>
                 <div className="rsvp-collapse-inner">
                   <div className="rsvp-field" style={{ paddingTop: 4 }}>
@@ -738,6 +959,7 @@ export default function RsvpPage() {
                   )}
                 </div>
               </div>
+              )}
 
               {/* Message */}
               <div className="rsvp-field">

@@ -75,6 +75,11 @@ export default {
   "rsvp.attending.yes": "✓ はい、出席します！",
   "rsvp.attending.no": "✗ 申し訳ありませんが、欠席します",
 
+  "rsvp.smart.title": "どの行事に参加されますか？",
+  "rsvp.smart.hint": "ご一緒の方それぞれについてお知らせください。",
+  "rsvp.smart.you": "あなた",
+
+
   "rsvp.rel.q": "新郎新婦とのご関係は？",
   "rsvp.friend.q": "どのようなご友人ですか？",
   "rsvp.closerTo": "どちらとより親しい",
@@ -133,6 +138,7 @@ export default {
   "rsvp.err.nameSelect": "上でお名前を入力し、リストから選択してください。",
   "rsvp.err.nameEnter": "お名前を入力してください。",
   "rsvp.err.attendingSelect": "ご出席かどうかを選択してください。",
+  "rsvp.err.answerAllEvents": "各行事について出欠をお選びください。",
   "rsvp.err.emailInvalid": "有効なメールアドレスを入力してください。",
   "rsvp.err.notSetup": "出欠登録はまだ設定されていません — データベースの移行が実行されていません。新郎新婦にご連絡ください。",
   "rsvp.err.linkExpired": "出欠登録リンクの有効期限が切れました。新しいリンクについては新郎新婦にご連絡ください。",
