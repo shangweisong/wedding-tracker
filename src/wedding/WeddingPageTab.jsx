@@ -459,6 +459,8 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
 
   // ── Per-locale content-translation helpers (edit the active locale) ──
   const sourceFields = [
+    { key: "bride_name",     label: "Bride's Name",    en: wedding?.bride_name || "" },
+    { key: "groom_name",     label: "Groom's Name",    en: wedding?.groom_name || "" },
     { key: "love_story",     label: "Your Story",      en: loveStory },
     { key: "dress_code",     label: "Dress Code",      en: dresscode },
     { key: "venue_name",     label: "Venue Name",      en: wedding?.venue_name || "" },

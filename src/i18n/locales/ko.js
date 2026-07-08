@@ -142,5 +142,5 @@ export default {
   "rsvp.err.emailInvalid": "유효한 이메일 주소를 입력해 주세요.",
   "rsvp.err.notSetup": "참석 회신이 아직 설정되지 않았습니다 — 데이터베이스 마이그레이션이 실행되지 않았습니다. 신랑 신부에게 문의하세요.",
   "rsvp.err.linkExpired": "참석 회신 링크가 만료되었습니다. 새 링크는 신랑 신부에게 문의하세요.",
-  "rsvp.err.generic": "오류가 발생했습니다: {msg}",
+  "rsvp.err.generic": "오류가 발생했습니다 — 다시 시도하거나 신랑 신부에게 문의하세요.",
 };

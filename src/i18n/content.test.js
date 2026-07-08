@@ -58,6 +58,7 @@ describe("localizeWedding", () => {
 
   it("exposes the translatable field list", () => {
     expect(TRANSLATABLE_FIELDS).toContain("love_story");
-    expect(TRANSLATABLE_FIELDS).not.toContain("bride_name");
+    expect(TRANSLATABLE_FIELDS).toContain("bride_name");
+    expect(TRANSLATABLE_FIELDS).toContain("groom_name");
   });
 });

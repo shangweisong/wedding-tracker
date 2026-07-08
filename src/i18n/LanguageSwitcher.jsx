@@ -4,9 +4,11 @@ import { LOCALES, useLocale } from "./index.jsx";
 // any page/theme without extra CSS. Renders a compact pill toggle for a couple
 // of locales, and switches to a dropdown once there are enough (>3) that pills
 // would overflow on small screens.
-export default function LanguageSwitcher({ style }) {
+export default function LanguageSwitcher({ style, availableLocales }) {
   const { locale, setLocale, t } = useLocale();
-  const codes = Object.keys(LOCALES);
+  const codes = availableLocales
+    ? availableLocales.filter((c) => LOCALES[c])
+    : Object.keys(LOCALES);
   if (codes.length < 2) return null;
 
   if (codes.length > 3) {

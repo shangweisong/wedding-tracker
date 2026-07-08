@@ -61,9 +61,16 @@ All migrations are idempotent (`CREATE OR REPLACE`, `IF NOT EXISTS`) — safe to
 
 > Never use `for all using (true)` — that exposes the entire guest list to anyone with the public anon key.
 
-### 1b. Helper login
+### 1b. Auth accounts
 
-Under **Authentication → Users**, add one user (e.g. `helpers@wedding.local`) with a strong password. That password is the **access code**.
+The app uses two separate Supabase Auth users — one for the couple (full access) and one for the bridal team (D-Day only). Create both under **Authentication → Users**:
+
+| Account | Example email | Access |
+|---|---|---|
+| Couple | `couple@wedding.local` | Full dashboard — RSVP, seating, setup, Wishes Wrapped, D-Day |
+| Bridal Team | `helper@wedding.local` | D-Day only — guest check-in, angbao recording, lucky draw, read-only seating |
+
+Give each a strong, unique password. The couple shares the **bridal team password** (not the email) with helpers — that's all they need to sign in.
 
 Under **Authentication → Providers → Email**, turn off "Allow new users to sign up".
 
@@ -84,7 +91,11 @@ cp .env.example .env
 ```
 VITE_SUPABASE_URL=https://xxxxxxxxxxxx.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJ...your anon key...
-VITE_HELPER_EMAIL=helpers@wedding.local   # must match the helper account; not secret
+
+# Emails for the two Supabase Auth accounts (not secret — they ship in the bundle).
+# The PASSWORDS are entered at the lock screen at runtime and verified server-side.
+VITE_COUPLE_EMAIL=couple@wedding.local    # couple's account → full dashboard access
+VITE_HELPER_EMAIL=helper@wedding.local   # bridal team account → D-Day controls only
 
 # Optional — enables the PayNow ang-bao page (Singapore). Not secret.
 VITE_PAYNOW_MOBILE=+6591234567            # the couple's PayNow-linked mobile
@@ -94,7 +105,7 @@ VITE_PAYNOW_NAME=The Happy Couple         # name shown to guests
 VITE_ENABLE_ANGBAO=true
 ```
 
-> **Never set `VITE_HELPER_PASSWORD`.** Any variable with a `VITE_` prefix is embedded in the JavaScript bundle and visible to anyone who inspects the page source. Setting the access code this way exposes it publicly, defeating the purpose of the lock screen entirely. The access code is entered at the lock screen at runtime and verified server-side by Supabase — it never belongs in any env file.
+> **Never set `VITE_COUPLE_PASSWORD` or `VITE_HELPER_PASSWORD`.** Any variable with a `VITE_` prefix is embedded in the JavaScript bundle and visible to anyone who inspects the page source. Setting an access code this way exposes it publicly, defeating the purpose of the lock screen entirely. Access codes are entered at the lock screen at runtime and verified server-side by Supabase — they never belong in any env file.
 
 ### Server-only variables (no `VITE_` — never expose to client)
 
@@ -123,6 +134,7 @@ OPENAI_API_KEY=
 NVIDIA_API_KEY=
 THEME_AI_MODEL=                          # optional, override the default vision model
 NVIDIA_MODEL=                            # optional, nvidia only — pin the NIM model to route to
+COUPLE_EMAIL=                            # optional, server-side override of VITE_COUPLE_EMAIL for /api/generate-theme
 HELPER_EMAIL=                            # optional, server-side override of VITE_HELPER_EMAIL for /api/generate-theme
 ```
 
@@ -395,10 +407,10 @@ The toggle is **build-time** and read once at startup — changing it requires a
 
 No backend of its own — the database is the trust boundary.
 
-- **Admin access** — RLS limits all direct table access to authenticated helpers. The helper account is a shared Supabase Auth user; the access code is entered at the lock screen at runtime, verified server-side by Supabase Auth, and never stored in the bundle. Supabase persists the session in the browser so returning helpers aren't prompted every visit.
-- **Never use `VITE_HELPER_PASSWORD`** — setting the access code as a `VITE_` env var embeds it in the JavaScript bundle in plaintext, visible to anyone who opens DevTools. The variable has been removed from the codebase. If you ever find it in your env files, delete it and rotate the Supabase helper password immediately.
+- **Role-based access** — two Supabase Auth accounts gate the dashboard. The couple account (`VITE_COUPLE_EMAIL`) gets full access. The bridal team account (`VITE_HELPER_EMAIL`) is locked to D-Day controls only: guest check-in, angbao recording, lucky draw, and a read-only seating chart. Planning tabs, guest add/delete/edit, exports, and financial totals are hidden. Role is derived server-side from the signed-in email after authentication — it cannot be spoofed at the login screen.
+- **Never set access codes as env vars** — any variable with a `VITE_` prefix is embedded in the JavaScript bundle and visible to anyone who opens DevTools. Access codes are entered at the lock screen at runtime and verified server-side by Supabase. If you ever find `VITE_COUPLE_PASSWORD` or `VITE_HELPER_PASSWORD` in your env files, delete them and rotate both Supabase passwords immediately.
 - **Public RSVP** — the `/rsvp` page has zero direct table access. It calls `security definer` RPC functions that expose only the minimum needed: name search and writing RSVP fields. The guest list is never returned to the browser.
-- **Residual risk** — helpers share one login, so anyone with the access code has full admin access. Fine for a small trusted group.
+- **Residual risk** — each account is a shared credential (one password per role), so anyone who knows the bridal team password can use D-Day features. The couple password should be kept private; only the bridal team password is shared with helpers.
 
 See [`SECURITY.md`](../SECURITY.md) for the full threat model.
 

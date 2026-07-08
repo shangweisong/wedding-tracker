@@ -209,6 +209,10 @@ export default function WeddingSetupTab({ wedding, events = [], onSave, onSaveEv
       showToast("Please fill in both names and the venue before saving");
       return;
     }
+    if (!form.wedding_date) {
+      showToast("Please add a wedding date — it's needed for the confirmation email and calendar invite");
+      return;
+    }
     // Flush any event edits first so the meal-event designation references saved ids.
     if (form.enable_smart_rsvp && onSaveEvents) {
       const ok = await onSaveEvents(draftEvents);
@@ -250,8 +254,9 @@ export default function WeddingSetupTab({ wedding, events = [], onSave, onSaveEv
             </div>
 
             <div className="setup-form-group">
-              <label className="setup-form-label">Wedding date</label>
-              <input className="setup-form-input" type="date" value={form.wedding_date} onChange={set("wedding_date")} />
+              <label className="setup-form-label">Wedding date <span style={{ color: "#c0392b", fontWeight: 400 }}>*</span></label>
+              <input className="setup-form-input" type="date" value={form.wedding_date} onChange={set("wedding_date")} required />
+              {!form.wedding_date && <div style={{ fontSize: 11, color: "rgba(92,74,42,0.55)", marginTop: 4 }}>Required for confirmation email, calendar invite &amp; countdown</div>}
             </div>
             <div className="setup-form-group" />
 

@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { sb, isDemoMode } from "../lib/supabase.js";
 import { theme } from "../shared/theme.js";
-import { useLocale } from "../i18n/index.jsx";
-import { localizeWedding } from "../i18n/content.js";
+import { LOCALES, useLocale } from "../i18n/index.jsx";
+import { localizeWedding, TRANSLATABLE_FIELDS } from "../i18n/content.js";
 import { localizeEvents } from "../lib/eventLocalize.js";
 import { eventTimelineIcon } from "../lib/eventTimelineIcon.js";
 import { sanitizeThemeTokens, isCompleteThemeTokens, themeTokenStyle } from "../lib/themeTokens.js";
@@ -184,6 +184,7 @@ const styles = theme + `
   }
   .wp-section:last-child { border-bottom: none; }
   .wp-section.wp-visible { opacity: 1; transform: translateY(0); }
+  @media (prefers-reduced-motion: reduce) { .wp-section { opacity: 1; transform: none; transition: none; } }
 
   .wp-section-eyebrow {
     font-size: 10px; letter-spacing: 0.35em; text-transform: uppercase;
@@ -275,6 +276,15 @@ const styles = theme + `
     transition: background 0.2s, transform 0.15s;
   }
   .wp-cta-btn:hover { background: var(--gold-dark); transform: translateY(-1px); }
+
+  /* ── LOADING ── */
+  .wp-loading {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: var(--cream);
+  }
+  @keyframes wp-pulse { 0%,100% { opacity: 0.3; } 50% { opacity: 1; } }
+  .wp-loading-icon { font-size: 36px; animation: wp-pulse 1.6s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) { .wp-loading-icon { animation: none; opacity: 0.6; } }
 
   /* ── NOT FOUND ── */
   .wp-notfound {
@@ -448,6 +458,28 @@ export default function WeddingPage() {
   // Couple content in the active language (per-field fallback to English) — #53 Phase 2.
   const lw = localizeWedding(wedding, locale);
 
+  // Only show locales where the couple has filled in at least one translated field (#77).
+  // English is always available; others require ≥1 non-empty field or Q&A answer.
+  const availableLocales = useMemo(() => {
+    if (!wedding?.content_translations) return ["en"];
+    const populated = ["en"];
+    for (const code of Object.keys(LOCALES)) {
+      if (code === "en") continue;
+      const tr = wedding.content_translations[code];
+      if (!tr || typeof tr !== "object") continue;
+      const hasField = TRANSLATABLE_FIELDS.some(
+        (f) => typeof tr[f] === "string" && tr[f].trim() !== ""
+      );
+      const hasQA =
+        Array.isArray(tr.fun_qa) &&
+        tr.fun_qa.some(
+          (item) => typeof item?.answer === "string" && item.answer.trim() !== ""
+        );
+      if (hasField || hasQA) populated.push(code);
+    }
+    return populated;
+  }, [wedding]);
+
   useEffect(() => {
     if (isDemoMode) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -469,10 +501,10 @@ export default function WeddingPage() {
   }, [slug]);
 
   useEffect(() => {
-    if (wedding?.bride_name && wedding?.groom_name) {
-      document.title = t("wedding.docTitle", { bride: wedding.bride_name, groom: wedding.groom_name });
+    if (lw?.bride_name && lw?.groom_name) {
+      document.title = t("wedding.docTitle", { bride: lw.bride_name, groom: lw.groom_name });
     }
-  }, [wedding, t]);
+  }, [wedding, t, locale]);
 
   useEffect(() => {
     if (!wedding) return;
@@ -504,8 +536,8 @@ export default function WeddingPage() {
     return (
       <>
         <style>{styles}</style>
-        <div className="wp-notfound">
-          <div style={{ fontSize: 32 }}>✦</div>
+        <div className="wp-loading" aria-live="polite" aria-label="Loading wedding page">
+          <div className="wp-loading-icon">✦</div>
         </div>
       </>
     );
@@ -563,7 +595,7 @@ export default function WeddingPage() {
   const effectiveTheme = pageTheme === "custom" ? (hasCustom ? "custom" : "minimal") : pageTheme;
   const customStyle = hasCustom ? themeTokenStyle(customTokens) : undefined;
 
-  const coupleNames = `${groom_name} & ${bride_name}`;
+  const coupleNames = `${bride_name} & ${groom_name}`;
 
   return (
     <>
@@ -571,7 +603,7 @@ export default function WeddingPage() {
       <div className="wp" data-theme={effectiveTheme} style={customStyle}>
 
         {/* Sit below the sticky preview banner (and above it in z-order) when unpublished. */}
-        <LanguageSwitcher style={{ position: "absolute", top: is_published ? 16 : 52, right: 16, zIndex: 201 }} />
+        <LanguageSwitcher availableLocales={availableLocales} style={{ position: "absolute", top: is_published ? 16 : 52, right: 16, zIndex: 201 }} />
 
         {effectiveTheme === "garden" && (
           <div className="wp-leaves-bg">
@@ -621,8 +653,8 @@ export default function WeddingPage() {
 
             <div className="wp-couple">
               <span className="wp-couple-amp">♡</span>
-              {groom_name}
-              <br />& {bride_name}
+              {bride_name}
+              <br />& {groom_name}
             </div>
 
             <div className="wp-hero-divider" />
@@ -647,6 +679,11 @@ export default function WeddingPage() {
             )}
 
             <a className="wp-rsvp-btn" href={rsvpHref}>{t("wedding.rsvpNow")}</a>
+            {!token && (
+              <div style={{ marginTop: 8, fontSize: 12, color: "rgba(255,255,255,0.55)", textAlign: "center" }}>
+                Use the personal link in your invitation for a faster experience
+              </div>
+            )}
           </div>
 
           <div className="wp-scroll-hint">↓</div>
@@ -747,11 +784,11 @@ export default function WeddingPage() {
                     {venue_name && <div className="wp-tl-value">{venue_name}</div>}
                     {venue_address && (
                       <div className="wp-tl-sub">
-                        <a href={`https://maps.google.com/?q=${encodeURIComponent(venue_address)}`}
-                          target="_blank" rel="noopener noreferrer"
-                          style={{ color: "var(--gold-dark)", textDecoration: "none" }}>
-                          {venue_address} ↗
-                        </a>
+                        <span style={{ color: "var(--brown)", opacity: 0.8 }}>{venue_address}</span>
+                        <span style={{ display: "flex", gap: 10, marginTop: 4, flexWrap: "wrap" }}>
+                          <a href={`https://maps.google.com/?q=${encodeURIComponent(venue_address)}`} target="_blank" rel="noopener noreferrer" style={{ color: "var(--gold-dark)", fontSize: 12 }}>Google Maps ↗</a>
+                          <a href={`https://maps.apple.com/?q=${encodeURIComponent(venue_address)}`} target="_blank" rel="noopener noreferrer" style={{ color: "var(--gold-dark)", fontSize: 12 }}>Apple Maps ↗</a>
+                        </span>
                       </div>
                     )}
                   </div>
@@ -788,14 +825,22 @@ export default function WeddingPage() {
                 })}
               </div>
               {venue_address && (
-                <div style={{ marginTop: 24 }}>
+                <div style={{ marginTop: 24, display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
                   <a
                     href={`https://maps.google.com/?q=${encodeURIComponent(venue_address)}`}
                     target="_blank" rel="noopener noreferrer"
                     className="wp-rsvp-btn"
                     style={{ fontSize: 13, padding: "12px 28px", letterSpacing: "0.06em" }}
                   >
-                    {t("wedding.openMaps")}
+                    Google Maps ↗
+                  </a>
+                  <a
+                    href={`https://maps.apple.com/?q=${encodeURIComponent(venue_address)}`}
+                    target="_blank" rel="noopener noreferrer"
+                    className="wp-rsvp-btn"
+                    style={{ fontSize: 13, padding: "12px 28px", letterSpacing: "0.06em" }}
+                  >
+                    Apple Maps ↗
                   </a>
                 </div>
               )}

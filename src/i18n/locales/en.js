@@ -147,5 +147,5 @@ export default {
   "rsvp.err.emailInvalid": "Please enter a valid email address.",
   "rsvp.err.notSetup": "RSVP is not set up yet — the database migration hasn't been run. Contact the couple.",
   "rsvp.err.linkExpired": "Your RSVP link has expired. Please contact the couple for a new link.",
-  "rsvp.err.generic": "Something went wrong: {msg}",
+  "rsvp.err.generic": "Something went wrong — please try again or contact the couple.",
 };

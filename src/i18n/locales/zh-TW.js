@@ -141,5 +141,5 @@ export default {
   "rsvp.err.emailInvalid": "請輸入有效的電子郵件地址。",
   "rsvp.err.notSetup": "回覆功能尚未設定 — 資料庫尚未完成遷移，請聯絡新人。",
   "rsvp.err.linkExpired": "您的回覆連結已失效，請聯絡新人取得新連結。",
-  "rsvp.err.generic": "發生錯誤：{msg}",
+  "rsvp.err.generic": "發生錯誤，請再試一次或聯絡新人。",
 };

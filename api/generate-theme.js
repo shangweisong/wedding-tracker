@@ -44,12 +44,14 @@ export function resolveThemeModel(provider) {
 }
 
 // The endpoint spends real API budget per call, so require not just a valid
-// Supabase JWT but that it belongs to the configured helper account. If no helper
-// email is configured, fall back to "any authenticated user" (back-compat).
+// Supabase JWT but that it belongs to a configured account (couple or helper).
+// If neither email is configured, fall back to "any authenticated user" (back-compat).
 export function isAllowedHelperEmail(email) {
-  const allowed = (process.env.HELPER_EMAIL || process.env.VITE_HELPER_EMAIL || "").trim().toLowerCase();
-  if (!allowed) return true;
-  return typeof email === "string" && email.trim().toLowerCase() === allowed;
+  const coupleEmail = (process.env.COUPLE_EMAIL || process.env.VITE_COUPLE_EMAIL || "").trim().toLowerCase();
+  const helperEmail = (process.env.HELPER_EMAIL || process.env.VITE_HELPER_EMAIL || "").trim().toLowerCase();
+  const allowed = [coupleEmail, helperEmail].filter(Boolean);
+  if (!allowed.length) return true;
+  return typeof email === "string" && allowed.includes(email.trim().toLowerCase());
 }
 
 // Returns the authenticated helper's email, or null if the caller isn't an

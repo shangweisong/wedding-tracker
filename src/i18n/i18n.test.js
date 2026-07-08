@@ -36,8 +36,8 @@ describe("translate()", () => {
   });
 
   it("interpolates {var} placeholders", () => {
-    expect(translate("en", "rsvp.err.generic", { msg: "boom" })).toBe(
-      "Something went wrong: boom",
+    expect(translate("en", "rsvp.err.generic")).toBe(
+      "Something went wrong — please try again or contact the couple.",
     );
     expect(translate("en", "wedding.countdown.toGo_other", { n: 5 })).toBe("5 days to go");
   });

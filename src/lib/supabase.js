@@ -5,10 +5,20 @@ import { createClient } from "@supabase/supabase-js";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Shared sign-in identity for wedding-day helpers. The PASSWORD is never stored
-// in the bundle — helpers type it on the unlock screen and Supabase Auth
-// verifies it on the server. Only the (non-secret) email lives in config.
-export const HELPER_EMAIL = import.meta.env.VITE_HELPER_EMAIL || "helpers@wedding.local";
+// Sign-in emails for the two roles. Passwords are never stored in the bundle —
+// users type them on the unlock screen and Supabase Auth verifies server-side.
+// Only the (non-secret) emails live in config.
+export const COUPLE_EMAIL = import.meta.env.VITE_COUPLE_EMAIL || "couple@wedding.local";
+export const HELPER_EMAIL = import.meta.env.VITE_HELPER_EMAIL || "helper@wedding.local";
+
+// Returns 'couple', 'helper', or null (unknown / not signed in).
+export function getRole(email) {
+  if (!email) return null;
+  const e = email.trim().toLowerCase();
+  if (e === COUPLE_EMAIL.trim().toLowerCase()) return "couple";
+  if (e === HELPER_EMAIL.trim().toLowerCase()) return "helper";
+  return null;
+}
 
 export const isDemoMode = !SUPABASE_URL || !SUPABASE_ANON_KEY;
 

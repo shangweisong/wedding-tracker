@@ -7,28 +7,39 @@ afterEach(() => {
 });
 
 describe("isAllowedHelperEmail", () => {
-  it("matches the configured helper email case-insensitively", () => {
+  it("allows the couple email case-insensitively", () => {
+    delete process.env.COUPLE_EMAIL;
     delete process.env.HELPER_EMAIL;
-    process.env.VITE_HELPER_EMAIL = "Helpers@Wedding.local";
-    expect(isAllowedHelperEmail("helpers@wedding.local")).toBe(true);
+    process.env.VITE_COUPLE_EMAIL = "Couple@Wedding.local";
+    process.env.VITE_HELPER_EMAIL = "Helper@Wedding.local";
+    expect(isAllowedHelperEmail("couple@wedding.local")).toBe(true);
+    expect(isAllowedHelperEmail("helper@wedding.local")).toBe(true);
     expect(isAllowedHelperEmail("someone@else.com")).toBe(false);
   });
 
-  it("prefers HELPER_EMAIL over VITE_HELPER_EMAIL when both are set", () => {
-    process.env.HELPER_EMAIL = "a@b.com";
-    process.env.VITE_HELPER_EMAIL = "c@d.com";
+  it("prefers COUPLE_EMAIL / HELPER_EMAIL server overrides over VITE_ vars", () => {
+    process.env.COUPLE_EMAIL = "a@b.com";
+    process.env.HELPER_EMAIL = "c@d.com";
+    process.env.VITE_COUPLE_EMAIL = "x@y.com";
+    process.env.VITE_HELPER_EMAIL = "p@q.com";
     expect(isAllowedHelperEmail("a@b.com")).toBe(true);
-    expect(isAllowedHelperEmail("c@d.com")).toBe(false);
+    expect(isAllowedHelperEmail("c@d.com")).toBe(true);
+    expect(isAllowedHelperEmail("x@y.com")).toBe(false);
+    expect(isAllowedHelperEmail("p@q.com")).toBe(false);
   });
 
-  it("allows any authenticated user when no helper email is configured (back-compat)", () => {
+  it("allows any authenticated user when no emails are configured (back-compat)", () => {
+    delete process.env.COUPLE_EMAIL;
     delete process.env.HELPER_EMAIL;
+    delete process.env.VITE_COUPLE_EMAIL;
     delete process.env.VITE_HELPER_EMAIL;
     expect(isAllowedHelperEmail("anyone@x.com")).toBe(true);
   });
 
   it("rejects a missing/blank email when an allowlist is configured", () => {
+    delete process.env.COUPLE_EMAIL;
     delete process.env.HELPER_EMAIL;
+    process.env.VITE_COUPLE_EMAIL = "c@w.com";
     process.env.VITE_HELPER_EMAIL = "h@w.com";
     expect(isAllowedHelperEmail("")).toBe(false);
     expect(isAllowedHelperEmail(null)).toBe(false);

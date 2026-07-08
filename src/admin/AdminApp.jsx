@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { buildPayNowPayload, normalizeMobile } from "../paynow";
-import { sb, isDemoMode, supabase, HELPER_EMAIL } from "../lib/supabase.js";
+import { sb, isDemoMode, supabase, COUPLE_EMAIL, HELPER_EMAIL, getRole } from "../lib/supabase.js";
 import { cleanName, cleanNotes, cleanTable, cleanParty, cleanAmount, MAX_ANGBAO } from "../lib/validation.js";
 import { parseCSV, toCSV, guestImportTemplateCSV } from "../lib/csv.js";
 import { formatTime } from "../lib/format.js";
@@ -158,6 +158,7 @@ const styles = theme + `
     background: transparent; color: var(--brown); transition: all 0.15s;
   }
   .filter-tab.active { background: var(--charcoal); color: var(--gold-light); }
+  .filter-tab-count { opacity: 0.55; font-size: 11px; }
 
   .btn {
     display: flex; align-items: center; gap: 6px;
@@ -319,6 +320,25 @@ const styles = theme + `
     background: var(--gold); color: #1a1a1a; font-size: 15px; font-weight: 500; letter-spacing: 0.05em;
   }
   .pin-unlock:disabled { opacity: 0.5; cursor: default; }
+
+  /* PIN SCREEN → ROLE SELECTOR */
+  .pin-role-btns { display: flex; gap: 12px; width: 100%; }
+  .pin-role-btn {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 20px 12px; border-radius: 14px; border: 1.5px solid rgba(201,168,76,0.25);
+    background: rgba(255,255,255,0.04); color: white; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .pin-role-btn:hover { background: rgba(201,168,76,0.1); border-color: rgba(201,168,76,0.5); }
+  .pin-role-icon { font-size: 28px; }
+  .pin-role-name { font-family: 'Cormorant Garamond', serif; font-size: 16px; font-weight: 500; color: var(--gold-light); }
+  .pin-role-desc { font-size: 11px; color: rgba(255,255,255,0.35); letter-spacing: 0.08em; text-transform: uppercase; }
+  .pin-back {
+    align-self: flex-start; background: none; border: none; cursor: pointer;
+    color: rgba(255,255,255,0.35); font-size: 13px; letter-spacing: 0.04em;
+    padding: 0; transition: color 0.15s;
+  }
+  .pin-back:hover { color: rgba(255,255,255,0.7); }
 
   /* PIN SCREEN → PAYNOW LINK */
   .pin-paylink {
@@ -807,17 +827,23 @@ function PayNowPage({ onBack, wedding }) {
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function WeddingTracker() {
   const [unlocked, setUnlocked] = useState(isDemoMode);
+  const [role, setRole] = useState(isDemoMode ? "couple" : null); // 'couple' | 'helper'
+  const [selectedRole, setSelectedRole] = useState(null); // chosen on login screen before auth
   const [accessCode, setAccessCode] = useState("");
   const [pinError, setPinError] = useState("");
   const [unlocking, setUnlocking] = useState(false);
+  const [pinFailCount, setPinFailCount] = useState(0);
+  const [pinLocked, setPinLocked] = useState(false);
   const [guests, setGuests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [guestLoadError, setGuestLoadError] = useState(false);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [mode, setMode] = useState("planning"); // "planning" | "dday"
   const [view, setView] = useState("rsvp");
   const [modal, setModal] = useState(null); // 'add' | 'edit' | 'upload' | 'setup'
   const [editGuest, setEditGuest] = useState(null);
+  const [formNameError, setFormNameError] = useState("");
   const [toast, setToast] = useState(null);
   const [form, setForm] = useState({ name: "", table_number: "", notes: "", party: "", is_vip: false });
   const [csvText, setCsvText] = useState("");
@@ -852,33 +878,62 @@ export default function WeddingTracker() {
   // Debounce timers for angbao-amount persistence, keyed by guest id.
   const amountTimers = useRef({});
 
-  // Restore an existing helper session on load (Supabase persists it in localStorage).
+  // Restore an existing session on load (Supabase persists it in localStorage).
   useEffect(() => {
     if (isDemoMode) return;
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) setUnlocked(true);
+      if (!data.session) return;
+      const r = getRole(data.session.user.email);
+      if (!r) { supabase.auth.signOut(); return; } // unrecognised account — fail closed
+      setRole(r);
+      if (r === "helper") setMode("dday");
+      setUnlocked(true);
     });
   }, []);
 
   const unlock = async (e) => {
     e?.preventDefault?.();
     if (isDemoMode) { setUnlocked(true); return; }
-    if (!accessCode || unlocking) return;
+    if (!accessCode || unlocking || !selectedRole) return;
     setUnlocking(true);
     setPinError("");
     // The access code is verified server-side by Supabase Auth — it is never
     // compared in the browser and never shipped in the bundle.
-    const { error } = await supabase.auth.signInWithPassword({
-      email: HELPER_EMAIL,
-      password: accessCode,
-    });
+    const email = selectedRole === "couple" ? COUPLE_EMAIL : HELPER_EMAIL;
+    const { error } = await supabase.auth.signInWithPassword({ email, password: accessCode });
     setUnlocking(false);
     if (error) {
-      setPinError("Incorrect access code, try again");
+      const newCount = pinFailCount + 1;
+      setPinFailCount(newCount);
+      const isRateLimited =
+        error.message?.toLowerCase().includes("too many") ||
+        error.message?.toLowerCase().includes("rate") ||
+        newCount >= 3;
+      if (isRateLimited) {
+        setPinError("Too many attempts — wait 60 seconds before trying again");
+        setPinLocked(true);
+        setTimeout(() => { setPinLocked(false); setPinFailCount(0); setPinError(""); }, 60_000);
+      } else {
+        setPinError("Incorrect access code, try again");
+      }
       setAccessCode("");
     } else {
+      setRole(selectedRole);
+      if (selectedRole === "helper") setMode("dday");
       setUnlocked(true);
     }
+  };
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    setUnlocked(false);
+    setRole(null);
+    setSelectedRole(null);
+    setMode("planning");
+    setAccessCode("");
+    setPinError("");
+    setPinFailCount(0);
+    setPinLocked(false);
   };
 
   const toastTimer = useRef(null);
@@ -917,8 +972,10 @@ export default function WeddingTracker() {
               : row
           )
         );
+        setGuestLoadError(false);
       }
     } catch {
+      setGuestLoadError(true);
       showToast("Failed to load guests");
     }
     setLoading(false);
@@ -1360,7 +1417,8 @@ export default function WeddingTracker() {
 
   // Save guest (add/edit)
   const saveGuest = async () => {
-    if (!cleanName(form.name)) return;
+    if (!cleanName(form.name)) { setFormNameError("Please enter a guest name"); return; }
+    setFormNameError("");
     const data = {
       name: cleanName(form.name),
       table_number: cleanTable(form.table_number),
@@ -1568,22 +1626,45 @@ export default function WeddingTracker() {
         <div className="pin-screen">
           <div className="pin-logo">♡ Wedding Day</div>
           <div className="pin-sub">Guest Attendance Tracker</div>
-          <form className="pin-box" onSubmit={unlock}>
-            <div className="pin-label">Enter access code to continue</div>
-            <input
-              className="pin-input"
-              type="password"
-              autoFocus
-              value={accessCode}
-              onChange={(e) => { setAccessCode(e.target.value); setPinError(""); }}
-              placeholder="Access code"
-              autoComplete="current-password"
-            />
-            <button type="submit" className="pin-unlock" disabled={unlocking || !accessCode}>
-              {unlocking ? "Checking…" : "Unlock"}
-            </button>
-            <div className="pin-error">{pinError}</div>
-          </form>
+          {!selectedRole ? (
+            <div className="pin-box">
+              <div className="pin-label">Who are you signing in as?</div>
+              <div className="pin-role-btns">
+                <button className="pin-role-btn" onClick={() => setSelectedRole("couple")}>
+                  <span className="pin-role-icon">💑</span>
+                  <span className="pin-role-name">Couple</span>
+                  <span className="pin-role-desc">Full access</span>
+                </button>
+                <button className="pin-role-btn" onClick={() => setSelectedRole("helper")}>
+                  <span className="pin-role-icon">💐</span>
+                  <span className="pin-role-name">Bridal Team</span>
+                  <span className="pin-role-desc">D-Day controls</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <form className="pin-box" onSubmit={unlock}>
+              <button type="button" className="pin-back" onClick={() => { setSelectedRole(null); setAccessCode(""); setPinError(""); }}>
+                ← Back
+              </button>
+              <div className="pin-label">
+                {selectedRole === "couple" ? "Enter couple access code" : "Enter bridal team access code"}
+              </div>
+              <input
+                className="pin-input"
+                type="password"
+                autoFocus
+                value={accessCode}
+                onChange={(e) => { setAccessCode(e.target.value); setPinError(""); }}
+                placeholder="Access code"
+                autoComplete="current-password"
+              />
+              <button type="submit" className="pin-unlock" disabled={unlocking || !accessCode || pinLocked}>
+                {unlocking ? "Checking…" : "Unlock"}
+              </button>
+              <div className="pin-error">{pinError}</div>
+            </form>
+          )}
           {ANGBAO_ENABLED && (
             <button className="pin-paylink" onClick={() => { window.location.hash = "pay"; }}>
               Send a gift · Ang-Bao →
@@ -1603,9 +1684,11 @@ export default function WeddingTracker() {
         <header className="header">
           <div className="header-left">
             <div className="header-title">
-              {wedding?.bride_name && wedding?.groom_name
-                ? `♡ ${wedding.bride_name} & ${wedding.groom_name}`
-                : mode === "planning" ? "♡ Wedding Planner" : "♡ Wedding Day"}
+              {wedding === undefined
+                ? "♡ —"
+                : wedding?.bride_name && wedding?.groom_name
+                  ? `♡ ${wedding.bride_name} & ${wedding.groom_name}`
+                  : mode === "planning" ? "♡ Wedding Planner" : "♡ Wedding Day"}
             </div>
             <div className="header-subtitle">
               {mode === "planning" ? "RSVP & Seating Plan" : "Guest Attendance Tracker"}
@@ -1648,7 +1731,7 @@ export default function WeddingTracker() {
                   <span className="num">{guests.length > 0 ? Math.round((arrived / guests.length) * 100) : 0}%</span>
                   <span className="lbl">Attendance</span>
                 </div>
-                {ANGBAO_ENABLED && (
+                {ANGBAO_ENABLED && role !== "helper" && (
                   <div className="stat-pill">
                     <span className="num">🧧 {angbaoCount}</span>
                     <span className="lbl">Angbaos</span>
@@ -1656,17 +1739,26 @@ export default function WeddingTracker() {
                 )}
               </>
             )}
-            <button className="gear-btn" onClick={() => setSetupOpen(true)} title="Wedding Setup">
-              <Icon.Settings />
-            </button>
-            <div className="mode-toggle">
-              <button className={`mode-btn ${mode === "planning" ? "active" : ""}`} onClick={() => switchMode("planning")}>
-                📋 Planning
+            {role !== "helper" && (
+              <button className="gear-btn" onClick={() => setSetupOpen(true)} title="Wedding Setup" aria-label="Wedding Setup">
+                <Icon.Settings />
               </button>
-              <button className={`mode-btn ${mode === "dday" ? "active" : ""}`} onClick={() => switchMode("dday")}>
-                💒 D-Day
+            )}
+            {role !== "helper" && (
+              <div className="mode-toggle">
+                <button className={`mode-btn ${mode === "planning" ? "active" : ""}`} onClick={() => switchMode("planning")}>
+                  📋 Planning
+                </button>
+                <button className={`mode-btn ${mode === "dday" ? "active" : ""}`} onClick={() => switchMode("dday")}>
+                  💒 D-Day
+                </button>
+              </div>
+            )}
+            {!isDemoMode && (
+              <button className="gear-btn" onClick={signOut} title="Sign out" aria-label="Sign out">
+                <Icon.LogOut />
               </button>
-            </div>
+            )}
           </div>
         </header>
 
@@ -1700,7 +1792,7 @@ export default function WeddingTracker() {
                   <Icon.Gift /> Angbao Tracker
                 </button>
               )}
-              {ANGBAO_ENABLED && !isDemoMode && (
+              {ANGBAO_ENABLED && !isDemoMode && role !== "helper" && (
                 <button className={`view-tab ${view === "submissions" ? "active" : ""}`} onClick={() => setView("submissions")}>
                   <Icon.Upload /> Submissions
                   {pendingSubs > 0 && <span className="sub-pill">{pendingSubs}</span>}
@@ -1719,22 +1811,37 @@ export default function WeddingTracker() {
                 <input className="search-input" placeholder="Search name, table, or #draw-number…" value={search} onChange={(e) => setSearch(e.target.value)} />
               </div>
               <div className="filter-tabs">
-                {[["all","All"],["arrived","Arrived"],["pending","Pending"],...(ANGBAO_ENABLED ? [["angbao","🧧 Gave"]] : [])].map(([k,l]) => (
-                  <button key={k} className={`filter-tab ${filter === k ? "active" : ""}`} onClick={() => setFilter(k)}>{l}</button>
+                {[
+                  ["all", "All", guests.length],
+                  ["arrived", "Arrived", arrived],
+                  ["pending", "Pending", guests.length - arrived],
+                  ...(ANGBAO_ENABLED ? [["angbao", "🧧 Gave", angbaoCount]] : []),
+                ].map(([k, l, count]) => (
+                  <button key={k} className={`filter-tab ${filter === k ? "active" : ""}`} onClick={() => setFilter(k)}>
+                    {l} <span className="filter-tab-count">({count})</span>
+                  </button>
                 ))}
               </div>
             </>
           )}
-          <button className="btn btn-outline" onClick={() => { setModal("upload"); }}>
-            <Icon.Upload /> Import CSV
-          </button>
-          <button className="btn btn-gold" onClick={() => { setEditGuest(null); setForm({ name: "", table_number: "", notes: "", party: "", is_vip: false }); setModal("add"); }}>
-            <Icon.Plus /> Add Guest
-          </button>
+          {((mode === "planning" && view === "rsvp") || (mode === "dday" && view === "guests")) && role !== "helper" && (
+            <>
+              <button className="btn btn-outline" onClick={() => { setModal("upload"); }}>
+                <Icon.Upload /> Import CSV
+              </button>
+              <button className="btn btn-gold" onClick={() => { setEditGuest(null); setForm({ name: "", table_number: "", notes: "", party: "", is_vip: false }); setModal("add"); }}>
+                <Icon.Plus /> Add Guest
+              </button>
+            </>
+          )}
           {mode === "dday" && (
             <>
-              <button className="btn btn-outline btn-sm" onClick={exportCSV} title="Export CSV"><Icon.Download /></button>
-              <button className="btn btn-outline btn-sm" onClick={backupJSON} title="Backup (JSON)">Backup</button>
+              {role !== "helper" && (
+                <>
+                  <button className="btn btn-outline btn-sm" onClick={exportCSV} title="Export CSV"><Icon.Download /></button>
+                  <button className="btn btn-outline btn-sm" onClick={backupJSON} title="Backup (JSON)">Backup</button>
+                </>
+              )}
               <button className="btn btn-outline btn-sm" onClick={loadGuests} title="Refresh"><Icon.Refresh /></button>
             </>
           )}
@@ -1757,6 +1864,12 @@ export default function WeddingTracker() {
 
           {loading ? (
             <div className="empty"><div className="empty-icon">⏳</div><div className="empty-text">Loading guests…</div></div>
+          ) : guestLoadError && guests.length === 0 ? (
+            <div className="empty">
+              <div className="empty-icon">⚠️</div>
+              <div className="empty-text">Could not load guests</div>
+              <div className="empty-sub">Check your connection, then <button className="btn btn-outline btn-sm" style={{ marginLeft: 8 }} onClick={loadGuests}>Retry</button></div>
+            </div>
           ) : view === "guests" ? (
             <div className="guest-grid">
               {filtered.length === 0 ? (
@@ -1778,7 +1891,7 @@ export default function WeddingTracker() {
                     <div className="guest-meta">
                       <span className="table-badge">Table {g.table_number}</span>
                       {g.checked_in && g.checked_in_at && <span className="time-badge">✓ {formatTime(g.checked_in_at)}</span>}
-                      {g.notes && <span>{g.notes}</span>}
+                      {g.notes && role !== "helper" && <span>{g.notes}</span>}
                     </div>
                   </div>
                   {ANGBAO_ENABLED && (
@@ -1801,12 +1914,14 @@ export default function WeddingTracker() {
                       {g.draw_number ? <span className="draw-badge" title="Lucky-draw number">🎟 #{g.draw_number}</span> : null}
                     </div>
                   )}
-                  <div className="guest-actions">
-                    <button className="icon-btn" onClick={() => { setEditGuest(g); setForm({ name: g.name, table_number: g.table_number, notes: g.notes || "", party: g.party || "", is_vip: g.is_vip || false }); setModal("edit"); }}>
-                      <Icon.Edit />
-                    </button>
-                    <button className="icon-btn danger" onClick={() => { setPendingDelete(g); setDeleteConfirmText(""); setModal("delete-confirm"); }}><Icon.Trash /></button>
-                  </div>
+                  {role !== "helper" && (
+                    <div className="guest-actions">
+                      <button className="icon-btn" onClick={() => { setEditGuest(g); setForm({ name: g.name, table_number: g.table_number, notes: g.notes || "", party: g.party || "", is_vip: g.is_vip || false }); setModal("edit"); }}>
+                        <Icon.Edit />
+                      </button>
+                      <button className="icon-btn danger" onClick={() => { setPendingDelete(g); setDeleteConfirmText(""); setModal("delete-confirm"); }}><Icon.Trash /></button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -2002,14 +2117,15 @@ export default function WeddingTracker() {
 
         {/* ADD/EDIT MODAL */}
         {(modal === "add" || modal === "edit") && (
-          <div className="modal-overlay" onClick={() => setModal(null)}>
+          <div className="modal-overlay" onClick={() => { setModal(null); setFormNameError(""); }}>
             <div className="modal" onClick={(e) => e.stopPropagation()}>
               <div className="modal-title">{modal === "edit" ? "Edit Guest" : "Add Guest"}</div>
               <div className="form-grid">
                 <div className="form-row">
                   <div className="form-group" style={{flex:2}}>
                     <label className="form-label">Guest Name *</label>
-                    <input className="form-input" placeholder="Full name" value={form.name} onChange={(e) => setForm({...form, name: e.target.value})} autoFocus />
+                    <input className="form-input" placeholder="Full name" value={form.name} onChange={(e) => { setForm({...form, name: e.target.value}); setFormNameError(""); }} autoFocus />
+                    {formNameError && <div style={{ color: "#c0392b", fontSize: 12, marginTop: 4 }}>{formNameError}</div>}
                   </div>
                   <div className="form-group">
                     <label className="form-label">Table No.</label>
@@ -2034,7 +2150,7 @@ export default function WeddingTracker() {
                 </label>
               </div>
               <div className="modal-actions">
-                <button className="btn btn-outline" onClick={() => setModal(null)}>Cancel</button>
+                <button className="btn btn-outline" onClick={() => { setModal(null); setFormNameError(""); }}>Cancel</button>
                 <button className="btn btn-gold" onClick={saveGuest}>
                   {modal === "edit" ? "Save Changes" : "Add Guest"}
                 </button>

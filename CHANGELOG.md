@@ -5,6 +5,64 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2026-07-08] — feat/role-based-access (#89)
+
+### Added
+
+- **Role-based access — Couple vs Bridal Team** — the login screen now has a two-step flow: users pick a role (Couple or Bridal Team) then enter their password. Each role authenticates against its own Supabase Auth account (`VITE_COUPLE_EMAIL` / `VITE_HELPER_EMAIL`).
+- **New `VITE_COUPLE_EMAIL` env var** — couple's Supabase Auth account is now explicitly configured. `VITE_HELPER_EMAIL` is repurposed to the bridal team account (previously it was the couple's account, confusingly named).
+- **Bridal Team view** — locked to D-Day mode with only guest check-in, angbao recording, lucky draw, and read-only seating chart visible. Hidden: mode toggle, Wedding Setup, Submissions tab, Import/Export/Backup buttons, guest add/edit/delete, guest notes, angbao total stat pill.
+- **Sign-out button** — added to the header (non-demo) so either role can hand a device back to the other without a page reload clearing state.
+- **Session restore** — on page reload, role is re-derived from `session.user.email` via `getRole()`; unrecognised accounts are signed out (fail-closed).
+- **`/api/generate-theme` updated** — auth allowlist now accepts both couple and helper emails (previously only one email was checked).
+- **User guide updated** — new auth accounts table in setup section, updated env var docs, revised security section.
+
+---
+
+## [2026-07-08] — fix/language-switcher-hide-empty-locales (#85)
+
+### Fixed
+
+- **Public wedding page** — language switcher now only shows locales where the couple has actually provided translated content (at least one non-empty translatable field or Q&A answer). Previously all six registered locales were always shown, leaving guests able to switch to a language with entirely empty content. English is always shown; the switcher hides entirely when no other locale has content.
+
+---
+
+## [2026-07-08] — fix/ux-audit-high-priority (#84)
+
+### Fixed
+
+**Admin dashboard**
+- First guest load failure now shows a distinct ⚠️ error state with a Retry button instead of the empty "No guests found" layout (#1)
+- PIN screen locks for 60 seconds after 3 failed attempts and shows a clear rate-limit message (#2)
+- Import CSV and Add Guest buttons are now hidden on tabs where they don't apply (Seating, Wedding Page, Wishes Wrapped) (#3)
+- RSVP inline-edit Save button shows "Saving…" and disables during the async write to prevent double-submit (#4)
+- Delete button has extra left margin separating it from Edit / Link to reduce mis-taps on mobile (#5)
+- Unassigned guest pool in Seating now waits for tables to finish loading before rendering, preventing drag to non-existent targets (#6)
+- Deleting an empty table now shows an undo toast, consistent with guest deletion (#7)
+- Gear icon has `aria-label="Wedding Setup"` for screen readers (#8)
+- D-Day filter tabs show live guest counts next to each label, e.g. Pending (42) (#9)
+- Wedding date field is now marked required (`*`) with a hint; save is blocked when blank to prevent silent breakage of the calendar invite and countdown (#10)
+- Header shows `♡ —` instead of the fallback "Wedding Planner" text while the wedding record is still fetching (#12)
+- Add/edit guest modal shows an inline error on the name field when save is attempted with it empty (#13)
+
+**Guest RSVP page**
+- Email is no longer required when a guest is declining attendance (#14)
+- Generic error no longer leaks raw Supabase `err.message` (table names, Postgres error codes) to guests — all 6 locales updated to a fixed friendly message (#15)
+- Token pre-fill loading replaced with a centred spinner so the card doesn't appear blank on slow connections (#16)
+- "Add to Calendar" `.ics` download link shown on the confirmation screen for attending guests; built client-side with no external dependency (#17)
+- Name-search dropdown is now fully keyboard-navigable (↑ ↓ Enter Escape) with proper ARIA `listbox` / `option` roles (#18)
+- `get_wedding_config` fetch failure now surfaces "Could not load event details — please try refreshing" instead of silently rendering blank couple name / date / venue (#19)
+- "Closer to bride/groom" field is hidden when the guest is declining (#20)
+
+**Public wedding page**
+- Loading state uses a dedicated `.wp-loading` style with a pulsing `✦` and `aria-live="polite"` — visually distinct from the not-found layout (#21)
+- Section fade-in animations now respect `prefers-reduced-motion` (WCAG 2.1 §2.3.3) (#22)
+- Bride & groom name order unified to bride-first across the hero display and bottom CTA (#23)
+- RSVP button shows a hint ("Use the personal link in your invitation for a faster experience") when no token is present in the URL (#24)
+- Venue links now render both a Google Maps and an Apple Maps button instead of a single Google-only link (#25)
+
+---
+
 ## [2026-07-04] — feat/72-draw-number-search (#72)
 
 ### Added

@@ -142,5 +142,5 @@ export default {
   "rsvp.err.emailInvalid": "Sila masukkan alamat e-mel yang sah.",
   "rsvp.err.notSetup": "RSVP belum disediakan — migrasi pangkalan data belum dijalankan. Hubungi pasangan pengantin.",
   "rsvp.err.linkExpired": "Pautan RSVP anda telah tamat tempoh. Sila hubungi pasangan pengantin untuk pautan baharu.",
-  "rsvp.err.generic": "Sesuatu tidak kena: {msg}",
+  "rsvp.err.generic": "Sesuatu tidak kena — sila cuba lagi atau hubungi pasangan pengantin.",
 };
