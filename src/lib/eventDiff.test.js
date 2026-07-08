@@ -77,6 +77,32 @@ describe('diffEvents — update', () => {
   });
 });
 
+describe('diffEvents — content_translations', () => {
+  it('carries translations on create', () => {
+    const { toCreate } = diffEvents([], [{ name: 'Tea', content_translations: { 'zh-TW': { name: '奉茶' } } }]);
+    expect(toCreate[0].content_translations).toEqual({ 'zh-TW': { name: '奉茶' } });
+  });
+
+  it('emits a patch when a translation changes', () => {
+    const original = [saved('a', { name: 'Tea', sort_order: 0 })];
+    const draft = [{ ...saved('a', { name: 'Tea', sort_order: 0 }), content_translations: { 'zh-TW': { name: '奉茶' } } }];
+    const { toUpdate } = diffEvents(original, draft);
+    expect(toUpdate[0].patch.content_translations).toEqual({ 'zh-TW': { name: '奉茶' } });
+  });
+
+  it('does not churn on blank/whitespace-only translations', () => {
+    const original = [saved('a', { name: 'Tea', sort_order: 0, content_translations: {} })];
+    const draft = [{ ...saved('a', { name: 'Tea', sort_order: 0 }), content_translations: { 'zh-TW': { name: '   ', location: '' } } }];
+    expect(diffEvents(original, draft).toUpdate).toEqual([]);
+  });
+
+  it('is order-insensitive across locale/field keys', () => {
+    const original = [saved('a', { name: 'Tea', sort_order: 0, content_translations: { 'zh-TW': { name: '奉茶', location: '家' }, ja: { name: 'お茶' } } })];
+    const draft = [{ ...saved('a', { name: 'Tea', sort_order: 0 }), content_translations: { ja: { name: 'お茶' }, 'zh-TW': { location: '家', name: '奉茶' } } }];
+    expect(diffEvents(original, draft).toUpdate).toEqual([]);
+  });
+});
+
 describe('diffEvents — delete', () => {
   it('deletes originals no longer present in the draft', () => {
     const original = [saved('a', { sort_order: 0 }), saved('b', { sort_order: 1 })];

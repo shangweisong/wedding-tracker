@@ -27,6 +27,25 @@ function hasRealId(ev) {
   return typeof ev?.id === 'string' && ev.id !== '' && !ev.id.startsWith('new_');
 }
 
+// Canonicalize content_translations to a deterministic, trimmed form so an
+// unchanged translation set (or one with only blank fields) doesn't churn.
+// Shape: { "<locale>": { name?, location? } } with empty strings/locales dropped.
+function cleanCT(ct) {
+  if (!ct || typeof ct !== 'object') return {};
+  const out = {};
+  for (const loc of Object.keys(ct).sort()) {
+    const v = ct[loc];
+    if (!v || typeof v !== 'object') continue;
+    const entry = {};
+    for (const f of Object.keys(v).sort()) {
+      const s = String(v[f] ?? '').trim();
+      if (s) entry[f] = s;
+    }
+    if (Object.keys(entry).length) out[loc] = entry;
+  }
+  return out;
+}
+
 // Normalize a row's comparable fields. `time` comes back from Postgres as
 // 'HH:MM:SS' but the form uses 'HH:MM' — compare on 'HH:MM' so they don't churn.
 function shape(ev, sortOrder) {
@@ -39,6 +58,7 @@ function shape(ev, sortOrder) {
     requires_headcount: ev.requires_headcount !== false,
     is_active: ev.is_active !== false,
     sort_order: sortOrder,
+    content_translations: cleanCT(ev.content_translations),
   };
 }
 
@@ -67,6 +87,9 @@ export function diffEvents(original, draft) {
     const patch = {};
     for (const f of FIELDS) {
       if (next[f] !== before[f]) patch[f] = next[f];
+    }
+    if (JSON.stringify(next.content_translations) !== JSON.stringify(before.content_translations)) {
+      patch.content_translations = next.content_translations;
     }
     if (Object.keys(patch).length > 0) toUpdate.push({ id: ev.id, patch });
   });

@@ -1,6 +1,10 @@
 import { useState, useEffect } from "react";
 import { cleanName, cleanVenueName, cleanVenueAddress } from "../lib/validation.js";
 import { blankEvent } from "../lib/eventDiff.js";
+import { LOCALES } from "../i18n/index.jsx";
+
+// Locales guests can switch to on the public page (English is the source).
+const TRANSLATABLE_LOCALES = Object.keys(LOCALES).filter((code) => code !== "en");
 
 const styles = `
   .setup-tab { display: flex; flex-direction: column; gap: 20px; }
@@ -55,6 +59,8 @@ const styles = `
   }
   .smart-event-remove:hover { opacity: 0.85; color: var(--red); }
   .smart-checks { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 16px; padding-top: 2px; }
+  .smart-tr { grid-column: 1 / -1; border-top: 1px dashed rgba(201,168,76,0.3); padding-top: 10px; }
+  .smart-tr-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--gold-dark); font-weight: 600; margin-bottom: 6px; }
   .smart-check { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--brown); cursor: pointer; }
   .smart-check input { width: 15px; height: 15px; accent-color: var(--gold); cursor: pointer; }
   .smart-add {
@@ -120,12 +126,14 @@ function toDraft(e) {
     requires_meal: !!e.requires_meal,
     requires_headcount: e.requires_headcount !== false,
     is_active: e.is_active !== false,
+    content_translations: e.content_translations && typeof e.content_translations === "object" ? e.content_translations : {},
   };
 }
 
 export default function WeddingSetupTab({ wedding, events = [], onSave, onSaveEvents, showToast }) {
   const [form, setForm] = useState(blankForm);
   const [draftEvents, setDraftEvents] = useState([]);
+  const [transLocale, setTransLocale] = useState(""); // "" = editing English only
 
   useEffect(() => {
     if (wedding) {
@@ -166,6 +174,15 @@ export default function WeddingSetupTab({ wedding, events = [], onSave, onSaveEv
     const value = e.target.type === "checkbox" ? e.target.checked : e.target.value;
     setDraftEvents((prev) => prev.map((ev, j) => (j === i ? { ...ev, [key]: value } : ev)));
   };
+
+  // Update one translated field (name/location) of an event for the active locale.
+  const setEventTr = (i, field, value) =>
+    setDraftEvents((prev) => prev.map((ev, j) => {
+      if (j !== i) return ev;
+      const ct = { ...(ev.content_translations || {}) };
+      ct[transLocale] = { ...(ct[transLocale] || {}), [field]: value };
+      return { ...ev, content_translations: ct };
+    }));
 
   const addEvent = () =>
     setDraftEvents((prev) => [...prev, { ...blankEvent(), _key: `new_${Math.random().toString(36).slice(2)}` }]);
@@ -308,6 +325,18 @@ export default function WeddingSetupTab({ wedding, events = [], onSave, onSaveEv
                 <div className="smart-warn">Save your wedding details first, then add events below.</div>
               )}
 
+              {draftEvents.length > 0 && (
+                <div className="setup-form-group" style={{ maxWidth: 260 }}>
+                  <label className="setup-form-label">Translate event names to</label>
+                  <select className="setup-form-select" value={transLocale} onChange={(e) => setTransLocale(e.target.value)}>
+                    <option value="">English only</option>
+                    {TRANSLATABLE_LOCALES.map((code) => (
+                      <option key={code} value={code}>{LOCALES[code].label}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div className="smart-events">
                 {draftEvents.length === 0 && (
                   <div className="smart-empty">No events yet — add the events guests can RSVP to.</div>
@@ -347,6 +376,25 @@ export default function WeddingSetupTab({ wedding, events = [], onSave, onSaveEv
                         Active
                       </label>
                     </div>
+
+                    {transLocale && (
+                      <div className="smart-tr full">
+                        <div className="smart-tr-label">{LOCALES[transLocale].label} translation</div>
+                        <input
+                          className="setup-form-input"
+                          value={ev.content_translations?.[transLocale]?.name || ""}
+                          onChange={(e) => setEventTr(i, "name", e.target.value)}
+                          placeholder={ev.name ? `${ev.name} →` : "Event name translation"}
+                        />
+                        <input
+                          className="setup-form-input"
+                          style={{ marginTop: 8 }}
+                          value={ev.content_translations?.[transLocale]?.location || ""}
+                          onChange={(e) => setEventTr(i, "location", e.target.value)}
+                          placeholder={ev.location ? `${ev.location} →` : "Location translation (optional)"}
+                        />
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
