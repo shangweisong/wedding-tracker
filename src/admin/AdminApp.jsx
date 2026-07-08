@@ -903,20 +903,37 @@ export default function WeddingTracker() {
     const { error } = await supabase.auth.signInWithPassword({ email, password: accessCode });
     setUnlocking(false);
     if (error) {
-      const newCount = pinFailCount + 1;
-      setPinFailCount(newCount);
+      // Only genuine wrong-code rejections should burn toward the lockout.
+      // Transient failures (network blips, outages) must not lock out a helper
+      // who typed the correct code; server rate-limits pause without counting.
+      const msg = error.message?.toLowerCase() || "";
       const isRateLimited =
-        error.message?.toLowerCase().includes("too many") ||
-        error.message?.toLowerCase().includes("rate") ||
-        newCount >= 3;
+        error.status === 429 || msg.includes("too many") || msg.includes("rate");
+      const isInvalidCredential =
+        error.code === "invalid_credentials" ||
+        msg.includes("invalid login credentials") ||
+        msg.includes("invalid credentials");
       if (isRateLimited) {
+        // Throttled by the server — cool down but don't count it as a bad code.
         setPinError("Too many attempts — wait 60 seconds before trying again");
         setPinLocked(true);
         setTimeout(() => { setPinLocked(false); setPinFailCount(0); setPinError(""); }, 60_000);
+        setAccessCode("");
+      } else if (isInvalidCredential) {
+        const newCount = pinFailCount + 1;
+        setPinFailCount(newCount);
+        if (newCount >= 3) {
+          setPinError("Too many attempts — wait 60 seconds before trying again");
+          setPinLocked(true);
+          setTimeout(() => { setPinLocked(false); setPinFailCount(0); setPinError(""); }, 60_000);
+        } else {
+          setPinError("Incorrect access code, try again");
+        }
+        setAccessCode("");
       } else {
-        setPinError("Incorrect access code, try again");
+        // Transient/network error — let them retry without penalty or retyping.
+        setPinError("Something went wrong — please try again");
       }
-      setAccessCode("");
     } else {
       setRole(selectedRole);
       if (selectedRole === "helper") setMode("dday");
@@ -1332,11 +1349,17 @@ export default function WeddingTracker() {
   };
 
   // Generic optimistic update used by RsvpTab and SeatingTab for RSVP/seating edits.
+  // Returns true on success, false if the write failed (mirrors persist()), so
+  // callers like RsvpTab.saveEdit can avoid a false "saved" confirmation.
   const updateGuest = async (id, patch) => {
     setGuests((g) => g.map((x) => (x.id === id ? { ...x, ...patch } : x)));
-    if (!isDemoMode) {
-      try { await sb.update("guests", id, patch); }
-      catch { showToast("Not saved — check connection"); }
+    if (isDemoMode) return true;
+    try {
+      await sb.update("guests", id, patch);
+      return true;
+    } catch {
+      showToast("Not saved — check connection");
+      return false;
     }
   };
 
@@ -1864,7 +1887,9 @@ export default function WeddingTracker() {
 
           {loading ? (
             <div className="empty"><div className="empty-icon">⏳</div><div className="empty-text">Loading guests…</div></div>
-          ) : guestLoadError && guests.length === 0 ? (
+          ) : guestLoadError && guests.length === 0 && view !== "wedding-page" && view !== "wishes-wrapped" ? (
+            // Only block guest-dependent views. Wedding Page (renders from `wedding`)
+            // and Wishes Wrapped (degrades to its own empty state) don't need the list.
             <div className="empty">
               <div className="empty-icon">⚠️</div>
               <div className="empty-text">Could not load guests</div>
