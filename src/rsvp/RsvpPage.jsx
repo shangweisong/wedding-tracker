@@ -8,6 +8,7 @@ import { localizeWedding } from "../i18n/content.js";
 import { localizeEvents } from "../lib/eventLocalize.js";
 import { buildEventResponses, hydrateEventState, primaryAnsweredAllEvents } from "../lib/rsvpFormPayload.js";
 import { sanitizeThemeTokens, isCompleteThemeTokens, themeTokenStyle } from "../lib/themeTokens.js";
+import { buildIcsDataUrl } from "./buildIcs.js";
 import LanguageSwitcher from "../i18n/LanguageSwitcher.jsx";
 
 const MEAL_OPTIONS = [
@@ -265,30 +266,6 @@ const styles = theme + `
   [data-theme="chinese"] .rsvp-submit:hover { background: #4a0000; }
 `;
 
-function buildIcsDataUrl(wedding) {
-  if (!wedding?.wedding_date) return null;
-  const [y, m, d] = wedding.wedding_date.split("-").map(Number);
-  const pad = (n) => String(n).padStart(2, "0");
-  const dateStr = `${y}${pad(m)}${pad(d)}`;
-  const summary = wedding.bride_name && wedding.groom_name
-    ? `${wedding.bride_name} & ${wedding.groom_name}'s Wedding`
-    : "Wedding";
-  const location = [wedding.venue_name, wedding.venue_address].filter(Boolean).join(", ");
-  const ics = [
-    "BEGIN:VCALENDAR",
-    "VERSION:2.0",
-    "PRODID:-//WeddingTracker//EN",
-    "BEGIN:VEVENT",
-    `DTSTART;VALUE=DATE:${dateStr}`,
-    `DTEND;VALUE=DATE:${dateStr}`,
-    `SUMMARY:${summary}`,
-    location ? `LOCATION:${location}` : "",
-    "END:VEVENT",
-    "END:VCALENDAR",
-  ].filter(Boolean).join("\r\n");
-  return "data:text/calendar;charset=utf-8," + encodeURIComponent(ics);
-}
-
 function ConfirmationView({ name, attending, wedding }) {
   const { t, locale } = useLocale();
   const dtLocale = locale === "zh-TW" ? "zh-TW" : "en-GB";
@@ -298,7 +275,7 @@ function ConfirmationView({ name, attending, wedding }) {
     : t("rsvp.confirm.coupleFallback");
   const date = wedding?.wedding_date ? formatDate(wedding.wedding_date, dtLocale) : null;
   const venue = wedding?.venue_name || null;
-  const icsUrl = attending ? buildIcsDataUrl(wedding) : null;
+  const icsUrl = attending ? buildIcsDataUrl(wedding, t("rsvp.confirm.eventTitleFallback")) : null;
   return (
     <div className="rsvp-confirm">
       <div className="rsvp-confirm-heart">{attending ? "♡" : "💌"}</div>

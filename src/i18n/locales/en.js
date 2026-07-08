@@ -134,6 +134,7 @@ export default {
 
   // Confirmation view
   "rsvp.confirm.coupleFallback": "the couple",
+  "rsvp.confirm.eventTitleFallback": "Wedding",
   "rsvp.confirm.seeYou": "See you there!",
   "rsvp.confirm.miss": "We'll miss you!",
   "rsvp.confirm.yesMsg": "Your RSVP is confirmed. {couple} can't wait to celebrate with you.",

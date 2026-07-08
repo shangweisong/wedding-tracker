@@ -130,6 +130,7 @@ export default {
   "rsvp.friend.secret": "😏 这是秘密",
 
   "rsvp.confirm.coupleFallback": "新人",
+  "rsvp.confirm.eventTitleFallback": "婚礼",
   "rsvp.confirm.seeYou": "到时见！",
   "rsvp.confirm.miss": "我们会想念您！",
   "rsvp.confirm.yesMsg": "您的回复已确认。{couple} 迫不及待想与您一同庆祝。",
