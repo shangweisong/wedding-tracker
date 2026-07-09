@@ -54,11 +54,40 @@ This project is configured so that:
 
 ## Residual risks (by design)
 
-- **Shared credential.** Every helper uses the same login, so anyone who learns
-  the access code has full read/write/delete access to the guest list. This
-  matches the operational model (a small group of trusted helpers on the day).
+- **Shared credential.** Every helper uses the same bridal-team login, so anyone
+  who learns the bridal-team access code can use the D-Day features. This matches
+  the operational model (a small group of trusted helpers on the day).
   `created_at` / `updated_at` columns provide a basic audit trail. For stronger
   isolation, switch to per-helper accounts.
+- **Couple vs helper is enforced in the database for writes (#92).** The helper
+  and couple are two distinct Supabase Auth users. RLS keys off the signed-in
+  email via `public.is_helper()` (migration `0010_role_enforcement.sql`): the
+  helper account has **no insert/update/delete** on `guests`, `tables`,
+  `wedding_events`, or `guest_event_rsvps`, and **no access to the financial
+  `submissions` table**. Its one permitted guest write — check-in — goes through
+  the `set_guest_checkin` security-definer RPC, which can only touch the
+  `checked_in` / `checked_in_at` columns. So a helper who bypasses the UI gates is
+  refused by Postgres, not just by the browser.
+  - **Configuration.** Enforcement keys on the helper email stored in the
+    locked-down `public.app_config` table (RLS-on, no policy → only the SQL editor
+    / `service_role` can write it — a helper cannot re-designate themselves). The
+    migration seeds the `couple@wedding.local` / `helper@wedding.local` defaults;
+    a deployment with its own addresses overrides them, keeping them in sync with
+    `VITE_COUPLE_EMAIL` / `VITE_HELPER_EMAIL`:
+
+    ```sql
+    update public.app_config set value = lower('team@example.com')  where key = 'helper_email';
+    update public.app_config set value = lower('bride@example.com') where key = 'couple_email';
+    ```
+
+    **Fail-open:** if `helper_email` is unset, `is_helper()` returns false for
+    everyone and all authenticated users keep full access — the couple is never
+    locked out, and `is_helper()` also fails open on any internal error.
+  - **Residual (read side).** RLS filters rows, not columns, so the helper can
+    still *read* couple-only guest columns (private `notes`, `angbao_amount`)
+    directly via the SDK — only the UI hides them. Routing those reads through a
+    projection view/RPC is tracked as a follow-up; #92 closes the write bypass and
+    the financial-table read.
 - **Google Fonts** is loaded from an external origin (allow-listed in the CSP).
   Self-hosting the fonts would remove this dependency.
 - **`VITE_ENABLE_ANGBAO=false` is a UI toggle, not a security control.** Disabling

@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { checkinArgs } from "./checkin.js";
 
 // ─── SUPABASE CONFIG ──────────────────────────────────────────────────────────
 // Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file
@@ -69,6 +70,15 @@ export const sb = {
   // assign_draw_number migration — distinct, assign-once, collision-free.
   async assignDraw(guestId) {
     const { data, error } = await supabase.rpc("assign_draw_number", { p_guest_id: guestId });
+    if (error) throw error;
+    return data;
+  },
+  // D-Day check-in. Routes through the `set_guest_checkin` security-definer RPC so
+  // the bridal-team (helper) account — which since #92 has no direct UPDATE on
+  // guests — can still check guests in. The RPC touches only the check-in columns
+  // and returns the server `checked_in_at` for optimistic reconciliation.
+  async setCheckin(guestId, checkedIn) {
+    const { data, error } = await supabase.rpc("set_guest_checkin", checkinArgs(guestId, checkedIn));
     if (error) throw error;
     return data;
   },
