@@ -1,14 +1,9 @@
-/* eslint-disable react-refresh/only-export-components */
-import { StrictMode, lazy, Suspense } from 'react'
+import { StrictMode, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import './index.css'
 import { LocaleProvider } from './i18n/index.jsx'
-
-const AdminApp = lazy(() => import('./admin/AdminApp.jsx'))
-const RsvpPage = lazy(() => import('./rsvp/RsvpPage.jsx'))
-const WeddingPage = lazy(() => import('./wedding/WeddingPage.jsx'))
-const WishesWrappedPage = lazy(() => import('./wishes-wrapped/WishesWrappedPage.jsx'))
+import { AdminApp, RsvpPage, WeddingPage, WishesWrappedPage } from './routes.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
