@@ -1,4 +1,5 @@
--- Manual RLS verification for role enforcement (#92, migration 0010).
+-- Manual RLS verification for role enforcement (#92, migration 0010;
+-- config-RPC guards #101, migration 0012).
 --
 -- There is no automated DB test harness in CI (all Vitest tests are pure unit
 -- tests). Run this by hand after applying migrations, in the Supabase SQL editor
@@ -40,6 +41,24 @@ begin;
   select public.set_guest_checkin(
     (select id from public.guests order by created_at limit 1), true) as checked_in_at;
 
+  -- Config-write RPCs are security definer (bypass RLS) but internally gated
+  -- (#101, 0012) — each must raise `insufficient_privilege` (42501).
+  -- Uncomment ONE at a time: the raised error aborts the transaction, so after
+  -- seeing it, re-run the script for the next assertion.
+  -- select public.upsert_wedding_config('x','y',null,null,null,null,null);         -- expect: error 42501
+  -- select public.upsert_wedding_page('slug-x',null,null,null,null,null,false,null); -- expect: error 42501
+
+  reset role;
+
+  -- ── As ANON (public key only, not signed in) ────────────────────────────────
+  set local role anon;
+  set local request.jwt.claims = '{"role":"anon"}';
+
+  -- Budget RPCs must not be executable by anon (0012 revoked the implicit
+  -- PUBLIC grant left by 0011). Uncomment ONE at a time (each aborts the txn):
+  -- select public.get_budget_config();                             -- expect: permission denied for function
+  -- select public.upsert_budget_config(1, '[]'::jsonb);            -- expect: permission denied for function
+
   reset role;
 
   -- ── As the COUPLE ───────────────────────────────────────────────────────────
@@ -49,6 +68,9 @@ begin;
   select public.is_helper() as expect_false;                       -- expect: f
   update public.guests set notes = notes where true;               -- expect: succeeds
   select count(*) as submissions_visible_to_couple from public.submissions;  -- expect: real count
+
+  -- Couple passes the 0012 gates (rolled back with everything else):
+  select public.upsert_wedding_config('Test Bride','Test Groom',null,null,null,null,null);  -- expect: succeeds
 
   reset role;
 
