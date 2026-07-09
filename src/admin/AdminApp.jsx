@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { buildPayNowPayload, normalizeMobile } from "../paynow";
 import { sb, isDemoMode, supabase, COUPLE_EMAIL, HELPER_EMAIL, getRole } from "../lib/supabase.js";
+import { applyCheckin } from "../lib/checkin.js";
 import { cleanName, cleanNotes, cleanTable, cleanParty, cleanAmount, MAX_ANGBAO } from "../lib/validation.js";
 import { parseCSV, toCSV, guestImportTemplateCSV } from "../lib/csv.js";
 import { formatTime } from "../lib/format.js";
@@ -1292,19 +1293,35 @@ export default function WeddingTracker() {
     }
   };
 
+  // Apply a check-in optimistically, then persist via the set_guest_checkin RPC.
+  // The RPC (not a direct guests UPDATE) is what lets the helper account check
+  // guests in after #92 removed its direct write on guests. On success we
+  // reconcile checked_in_at with the exact server timestamp. Returns true on
+  // success. Mirrors `persist`'s pendingIds/optimistic pattern.
+  const persistCheckin = async (guest, checkedIn) => {
+    const updated = applyCheckin(guest, checkedIn, new Date().toISOString());
+    setGuests((g) => g.map((x) => (x.id === guest.id ? updated : x)));
+    if (isDemoMode) return true;
+    pendingIds.current.add(guest.id);
+    try {
+      const at = await sb.setCheckin(guest.id, checkedIn);
+      setGuests((g) => g.map((x) => (x.id === guest.id ? { ...x, checked_in_at: at ?? null } : x)));
+      return true;
+    } catch {
+      syncFail();
+      return false;
+    } finally {
+      pendingIds.current.delete(guest.id);
+    }
+  };
+
   // Toggle check-in (undoable)
   const toggleCheckIn = async (guest) => {
-    const now = new Date().toISOString();
-    const updated = {
-      ...guest,
-      checked_in: !guest.checked_in,
-      checked_in_at: !guest.checked_in ? now : null,
-    };
-    const ok = await persist(guest.id, { checked_in: updated.checked_in, checked_in_at: updated.checked_in_at }, updated);
+    const ok = await persistCheckin(guest, !guest.checked_in);
     if (ok) {
       showToast(
-        updated.checked_in ? `✓ ${guest.name} checked in` : `${guest.name} unchecked`,
-        () => { setToast(null); persist(guest.id, { checked_in: guest.checked_in, checked_in_at: guest.checked_in_at }, guest); }
+        !guest.checked_in ? `✓ ${guest.name} checked in` : `${guest.name} unchecked`,
+        () => { setToast(null); persistCheckin(guest, guest.checked_in); }
       );
     }
   };
