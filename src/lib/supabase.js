@@ -98,4 +98,36 @@ export const sb = {
     if (error) throw error;
     return data.signedUrl;
   },
+
+  // ── Vendor CRUD ──────────────────────────────────────────────────────────────
+
+  async listVendors() {
+    const { data, error } = await supabase
+      .from("vendors")
+      .select("*")
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+    return data;
+  },
+
+  async insertVendor(data) {
+    const { data: rows, error } = await supabase.from("vendors").insert(data).select();
+    if (error) throw error;
+    return rows?.[0] ?? null;
+  },
+
+  async updateVendor(id, data) {
+    const { data: rows, error } = await supabase
+      .from("vendors")
+      .update(data)
+      .eq("id", id)
+      .select();
+    if (error) throw error;
+    return rows?.[0] ?? null;
+  },
+
+  async deleteVendor(id) {
+    const { error } = await supabase.from("vendors").delete().eq("id", id);
+    if (error) throw error;
+  },
 };

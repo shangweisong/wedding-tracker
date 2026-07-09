@@ -463,7 +463,7 @@ export default function SeatingTab({ guests, onUpdate, onResetSeating, showToast
       );
       return;
     }
-    await Promise.all(
+    const results = await Promise.all(
       assignments.map((a) => {
         const t = tables.find((x) => x.id === a.tableId);
         return onUpdate(a.guestId, {
@@ -472,6 +472,7 @@ export default function SeatingTab({ guests, onUpdate, onResetSeating, showToast
         });
       })
     );
+    if (results.some((ok) => ok === false)) return;
     showToast(
       unplacedGuestIds.length
         ? `Seated ${assignments.length} guests — ${unplacedGuestIds.length} left unassigned (no capacity left)`
