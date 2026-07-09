@@ -10,7 +10,7 @@
 import { generateThemeTokens } from "./_lib/themeProvider.js";
 import { supabaseAdmin } from "./_lib/supabaseAdmin.js";
 
-const MAX_BASE64_CHARS = 7_000_000; // ~5 MB image; Vercel body limit is ~4.5 MB.
+const MAX_BASE64_CHARS = 3_300_000; // ~3.3 MB base64 ≈ 4.4 MB body, just under Vercel's 4.5 MB limit.
 const ALLOWED_MIME = /^image\/(jpeg|png|gif|webp)$/;
 
 // Best-effort in-memory rate limit (per warm instance). Not a durable quota — a

@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { sb, isDemoMode } from "../lib/supabase.js";
 import { theme } from "../shared/theme.js";
 import { cleanName, cleanNotes, cleanParty, cleanRelationshipGroup, cleanFriendSubgroup, cleanEmail, cleanSpeech } from "../lib/validation.js";
-import { useLocale } from "../i18n/index.jsx";
-import { localizeWedding } from "../i18n/content.js";
+import { LOCALES, useLocale } from "../i18n/index.jsx";
+import { localizeWedding, TRANSLATABLE_FIELDS } from "../i18n/content.js";
 import { localizeEvents } from "../lib/eventLocalize.js";
 import { buildEventResponses, hydrateEventState, primaryAnsweredAllEvents } from "../lib/rsvpFormPayload.js";
 import { sanitizeThemeTokens, isCompleteThemeTokens, themeTokenStyle } from "../lib/themeTokens.js";
@@ -332,6 +332,20 @@ export default function RsvpPage() {
   // Couple content in the active language (per-field fallback to English) — #53 Phase 2.
   const w = localizeWedding(wedding, locale);
 
+  const availableLocales = useMemo(() => {
+    if (!wedding?.content_translations) return ["en"];
+    const populated = ["en"];
+    for (const code of Object.keys(LOCALES)) {
+      if (code === "en") continue;
+      const tr = wedding.content_translations[code];
+      if (!tr || typeof tr !== "object") continue;
+      const hasField = TRANSLATABLE_FIELDS.some((f) => typeof tr[f] === "string" && tr[f].trim() !== "");
+      const hasQA = Array.isArray(tr.fun_qa) && tr.fun_qa.some((item) => typeof item?.answer === "string" && item.answer.trim() !== "");
+      if (hasField || hasQA) populated.push(code);
+    }
+    return populated;
+  }, [wedding]);
+
   // Custom (AI-generated) theme (#60): apply the palette on the RSVP form too, so
   // it matches the wedding page. Incomplete/invalid → fall back to the minimal preset.
   const rsvpTheme = wedding?.theme || "minimal";
@@ -562,7 +576,7 @@ export default function RsvpPage() {
     <>
       <style>{styles}</style>
       <div className="rsvp-wrap" data-theme={effectiveTheme} style={{ position: "relative", ...(customThemeStyle || {}) }}>
-        <LanguageSwitcher style={{ position: "absolute", top: 16, right: 16, zIndex: 20 }} />
+        <LanguageSwitcher availableLocales={availableLocales} style={{ position: "absolute", top: 16, right: 16, zIndex: 20 }} />
         <div className="rsvp-card">
           <div className="rsvp-logo">
             <span className="rsvp-logo-heart">♡</span>

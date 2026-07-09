@@ -898,7 +898,7 @@ export default function WeddingTracker() {
   const unlock = async (e) => {
     e?.preventDefault?.();
     if (isDemoMode) { setUnlocked(true); return; }
-    if (!accessCode || unlocking || !selectedRole) return;
+    if (!accessCode || unlocking || !selectedRole || pinLocked) return;
     setUnlocking(true);
     setPinError("");
     // The access code is verified server-side by Supabase Auth — it is never
@@ -1718,7 +1718,7 @@ export default function WeddingTracker() {
             </div>
           ) : (
             <form className="pin-box" onSubmit={unlock}>
-              <button type="button" className="pin-back" onClick={() => { setSelectedRole(null); setAccessCode(""); setPinError(""); }}>
+              <button type="button" className="pin-back" onClick={() => { setSelectedRole(null); setAccessCode(""); setPinError(""); setPinFailCount(0); setPinLocked(false); }}>
                 ← Back
               </button>
               <div className="pin-label">

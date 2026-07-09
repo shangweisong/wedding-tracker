@@ -96,7 +96,7 @@ export default function CategoryManagerModal({ categories, vendors, onSave, onCl
                     type="number"
                     min="0"
                     placeholder="0 = no cap"
-                    value={cat.cap || ""}
+                    value={cat.cap ?? ""}
                     onChange={(e) => updateCat(idx, "cap", e.target.value)}
                   />
                   <button

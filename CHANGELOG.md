@@ -5,6 +5,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2026-07-09] — fix/issue-103-remaining (#104)
+
+### Fixed
+
+- **#4 — Enter key no longer bypasses brute-force lockout** — `pinLocked` is now checked in the `unlock()` guard; pressing Enter in the password input during a 60-second lockout is silently ignored, matching the disabled-button behaviour.
+- **#10 — PIN fail counter resets on role switch** — clicking Back now resets `pinFailCount` and `pinLocked`, so failed attempts against the Couple screen no longer count toward the Bridal Team lockout.
+- **#8 — Editing a vendor no longer corrupts milestone rows on delete** — `VendorModal` now assigns a stable `_key` (`crypto.randomUUID()`) to every DB-loaded milestone on open, so `MilestoneEditor` never falls back to array-index keys; deleting the middle item no longer mismaps the surviving rows.
+- **#13 — RSVP language switcher respects available translations** — `LanguageSwitcher` on `/rsvp` now receives `availableLocales` (derived from `wedding.content_translations`), matching the fix already applied to the Wedding Page; guests no longer see untranslated language options.
+- **#14 — Zero budget cap no longer displays as blank** — `CategoryManagerModal` uses `cap ?? ""` instead of `cap || ""`, so a cap of `0` renders as `0` rather than an empty field.
+- **#15 — Image size guard in `generate-theme.js` is now reachable** — `MAX_BASE64_CHARS` lowered from 7 000 000 to 3 300 000 (~3.3 MB base64 ≈ 4.4 MB body), just under Vercel's 4.5 MB request limit; the previous value made the guard dead code.
+- **#12 — Default helper email rename documented** — `.env.example` now includes a migration note for deployments that used the old default `helpers@wedding.local` (with an `s`) before it was standardised to `helper@wedding.local`.
+
+---
+
 ## [2026-07-09] — chore: sync fork with upstream
 
 ### Added
