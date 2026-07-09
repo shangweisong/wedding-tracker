@@ -9,9 +9,10 @@
 -- further by setting app_metadata (service-role only, not user-writable).
 
 -- ── Role helper ──────────────────────────────────────────────────────────────
--- Reads app_role from user_metadata. Defaults to 'helper' (least privilege)
--- so an unauthenticated or uninitialized session never gains couple access.
-create or replace function auth.app_role() returns text
+-- public.app_role() reads app_role from JWT user_metadata. Defaults to 'helper'
+-- (least privilege) so an unauthenticated or uninitialized session never gains
+-- couple access. Lives in public (not auth) — Supabase blocks custom auth-schema fns.
+create or replace function public.app_role() returns text
   language sql stable
 as $$
   select coalesce(
@@ -34,7 +35,7 @@ create policy "guests_select"
 create policy "guests_insert"
   on public.guests for insert
   to authenticated
-  with check (auth.app_role() = 'couple');
+  with check (public.app_role() = 'couple');
 
 create policy "guests_update"
   on public.guests for update
@@ -43,7 +44,7 @@ create policy "guests_update"
 create policy "guests_delete"
   on public.guests for delete
   to authenticated
-  using (auth.app_role() = 'couple');
+  using (public.app_role() = 'couple');
 
 -- ── tables (seating) ─────────────────────────────────────────────────────────
 -- Seating configuration is couple-managed; helpers only need to read table
@@ -60,17 +61,17 @@ create policy "tables_select"
 create policy "tables_insert"
   on public.tables for insert
   to authenticated
-  with check (auth.app_role() = 'couple');
+  with check (public.app_role() = 'couple');
 
 create policy "tables_update"
   on public.tables for update
   to authenticated
-  using (auth.app_role() = 'couple') with check (auth.app_role() = 'couple');
+  using (public.app_role() = 'couple') with check (public.app_role() = 'couple');
 
 create policy "tables_delete"
   on public.tables for delete
   to authenticated
-  using (auth.app_role() = 'couple');
+  using (public.app_role() = 'couple');
 
 -- ── submissions ───────────────────────────────────────────────────────────────
 -- Helpers can read and update (approve/match) submissions but cannot delete them.
@@ -87,7 +88,7 @@ create policy "submissions_update"
 create policy "submissions_delete"
   on public.submissions for delete
   to authenticated
-  using (auth.app_role() = 'couple');
+  using (public.app_role() = 'couple');
 
 -- ── weddings (config) ────────────────────────────────────────────────────────
 -- The existing "public" policy allowed anon writes — replace with split policies.
@@ -102,8 +103,8 @@ create policy "weddings_select"
 create policy "weddings_write"
   on public.weddings for all
   to authenticated
-  using (auth.app_role() = 'couple')
-  with check (auth.app_role() = 'couple');
+  using (public.app_role() = 'couple')
+  with check (public.app_role() = 'couple');
 
 -- ── vendors (financial data) ─────────────────────────────────────────────────
 -- Helpers have no access to vendor/budget data — the Budget tab is couple-only.
@@ -115,8 +116,8 @@ drop policy if exists "vendors_delete" on public.vendors;
 create policy "vendors_couple_all"
   on public.vendors for all
   to authenticated
-  using (auth.app_role() = 'couple')
-  with check (auth.app_role() = 'couple');
+  using (public.app_role() = 'couple')
+  with check (public.app_role() = 'couple');
 
 -- ── Harden security-definer write RPCs ───────────────────────────────────────
 -- These functions are SECURITY DEFINER (bypass RLS). Adding an explicit role
@@ -138,7 +139,7 @@ security definer
 set search_path = public
 as $$
 begin
-  if auth.app_role() <> 'couple' then
+  if public.app_role() <> 'couple' then
     raise exception 'permission denied: couple role required'
       using errcode = 'insufficient_privilege';
   end if;
@@ -193,7 +194,7 @@ security definer
 set search_path = public
 as $$
 begin
-  if auth.app_role() <> 'couple' then
+  if public.app_role() <> 'couple' then
     raise exception 'permission denied: couple role required'
       using errcode = 'insufficient_privilege';
   end if;
@@ -250,7 +251,7 @@ security definer
 set search_path = public
 as $$
 begin
-  if auth.app_role() <> 'couple' then
+  if public.app_role() <> 'couple' then
     raise exception 'permission denied: couple role required'
       using errcode = 'insufficient_privilege';
   end if;
