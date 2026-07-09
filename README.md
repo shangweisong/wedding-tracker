@@ -1,5 +1,15 @@
 # 💍 Wedding Planner & Guest Tracker
 
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-3FCF8E?logo=supabase&logoColor=white)
+![Vercel](https://img.shields.io/badge/Vercel-000000?logo=vercel&logoColor=white)
+![Vitest](https://img.shields.io/badge/Tested_with-Vitest-6E9F18?logo=vitest&logoColor=white)
+![ESLint](https://img.shields.io/badge/ESLint-4B3263?logo=eslint&logoColor=white)
+![Last commit](https://img.shields.io/github/last-commit/shangweisong/wedding-tracker)
+![Open issues](https://img.shields.io/github/issues/shangweisong/wedding-tracker)
+![Stars](https://img.shields.io/github/stars/shangweisong/wedding-tracker?style=social)
+
 A two-phase wedding management app — pre-wedding RSVP collection and seating plan, then wedding-day check-in, table management, and red packet (angbao) tracking. Built with React + Vite, powered by Supabase.
 
 ![Demo](docs/demo.gif)
