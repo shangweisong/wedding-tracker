@@ -5,6 +5,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2026-07-10] — feat/wedding-day-runsheet
+
+### Added
+
+- **Wedding day runsheet** — new 📋 Runsheet tab in the admin panel (visible in both Planning and D-Day modes). Spreadsheet-style inline editor with five columns: Time (free text), Event, Duration, Involved, and Comments. Rows can be reordered by drag-and-drop, deleted, and added with a single click. Changes auto-save with an 800 ms debounce.
+- **Shareable read-only runsheet page** (`/runsheet/:slug`) — couple can publish the runsheet via a toggle; a copy-link button generates the URL for coordinators, emcees, and vendors to follow along without logging in.
+- **Helper access** — helpers in D-Day mode see the runsheet read-only so they can coordinate on the day.
+- **Migration `0013_runsheet.sql`** — adds `runsheet` (JSONB) and `is_runsheet_published` (boolean) columns to the `weddings` singleton; recreates `get_wedding_config` to include them; adds `upsert_runsheet` and `get_public_runsheet` RPCs.
+
+### Fixed
+
+- **Runsheet data visible after mode switch without reload** — `saveRunsheet` now updates the in-memory `wedding` state after a successful DB write, so switching from Planning to D-Day mode no longer shows a blank runsheet.
+
+---
+
 ## [2026-07-09] — fix/issue-103-remaining (#104)
 
 ### Fixed

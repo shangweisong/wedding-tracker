@@ -17,6 +17,7 @@ import WeddingSetupTab from "./WeddingSetupTab.jsx";
 import WeddingPageTab from "../wedding/WeddingPageTab.jsx";
 import WishesWrappedTab from "./WishesWrappedTab.jsx";
 import BudgetTab from "./BudgetTab.jsx";
+import RunsheetTab from "./RunsheetTab.jsx";
 
 // ─── PAYNOW CONFIG ────────────────────────────────────────────────────────────
 // The host's PayNow-linked mobile number and display name. These are NOT secret
@@ -1274,6 +1275,24 @@ export default function WeddingTracker() {
     }
   };
 
+  const saveRunsheet = async ({ runsheet, is_runsheet_published }) => {
+    if (isDemoMode) {
+      setWedding((w) => ({ ...(w || {}), runsheet, is_runsheet_published }));
+      return true;
+    }
+    try {
+      await sb.rpc("upsert_runsheet", {
+        p_runsheet: runsheet,
+        p_is_runsheet_published: is_runsheet_published,
+      });
+      setWedding((w) => ({ ...(w || {}), runsheet, is_runsheet_published }));
+      return true;
+    } catch {
+      showToast("Could not save runsheet — check connection");
+      return false;
+    }
+  };
+
   // Auto-open setup modal on first launch (no wedding row yet).
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -1857,6 +1876,9 @@ export default function WeddingTracker() {
                   💰 Budget
                 </button>
               )}
+              <button className={`view-tab ${view === "runsheet" ? "active" : ""}`} onClick={() => setView("runsheet")}>
+                📋 Runsheet
+              </button>
             </>
           ) : (
             <>
@@ -1877,6 +1899,9 @@ export default function WeddingTracker() {
                   {pendingSubs > 0 && <span className="sub-pill">{pendingSubs}</span>}
                 </button>
               )}
+              <button className={`view-tab ${view === "runsheet" ? "active" : ""}`} onClick={() => setView("runsheet")}>
+                📋 Runsheet
+              </button>
             </>
           )}
         </div>
@@ -2123,6 +2148,13 @@ export default function WeddingTracker() {
               onSaveBudget={saveBudgetConfig}
               showToast={showToast}
               isCouple={role === "couple"}
+            />
+          ) : view === "runsheet" ? (
+            <RunsheetTab
+              wedding={wedding}
+              onSave={saveRunsheet}
+              showToast={showToast}
+              isReadOnly={role === "helper"}
             />
           ) : ANGBAO_ENABLED && view === "angbao" ? (
             /* ANGBAO VIEW */

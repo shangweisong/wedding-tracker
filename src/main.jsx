@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import './index.css'
 import { LocaleProvider } from './i18n/index.jsx'
-import { AdminApp, RsvpPage, WeddingPage, WishesWrappedPage } from './routes.jsx'
+import { AdminApp, RsvpPage, WeddingPage, WishesWrappedPage, RunsheetPage } from './routes.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -15,6 +15,7 @@ createRoot(document.getElementById('root')).render(
           <Route path="/rsvp" element={<LocaleProvider><RsvpPage /></LocaleProvider>} />
           <Route path="/wedding/:slug" element={<LocaleProvider><WeddingPage /></LocaleProvider>} />
           <Route path="/wishes-wrapped" element={<WishesWrappedPage />} />
+          <Route path="/runsheet/:slug" element={<RunsheetPage />} />
         </Routes>
       </Suspense>
     </BrowserRouter>
