@@ -106,8 +106,9 @@ export default function WishesWrappedTab({ guests, wedding }) {
             Theme
           </span>
           {[
-            { key: 'elegant', label: '🌙 Elegant', desc: 'Dark gold · timeless' },
-            { key: 'vibrant', label: '🎨 Vibrant', desc: 'Bold gradients · Spotify-style' },
+            { key: 'elegant',  label: '🌙 Elegant',        desc: 'Dark gold · timeless' },
+            { key: 'vibrant',  label: '🎨 Vibrant',        desc: 'Bold gradients · Spotify-style' },
+            { key: 'midnight', label: '🌸 Midnight Bloom', desc: 'Cold navy · blush rose' },
           ].map(({ key, label, desc }) => (
             <button
               key={key}

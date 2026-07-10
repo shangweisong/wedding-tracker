@@ -87,6 +87,52 @@ const wwStyles = theme + `
   .ww-page.vibrant .ww-word         { font-family: 'DM Sans', sans-serif; font-weight: 600; }
   .ww-page.vibrant .ww-thanks-names { font-family: 'DM Sans', sans-serif; font-weight: 700; }
 
+  /* ── Midnight Bloom theme ── */
+  .ww-page.midnight {
+    background: #06080f;
+    --ww-text:   #eef0f4;
+    --ww-accent: #f9a8b8;
+    --ww-muted:  rgba(238,240,244,0.38);
+    --ww-card:   rgba(255,255,255,0.04);
+    --ww-border: rgba(249,168,184,0.14);
+    --ww-quote:  rgba(238,240,244,0.72);
+  }
+  /* Lateral crossfade — feels like a page turn */
+  @keyframes wwFadeInX {
+    from { opacity: 0; transform: translateX(14px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes wwFadeOutX {
+    from { opacity: 1; transform: translateX(0); }
+    to   { opacity: 0; transform: translateX(-10px); }
+  }
+  .ww-page.midnight .ww-slide { animation-name: wwFadeInX; }
+  .ww-page.midnight .ww-slide-wrapper.ww-exiting .ww-slide { animation-name: wwFadeOutX; }
+  /* Thin blush rule above slide labels */
+  .ww-page.midnight .ww-slide-label::before {
+    content: ''; display: block;
+    width: 32px; height: 1px;
+    background: #f9a8b8; opacity: 0.4;
+    margin: 0 auto 12px;
+  }
+  /* Numbers: tabular DM Sans — punchy without serif */
+  .ww-page.midnight .ww-number-value {
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 700; letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+  }
+  /* Title: Cormorant slightly heavier on this cold bg */
+  .ww-page.midnight .ww-slide-title  { font-weight: 400; }
+  /* Award name: DM Sans bold for impact */
+  .ww-page.midnight .ww-award-name   { font-family: 'DM Sans', sans-serif; font-weight: 700; }
+  /* Controls */
+  .ww-page.midnight .ww-controls     { background: rgba(6,8,15,0.9); border-color: rgba(249,168,184,0.18); }
+  .ww-page.midnight .ww-btn          { border-color: rgba(249,168,184,0.2); color: rgba(238,240,244,0.8); }
+  .ww-page.midnight .ww-btn:hover:not(:disabled) { background: rgba(249,168,184,0.1); border-color: #f9a8b8; }
+  .ww-page.midnight .ww-btn.active   { background: rgba(249,168,184,0.15); border-color: #f9a8b8; color: #f9a8b8; }
+  .ww-page.midnight .ww-counter      { color: rgba(238,240,244,0.35); }
+  .ww-page.midnight .ww-sep          { background: rgba(249,168,184,0.14); }
+
   .ww-slide {
     flex: 1;
     display: flex;
@@ -812,14 +858,15 @@ export default function WishesWrappedPage() {
   useEffect(() => { document.title = 'Wedding Wishes Wrapped'; }, []);
 
   useEffect(() => {
+    const bg = pageTheme === 'vibrant' ? '#000000' : pageTheme === 'midnight' ? '#06080f' : '#1a1208';
     const prev = { overflow: document.body.style.overflow, bg: document.body.style.background };
     document.body.style.overflow = 'hidden';
-    document.body.style.background = '#1a1208';
+    document.body.style.background = bg;
     return () => {
       document.body.style.overflow = prev.overflow;
       document.body.style.background = prev.bg;
     };
-  }, []);
+  }, [pageTheme]);
 
   const slides = useMemo(
     () => (data ? buildSlides(data, wedding, pageTheme, enabledSlides) : []),
@@ -895,7 +942,7 @@ export default function WishesWrappedPage() {
     <>
       <style>{wwStyles}</style>
       <div
-        className={`ww-page${pageTheme === 'vibrant' ? ' vibrant' : ''}`}
+        className={`ww-page${pageTheme === 'vibrant' ? ' vibrant' : pageTheme === 'midnight' ? ' midnight' : ''}`}
         onClick={(e) => {
           if (e.target.closest?.('.ww-controls')) return;
           if (e.clientX < window.innerWidth / 2) prev(); else next();

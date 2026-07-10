@@ -5,6 +5,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2026-07-10] — feature/design-taste-rsvp-wedding
+
+### Added
+
+- **Midnight Bloom presentation theme** — third theme option for the Wishes Wrapped slideshow. Deep midnight navy (`#06080f`) base, blush rose accent (`#f9a8b8`), cool off-white text. Numbers use DM Sans tabular figures for a harder-edged feel; slide transitions use a lateral x-shift crossfade (feels like a page turn) instead of the vertical slide-up used by Elegant and Vibrant. A thin blush rule appears above each slide label as a signature accent. Selectable via the Theme picker in the Wishes Wrapped admin tab.
+
+### Changed
+
+- **RunsheetPage (`/runsheet/:slug`) redesigned** — HTML table replaced with a flex timeline layout (time column / dot-and-vline gutter / content body). Phosphor `ClipboardText` icon replaces the clipboard emoji in empty and not-found states. Font updated to DM Sans; viewport uses `100svh`; mobile breakpoint added for screens narrower than 480 px.
+- **WishesWrappedPage visual polish** — all text-character navigation controls (←, →, ▶, ⏸, ⤡, ⤢) replaced with Phosphor icons (`ArrowLeft`, `ArrowRight`, `Play`/`Pause`, `CornersOut`/`CornersIn`); title slide ✨ replaced with `Sparkle` icon. Body overflow/background moved from a `<style>` string into a `useEffect` with cleanup so styles do not bleed to other routes on unmount. Viewport uses `100svh`. `prefers-reduced-motion` guard added for all slide, heart, word-cloud, and progress-bar animations. Decorative `::before` quote mark removed.
+- **Admin mobile responsiveness** — tab bar scrolls horizontally on small screens instead of overflowing the viewport. RSVP guest rows wrap actions to a second line on narrow screens. Budget category rows reflow to a two-column grid on mobile with the progress bar spanning full width. Category section meta text wraps below the title row using CSS `order`. Vendor cards wrap actions below the company name on small screens. Stat pills no longer force equal width (fixes label wrapping on the days-to-go pill).
+
+---
+
 ## [2026-07-10] — feat/wedding-day-runsheet
 
 ### Added
