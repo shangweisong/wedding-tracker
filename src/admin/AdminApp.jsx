@@ -3,6 +3,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { buildPayNowPayload, normalizeMobile } from "../paynow";
 import { sb, isDemoMode, supabase, COUPLE_EMAIL, HELPER_EMAIL, getRole } from "../lib/supabase.js";
 import { applyCheckin } from "../lib/checkin.js";
+import { guestFetchPlan } from "../lib/guestSource.js";
 import { cleanName, cleanNotes, cleanTable, cleanParty, cleanAmount, MAX_ANGBAO } from "../lib/validation.js";
 import { parseCSV, toCSV, guestImportTemplateCSV } from "../lib/csv.js";
 import { formatTime } from "../lib/format.js";
@@ -890,7 +891,9 @@ export default function WeddingTracker() {
       // No JWT app_role claim to sync: public.is_helper() enforces the split at the
       // DB layer from the signed-in email (auth.email()) directly.
       setRole(r);
-      if (r === "helper") setMode("dday");
+      // Helpers land on the D-Day guest list, not the couple's planning view
+      // (the initial `view` state is "rsvp", which has no tab in D-Day mode).
+      if (r === "helper") { setMode("dday"); setView("guests"); }
       setUnlocked(true);
     });
   }, []);
@@ -942,7 +945,8 @@ export default function WeddingTracker() {
       // Role is enforced at the DB layer by public.is_helper(), which reads the
       // signed-in email (auth.email()) directly — no JWT app_role claim to sync.
       setRole(selectedRole);
-      if (selectedRole === "helper") setMode("dday");
+      // Same D-Day landing as the session-restore path above.
+      if (selectedRole === "helper") { setMode("dday"); setView("guests"); }
       setUnlocked(true);
     }
   };
@@ -953,6 +957,7 @@ export default function WeddingTracker() {
     setRole(null);
     setSelectedRole(null);
     setMode("planning");
+    setView("rsvp"); // matches the initial state so the next login starts clean
     setAccessCode("");
     setPinError("");
     setPinFailCount(0);
@@ -983,7 +988,12 @@ export default function WeddingTracker() {
       return;
     }
     try {
-      const data = await sb.select("guests");
+      // Helpers read the get_checkin_guests projection — since #99 they have no
+      // direct select on guests, so couple-only columns (notes, angbao_*,
+      // rsvp_token, contact details) never reach their browser. A not-yet-known
+      // role takes the direct select; RLS is the real gate either way.
+      const plan = guestFetchPlan(role);
+      const data = plan.kind === "rpc" ? await sb.rpc(plan.fn, {}) : await sb.select(plan.table);
       if (Array.isArray(data)) {
         // Merge, don't replace: keep the local copy of any row that has a write
         // in flight or whose amount field is focused, so the poll never wipes
@@ -1002,7 +1012,10 @@ export default function WeddingTracker() {
       showToast("Failed to load guests");
     }
     setLoading(false);
-  }, []);
+    // A role flip re-creates this callback, which re-runs the effect below —
+    // a helper sign-in immediately refetches via the projection and rebinds
+    // the poll to it.
+  }, [role]);
 
   useEffect(() => {
     // Initial fetch on mount, then poll for changes.
@@ -1866,7 +1879,7 @@ export default function WeddingTracker() {
               <button className={`view-tab ${view === "tables" ? "active" : ""}`} onClick={() => setView("tables")}>
                 <Icon.Table /> Tables
               </button>
-              {ANGBAO_ENABLED && (
+              {ANGBAO_ENABLED && role !== "helper" && (
                 <button className={`view-tab ${view === "angbao" ? "active" : ""}`} onClick={() => setView("angbao")}>
                   <Icon.Gift /> Angbao Tracker
                 </button>
@@ -1894,7 +1907,7 @@ export default function WeddingTracker() {
                   ["all", "All", guests.length],
                   ["arrived", "Arrived", arrived],
                   ["pending", "Pending", guests.length - arrived],
-                  ...(ANGBAO_ENABLED ? [["angbao", "🧧 Gave", angbaoCount]] : []),
+                  ...(ANGBAO_ENABLED && role !== "helper" ? [["angbao", "🧧 Gave", angbaoCount]] : []),
                 ].map(([k, l, count]) => (
                   <button key={k} className={`filter-tab ${filter === k ? "active" : ""}`} onClick={() => setFilter(k)}>
                     {l} <span className="filter-tab-count">({count})</span>
@@ -1977,24 +1990,32 @@ export default function WeddingTracker() {
                     </div>
                   </div>
                   {ANGBAO_ENABLED && (
-                    <div className="angbao-area">
-                      <button className={`angbao-toggle ${g.angbao_given ? "given" : "not-given"}`} onClick={() => toggleAngbao(g)}>
-                        🧧 {g.angbao_given ? "Gave" : "Pending"}
-                      </button>
-                      {g.angbao_given && (
-                        <input
-                          className="amount-input"
-                          type="number"
-                          placeholder="$0"
-                          value={g.angbao_amount || ""}
-                          onChange={(e) => updateAmount(g, e.target.value)}
-                          onClick={(e) => e.stopPropagation()}
-                          onFocus={() => (editingId.current = g.id)}
-                          onBlur={() => { if (editingId.current === g.id) editingId.current = null; }}
-                        />
-                      )}
-                      {g.draw_number ? <span className="draw-badge" title="Lucky-draw number">🎟 #{g.draw_number}</span> : null}
-                    </div>
+                  <div className="angbao-area">
+                    {/* Angbao controls are couple-only: since #99 the helper's
+                        guest rows carry no angbao fields at all (and helper
+                        angbao writes have been RLS-denied since #92). The
+                        lucky-draw badge stays for both roles. */}
+                    {role !== "helper" && (
+                      <>
+                        <button className={`angbao-toggle ${g.angbao_given ? "given" : "not-given"}`} onClick={() => toggleAngbao(g)}>
+                          🧧 {g.angbao_given ? "Gave" : "Pending"}
+                        </button>
+                        {g.angbao_given && (
+                          <input
+                            className="amount-input"
+                            type="number"
+                            placeholder="$0"
+                            value={g.angbao_amount || ""}
+                            onChange={(e) => updateAmount(g, e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            onFocus={() => (editingId.current = g.id)}
+                            onBlur={() => { if (editingId.current === g.id) editingId.current = null; }}
+                          />
+                        )}
+                      </>
+                    )}
+                    {g.draw_number ? <span className="draw-badge" title="Lucky-draw number">🎟 #{g.draw_number}</span> : null}
+                  </div>
                   )}
                   {role !== "helper" && (
                     <div className="guest-actions">
@@ -2053,7 +2074,9 @@ export default function WeddingTracker() {
                                   {g.checked_in ? <Icon.Check /> : <Icon.Plus />}
                                 </button>
                               </div>
-                              {ANGBAO_ENABLED && (
+                              {/* Angbao rows are couple-only (#99): helper rows
+                                  carry no angbao fields; the draw row stays. */}
+                              {ANGBAO_ENABLED && role !== "helper" && (
                                 <div className="popup-row">
                                   <span className="popup-label">Angbao</span>
                                   <button
@@ -2064,7 +2087,7 @@ export default function WeddingTracker() {
                                   </button>
                                 </div>
                               )}
-                              {ANGBAO_ENABLED && g.angbao_given && (
+                              {ANGBAO_ENABLED && role !== "helper" && g.angbao_given && (
                                 <div className="popup-row">
                                   <span className="popup-label">Amount ($)</span>
                                   <input
