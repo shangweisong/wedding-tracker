@@ -27,6 +27,12 @@ const styles = `
     font-size: 12px; color: var(--brown); opacity: 0.7; transition: all 0.15s;
   }
   .cat-add-btn:hover { opacity: 1; border-color: var(--gold); background: rgba(201,168,76,0.04); }
+
+  @media (max-width: 640px) {
+    .cat-section-header { flex-wrap: wrap; row-gap: 4px; }
+    .cat-chevron { order: 2; align-self: flex-start; }
+    .cat-section-meta { order: 3; flex: 0 0 100%; font-size: 11px; }
+  }
 `;
 
 export default function CategorySection({

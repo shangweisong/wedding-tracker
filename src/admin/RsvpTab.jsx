@@ -99,6 +99,15 @@ const styles = `
     .rsvp-stats-grid { grid-template-columns: repeat(2, 1fr); }
     .rsvp-meal-col { display: none; }
     .rsvp-edit-panel { grid-template-columns: 1fr; }
+    /* Stack actions below name+badge so the name gets full width */
+    .rsvp-row-main { flex-wrap: wrap; padding: 10px 14px; gap: 8px; }
+    .rsvp-name-col { flex: 1 1 auto; min-width: 0; }
+    .rsvp-row-actions {
+      flex: 0 0 100%;
+      justify-content: flex-end;
+      padding-top: 8px;
+      border-top: 1px solid rgba(201,168,76,0.08);
+    }
   }
 `;
 

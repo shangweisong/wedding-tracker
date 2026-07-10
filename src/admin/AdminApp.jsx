@@ -58,7 +58,7 @@ const DEMO_WEDDING = {
 
 // ─── STYLES ───────────────────────────────────────────────────────────────────
 const styles = theme + `
-  .app { min-height: 100vh; }
+  .app { min-height: 100vh; overflow-x: hidden; }
 
   /* HEADER */
   .header {
@@ -185,7 +185,11 @@ const styles = theme + `
     gap: 0;
     border-bottom: 1px solid rgba(201,168,76,0.2);
     background: var(--warm-white);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
   }
+  .view-tabs::-webkit-scrollbar { display: none; }
   .view-tab {
     padding: 14px 20px; border: none; background: transparent; cursor: pointer;
     font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
@@ -634,12 +638,13 @@ const styles = theme + `
 
   /* RESPONSIVE */
   @media (max-width: 640px) {
-    .header { padding: 16px; flex-wrap: wrap; gap: 12px; }
-    .header-stats { flex-wrap: wrap; gap: 8px; }
+    .header { padding: 12px 16px; flex-wrap: wrap; gap: 10px; }
+    .header-stats { flex-wrap: wrap; gap: 8px; width: 100%; }
     .stat-pill { padding: 6px 10px; }
     .toolbar { padding: 12px 16px; }
     .content { padding: 16px; }
-    .view-tabs { padding: 0 16px; }
+    .view-tabs { padding: 0 12px; }
+    .view-tab { padding: 12px 14px; font-size: 12px; white-space: nowrap; }
     .angbao-header { flex-wrap: wrap; gap: 16px; }
     /* Stack the guest card: check-in + name on top, actions wrap below,
        so controls never overflow a single cramped row on a phone. */
