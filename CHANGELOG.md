@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2026-07-10] — feature/planning-checklist
+
+### Added
+
+- **Planning checklist** — new ✅ Checklist tab in the admin panel (Planning mode, couple-only, matching Budget's access gating). Auto-seeds a curated 19-task default checklist (venue/vendor booking, attire, legal, guests & invitations, day-of prep) on first open. Each task has a text description, category, assignee (Bride / Groom / Both), and a due-date preset expressed as an offset from the wedding date (e.g. "6 months before") rather than a stored absolute date — deadlines recompute automatically if the wedding date changes. Tasks are sorted by computed due date, overdue tasks are flagged, and a progress bar shows completion (`X of Y tasks done`). Changes auto-save with an 800 ms debounce.
+- **Migration `0014_planning_checklist.sql`** — adds `checklist` (JSONB) to the `weddings` singleton; adds couple-only `get_checklist_config` and `upsert_checklist_config` RPCs (same `is_helper()`-gated pattern as the Budget tab's config RPCs — no public page, this is private planning data, not guest-facing).
+
+---
+
 ## [2026-07-10] — feature/design-taste-rsvp-wedding
 
 ### Added

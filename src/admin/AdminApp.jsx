@@ -18,6 +18,7 @@ import WeddingPageTab from "../wedding/WeddingPageTab.jsx";
 import WishesWrappedTab from "./WishesWrappedTab.jsx";
 import BudgetTab from "./BudgetTab.jsx";
 import RunsheetTab from "./RunsheetTab.jsx";
+import ChecklistTab from "./ChecklistTab.jsx";
 
 // ─── PAYNOW CONFIG ────────────────────────────────────────────────────────────
 // The host's PayNow-linked mobile number and display name. These are NOT secret
@@ -1035,7 +1036,13 @@ export default function WeddingTracker() {
         const brows = await sb.rpc("get_budget_config", {});
         budget = Array.isArray(brows) && brows.length ? brows[0] : null;
       } catch { /* RPC absent on un-migrated DBs, or caller is a helper — skip */ }
-      setWedding(base ? { ...base, ...(budget || {}) } : base);
+      // Checklist is served the same couple-only way as budget (0014).
+      let checklist = null;
+      try {
+        const crows = await sb.rpc("get_checklist_config", {});
+        checklist = Array.isArray(crows) && crows.length ? crows[0] : null;
+      } catch { /* RPC absent on un-migrated DBs, or caller is a helper — skip */ }
+      setWedding(base ? { ...base, ...(budget || {}), ...(checklist || {}) } : base);
     } catch {
       showToast("Failed to load wedding details");
     }
@@ -1294,6 +1301,21 @@ export default function WeddingTracker() {
       return true;
     } catch {
       showToast("Could not save runsheet — check connection");
+      return false;
+    }
+  };
+
+  const saveChecklistConfig = async ({ checklist }) => {
+    if (isDemoMode) {
+      setWedding((w) => ({ ...(w || {}), checklist }));
+      return true;
+    }
+    try {
+      await sb.rpc("upsert_checklist_config", { p_checklist: checklist });
+      setWedding((w) => ({ ...(w || {}), checklist }));
+      return true;
+    } catch {
+      showToast("Could not save checklist — check connection");
       return false;
     }
   };
@@ -1881,6 +1903,11 @@ export default function WeddingTracker() {
                   💰 Budget
                 </button>
               )}
+              {role === "couple" && (
+                <button className={`view-tab ${view === "checklist" ? "active" : ""}`} onClick={() => setView("checklist")}>
+                  ✅ Checklist
+                </button>
+              )}
               <button className={`view-tab ${view === "runsheet" ? "active" : ""}`} onClick={() => setView("runsheet")}>
                 📋 Runsheet
               </button>
@@ -2152,6 +2179,12 @@ export default function WeddingTracker() {
               wedding={wedding}
               onSaveBudget={saveBudgetConfig}
               showToast={showToast}
+              isCouple={role === "couple"}
+            />
+          ) : view === "checklist" ? (
+            <ChecklistTab
+              wedding={wedding}
+              onSave={saveChecklistConfig}
               isCouple={role === "couple"}
             />
           ) : view === "runsheet" ? (
