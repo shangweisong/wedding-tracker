@@ -719,7 +719,7 @@ export default function WeddingPage() {
                   )}
                   {ceremony_time && (
                     <div className="wp-tl-item">
-                      <div className="wp-tl-node"><div className="wp-tl-icon"><Ring size={ICON_SIZE} color={ICON_COLOR} /></div><div className="wp-tl-connector" /></div>
+                      <div className="wp-tl-node"><div className="wp-tl-icon"><Diamond size={ICON_SIZE} color={ICON_COLOR} /></div><div className="wp-tl-connector" /></div>
                       <div className="wp-tl-body">
                         <div className="wp-tl-label">{t("wedding.timeline.solemnisation")}</div>
                         <div className="wp-tl-value">{fmt12h(ceremony_time)}</div>
