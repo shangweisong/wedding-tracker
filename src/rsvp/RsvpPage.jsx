@@ -425,7 +425,7 @@ export default function RsvpPage() {
     if (w?.bride_name && w?.groom_name) {
       document.title = t("rsvp.docTitle", { bride: w.bride_name, groom: w.groom_name });
     }
-  }, [wedding, t, locale]);
+  }, [w?.bride_name, w?.groom_name, t]);
 
   // Hydrate the form from the active token — both the "Update RSVP" deep link and
   // a guest picked from the name search. Also loads the guest's invited events and

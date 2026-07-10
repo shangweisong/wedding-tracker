@@ -5,7 +5,6 @@ import { theme } from "../shared/theme.js";
 import { LOCALES, useLocale } from "../i18n/index.jsx";
 import { localizeWedding, TRANSLATABLE_FIELDS } from "../i18n/content.js";
 import { localizeEvents } from "../lib/eventLocalize.js";
-import { eventTimelineIcon } from "../lib/eventTimelineIcon.js";
 import { sanitizeThemeTokens, isCompleteThemeTokens, themeTokenStyle } from "../lib/themeTokens.js";
 import { normalizeSectionPhotos } from "../lib/sectionPhotos.js";
 import { normalizeFocalPoint } from "../lib/heroFocalPoint.js";
@@ -399,15 +398,6 @@ function heroBgColor(t) {
   return "#1a1008";
 }
 
-function daysUntil(dateStr) {
-  if (!dateStr) return null;
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const today = new Date();
-  const todayUtc = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
-  const weddingUtc = Date.UTC(y, m - 1, d);
-  return Math.round((weddingUtc - todayUtc) / 86_400_000);
-}
-
 export default function WeddingPage() {
   const { t, locale } = useLocale();
 
@@ -496,7 +486,7 @@ export default function WeddingPage() {
     if (lw?.bride_name && lw?.groom_name) {
       document.title = t("wedding.docTitle", { bride: lw.bride_name, groom: lw.groom_name });
     }
-  }, [wedding, t, locale]);
+  }, [lw?.bride_name, lw?.groom_name, t]);
 
   useEffect(() => {
     if (!wedding) return;
