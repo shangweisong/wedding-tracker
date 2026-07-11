@@ -1,4 +1,4 @@
--- 0012 — Guard the wedding config/page write RPCs against the helper role (#101).
+-- 0015 — Guard the wedding config/page write RPCs against the helper role (#101).
 --
 -- upsert_wedding_config (0009) and upsert_wedding_page (0008) are `security
 -- definer`, so they run as the owner and BYPASS the row-level policies that

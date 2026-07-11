@@ -41,6 +41,13 @@ const styles = `
   .vendor-meta { font-size: 12px; color: var(--brown); opacity: 0.7; display: flex; flex-wrap: wrap; gap: 10px; }
   .vendor-milestone-line { font-size: 12px; color: var(--brown); }
   .vendor-overdue { color: var(--red); font-weight: 500; }
+
+  @media (max-width: 640px) {
+    .vendor-card { padding: 12px 14px; }
+    .vendor-card-header { flex-wrap: wrap; gap: 6px; }
+    .vendor-card-header-left { flex: 0 0 100%; }
+    .vendor-card-actions { margin-left: auto; }
+  }
 `;
 
 export default function VendorCard({ vendor, onEdit, onDelete }) {

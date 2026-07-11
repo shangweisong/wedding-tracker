@@ -21,7 +21,7 @@ export default function VendorModal({ mode, vendor, categories, onSave, onClose 
   const [form, setForm] = useState(() => ({
     ...BLANK,
     ...(vendor ?? {}),
-    milestones: (vendor?.milestones ?? []).map((m) => ({ ...m })),
+    milestones: (vendor?.milestones ?? []).map((m) => ({ ...m, _key: m._key ?? crypto.randomUUID() })),
   }));
   const [saving, setSaving] = useState(false);
   const [showArrival, setShowArrival] = useState(Boolean(vendor?.arrival_time));

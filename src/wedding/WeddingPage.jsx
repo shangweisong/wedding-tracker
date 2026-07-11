@@ -5,11 +5,11 @@ import { theme } from "../shared/theme.js";
 import { LOCALES, useLocale } from "../i18n/index.jsx";
 import { localizeWedding, TRANSLATABLE_FIELDS } from "../i18n/content.js";
 import { localizeEvents } from "../lib/eventLocalize.js";
-import { eventTimelineIcon } from "../lib/eventTimelineIcon.js";
 import { sanitizeThemeTokens, isCompleteThemeTokens, themeTokenStyle } from "../lib/themeTokens.js";
 import { normalizeSectionPhotos } from "../lib/sectionPhotos.js";
 import { normalizeFocalPoint } from "../lib/heroFocalPoint.js";
 import LanguageSwitcher from "../i18n/LanguageSwitcher.jsx";
+import { Coffee, Diamond, ForkKnife, Wine, Camera, Confetti, CalendarBlank, MapPin, Train, Car, PersonSimpleWalk } from "@phosphor-icons/react";
 
 // Returns the meal type key based on HH:MM time string (24h).
 // Brunch: 09:00–10:59 · Lunch: 11:00–16:59 · Dinner: everything else.
@@ -103,7 +103,7 @@ const styles = theme + `
 
   /* ── HERO ── */
   .wp-hero {
-    min-height: 100vh; display: flex; flex-direction: column;
+    min-height: 100svh; display: flex; flex-direction: column;
     align-items: center; justify-content: center;
     position: relative; overflow: hidden; z-index: 1;
     padding: 60px 24px; background-color: #1a1008;
@@ -130,17 +130,13 @@ const styles = theme + `
   }
   .wp-couple {
     font-family: 'Cormorant Garamond', serif;
-    font-size: clamp(42px, 8vw, 72px); font-weight: 300;
+    font-size: clamp(42px, 8vw, 72px); font-weight: 400;
     color: white; line-height: 1.1; letter-spacing: 0.02em;
     margin-bottom: 8px;
   }
   .wp-couple-amp {
     color: var(--gold-light); font-style: italic;
     display: block; font-size: 0.7em; margin-bottom: 4px;
-  }
-  .wp-hero-divider {
-    width: 48px; height: 1px; background: var(--gold); opacity: 0.6;
-    margin: 24px 0;
   }
   .wp-date {
     font-size: 12px; letter-spacing: 0.3em; text-transform: uppercase;
@@ -149,12 +145,6 @@ const styles = theme + `
   .wp-venue {
     font-size: 14px; color: rgba(255,255,255,0.6);
     margin-bottom: 28px; line-height: 1.5;
-  }
-  .wp-countdown {
-    display: inline-flex; align-items: center; gap: 8px;
-    background: rgba(255,255,255,0.08); border: 1px solid rgba(201,168,76,0.3);
-    border-radius: 20px; padding: 8px 18px; font-size: 13px;
-    color: var(--gold-light); margin-bottom: 36px;
   }
   .wp-rsvp-btn {
     display: inline-block; padding: 16px 48px;
@@ -165,14 +155,6 @@ const styles = theme + `
     transition: background 0.2s, transform 0.15s;
   }
   .wp-rsvp-btn:hover { background: var(--gold-dark); transform: translateY(-1px); }
-  .wp-scroll-hint {
-    position: absolute; bottom: 28px; left: 50%; transform: translateX(-50%);
-    color: rgba(255,255,255,0.3); font-size: 20px; animation: bounce 2s infinite;
-  }
-  @keyframes bounce {
-    0%, 100% { transform: translateX(-50%) translateY(0); }
-    50%       { transform: translateX(-50%) translateY(6px); }
-  }
 
   /* ── CONTENT SECTIONS ── */
   .wp-content { max-width: 720px; margin: 0 auto; padding: 0 24px 80px; position: relative; z-index: 1; }
@@ -201,26 +183,19 @@ const styles = theme + `
   }
 
   /* ── FUN Q&A ── */
-  .wp-qa-grid { display: flex; flex-direction: column; gap: 20px; }
+  .wp-qa-grid { display: flex; flex-direction: column; }
   .wp-qa-item {
-    display: grid; grid-template-columns: 1fr;
-    padding: 24px 28px; border-radius: 12px;
-    background: white; border: 1px solid rgba(201,168,76,0.15);
-    box-shadow: var(--shadow);
+    padding: 28px 0;
+    border-top: 1px solid rgba(201,168,76,0.18);
   }
+  .wp-qa-item:first-child { border-top: none; padding-top: 0; }
   .wp-qa-q {
     font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
-    color: var(--gold-dark); font-weight: 600; margin-bottom: 10px;
+    color: var(--gold-dark); font-weight: 600; margin-bottom: 12px;
   }
   .wp-qa-a {
     font-family: 'Cormorant Garamond', serif; font-size: clamp(18px, 2.2vw, 22px);
     color: var(--charcoal); line-height: 1.5; font-style: italic;
-    position: relative; padding-left: 28px;
-  }
-  .wp-qa-a::before {
-    content: '"'; font-size: 52px; font-style: normal; line-height: 1;
-    position: absolute; top: -6px; left: -4px;
-    color: var(--gold); opacity: 0.28;
   }
 
   /* ── THE BIG DAY — TIMELINE ── */
@@ -231,7 +206,7 @@ const styles = theme + `
     width: 46px; height: 46px; border-radius: 50%;
     background: white; border: 1.5px solid rgba(201,168,76,0.25);
     display: flex; align-items: center; justify-content: center;
-    font-size: 20px; box-shadow: var(--shadow); z-index: 1; flex-shrink: 0;
+    box-shadow: var(--shadow); z-index: 1; flex-shrink: 0;
   }
   .wp-tl-connector { flex: 1; width: 1px; background: rgba(201,168,76,0.22); min-height: 24px; }
   .wp-tl-item:last-child .wp-tl-connector { display: none; }
@@ -246,7 +221,7 @@ const styles = theme + `
   /* ── GETTING THERE ── */
   .wp-getting-there { display: flex; flex-direction: column; gap: 20px; }
   .wp-getting-there-block { display: flex; gap: 14px; align-items: flex-start; }
-  .wp-getting-there-icon { font-size: 22px; flex-shrink: 0; margin-top: 1px; }
+  .wp-getting-there-icon { flex-shrink: 0; margin-top: 2px; display: flex; align-items: flex-start; }
   .wp-dress-badge {
     display: inline-block; margin-top: 20px;
     padding: 6px 16px; border-radius: 20px;
@@ -308,11 +283,6 @@ const styles = theme + `
     .wp-rsvp-btn { padding: 13px 24px; font-size: 13px; }
     .wp-cta-btn { padding: 14px 28px; font-size: 13px; }
     .wp-cta { padding: 40px 20px; }
-  }
-  @media (max-width: 560px) and (orientation: portrait) {
-    .wp-hero {
-      min-height: 100svh;
-    }
   }
 
   /* ── GARDEN THEME ─────────────────────────────────────────────────────────── */
@@ -395,6 +365,27 @@ const GARDEN_LEAVES = [
   { top: "66%",  right: "10px",  rot: -40,  w: 30,  h: 50  },
 ];
 
+const ICON_COLOR = "var(--gold-dark)";
+const ICON_SIZE = 22;
+
+function WeddingTimelineIcon({ name }) {
+  const s = String(name ?? "");
+  if (/\btea\b|茶/i.test(s))                                                                return <Coffee    size={ICON_SIZE} color={ICON_COLOR} />;
+  if (/solemn|\bregist|ceremony|church|vow|nikah|\brom\b|婚礼|证婚/i.test(s))              return <Diamond   size={ICON_SIZE} color={ICON_COLOR} />;
+  if (/cocktail|drinks|aperitif/i.test(s))                                                  return <Wine      size={ICON_SIZE} color={ICON_COLOR} />;
+  if (/banquet|dinner|lunch|brunch|reception|meal|dining|feast|宴/i.test(s))                return <ForkKnife size={ICON_SIZE} color={ICON_COLOR} />;
+  if (/photo|gallery|shoot/i.test(s))                                                       return <Camera    size={ICON_SIZE} color={ICON_COLOR} />;
+  if (/party|celebration|after.?party|dance/i.test(s))                                     return <Confetti  size={ICON_SIZE} color={ICON_COLOR} />;
+  return <CalendarBlank size={ICON_SIZE} color={ICON_COLOR} />;
+}
+
+function GettingThereIcon({ text }) {
+  if (/mrt|bus|train|transit/i.test(text))            return <Train              size={ICON_SIZE} color={ICON_COLOR} />;
+  if (/car|park|drive|taxi|grab/i.test(text))         return <Car                size={ICON_SIZE} color={ICON_COLOR} />;
+  if (/walk|drop.?off|entrance|arrive/i.test(text))   return <PersonSimpleWalk   size={ICON_SIZE} color={ICON_COLOR} />;
+  return <MapPin size={ICON_SIZE} color={ICON_COLOR} />;
+}
+
 function heroGradient(t) {
   if (t === "garden")  return "linear-gradient(160deg, #1b3d13 0%, #0f2208 60%, #2a4a1c 100%)";
   if (t === "chinese") return "linear-gradient(160deg, #7a0a0a 0%, #5c0000 60%, #8b1515 100%)";
@@ -405,15 +396,6 @@ function heroBgColor(t) {
   if (t === "garden")  return "#0f2208";
   if (t === "chinese") return "#5c0000";
   return "#1a1008";
-}
-
-function daysUntil(dateStr) {
-  if (!dateStr) return null;
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const today = new Date();
-  const todayUtc = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
-  const weddingUtc = Date.UTC(y, m - 1, d);
-  return Math.round((weddingUtc - todayUtc) / 86_400_000);
 }
 
 export default function WeddingPage() {
@@ -504,7 +486,7 @@ export default function WeddingPage() {
     if (lw?.bride_name && lw?.groom_name) {
       document.title = t("wedding.docTitle", { bride: lw.bride_name, groom: lw.groom_name });
     }
-  }, [wedding, t, locale]);
+  }, [lw?.bride_name, lw?.groom_name, t]);
 
   useEffect(() => {
     if (!wedding) return;
@@ -518,7 +500,6 @@ export default function WeddingPage() {
   }, [wedding]);
 
   const rsvpHref = token ? `/rsvp?token=${token}` : "/rsvp";
-  const days = daysUntil(wedding?.wedding_date);
 
   const answeredQA = (() => {
     if (!lw?.fun_qa) return [];
@@ -645,19 +626,11 @@ export default function WeddingPage() {
         >
 
           <div className="wp-hero-content">
-            <div className="wp-invite-tag">
-              {groom_name && bride_name
-                ? t("wedding.inviteTag", { groom: groom_name, bride: bride_name })
-                : t("wedding.inviteTagFallback")}
-            </div>
-
             <div className="wp-couple">
               <span className="wp-couple-amp">♡</span>
               {bride_name}
               <br />& {groom_name}
             </div>
-
-            <div className="wp-hero-divider" />
 
             {wedding_date && (
               <div className="wp-date">{formatLongDate(wedding_date)}</div>
@@ -666,27 +639,8 @@ export default function WeddingPage() {
               <div className="wp-venue">{venue_name}</div>
             )}
 
-            {days !== null && (
-              <div className="wp-countdown">
-                ✦ &nbsp;{
-                  days === 0
-                    ? t("wedding.countdown.today")
-                    : days > 0
-                      ? t(days === 1 ? "wedding.countdown.toGo_one" : "wedding.countdown.toGo_other", { n: days })
-                      : t(Math.abs(days) === 1 ? "wedding.countdown.ago_one" : "wedding.countdown.ago_other", { n: Math.abs(days) })
-                }
-              </div>
-            )}
-
             <a className="wp-rsvp-btn" href={rsvpHref}>{t("wedding.rsvpNow")}</a>
-            {!token && (
-              <div style={{ marginTop: 8, fontSize: 12, color: "rgba(255,255,255,0.55)", textAlign: "center" }}>
-                {t("wedding.rsvpHint")}
-              </div>
-            )}
           </div>
-
-          <div className="wp-scroll-hint">↓</div>
         </section>
 
         {/* ── CONTENT SECTIONS ── */}
@@ -708,7 +662,6 @@ export default function WeddingPage() {
           {/* Fun Q&A */}
           {answeredQA.length > 0 && (
             <section className="wp-section">
-              <div className="wp-section-eyebrow">{t("wedding.funfacts.eyebrow")}</div>
               <div className="wp-section-title">{t("wedding.funfacts.title")}</div>
               <div className="wp-qa-grid">
                 {answeredQA.map((item) => (
@@ -725,13 +678,12 @@ export default function WeddingPage() {
 
           {/* The Big Day */}
           <section className="wp-section">
-            <div className="wp-section-eyebrow">{t("wedding.bigday.eyebrow")}</div>
             <div className="wp-section-title">{t("wedding.bigday.title")}</div>
             <div className="wp-timeline">
               {useSmartTimeline ? (
                 smartEvents.map((ev) => (
                   <div key={ev.id} className="wp-tl-item">
-                    <div className="wp-tl-node"><div className="wp-tl-icon">{eventTimelineIcon(ev.name)}</div><div className="wp-tl-connector" /></div>
+                    <div className="wp-tl-node"><div className="wp-tl-icon"><WeddingTimelineIcon name={ev.name} /></div><div className="wp-tl-connector" /></div>
                     <div className="wp-tl-body">
                       <div className="wp-tl-label">{ev.name}</div>
                       {ev.start_time && <div className="wp-tl-value">{fmt12h(ev.start_time)}</div>}
@@ -747,7 +699,7 @@ export default function WeddingPage() {
                 <>
                   {tea_ceremony_time && (
                     <div className="wp-tl-item">
-                      <div className="wp-tl-node"><div className="wp-tl-icon">🍵</div><div className="wp-tl-connector" /></div>
+                      <div className="wp-tl-node"><div className="wp-tl-icon"><Coffee size={ICON_SIZE} color={ICON_COLOR} /></div><div className="wp-tl-connector" /></div>
                       <div className="wp-tl-body">
                         <div className="wp-tl-label">{t("wedding.timeline.tea")}</div>
                         <div className="wp-tl-value">{fmt12h(tea_ceremony_time)}</div>
@@ -757,7 +709,7 @@ export default function WeddingPage() {
                   )}
                   {ceremony_time && (
                     <div className="wp-tl-item">
-                      <div className="wp-tl-node"><div className="wp-tl-icon">💍</div><div className="wp-tl-connector" /></div>
+                      <div className="wp-tl-node"><div className="wp-tl-icon"><Diamond size={ICON_SIZE} color={ICON_COLOR} /></div><div className="wp-tl-connector" /></div>
                       <div className="wp-tl-body">
                         <div className="wp-tl-label">{t("wedding.timeline.solemnisation")}</div>
                         <div className="wp-tl-value">{fmt12h(ceremony_time)}</div>
@@ -767,7 +719,7 @@ export default function WeddingPage() {
                   )}
                   {dinner_time && (
                     <div className="wp-tl-item">
-                      <div className="wp-tl-node"><div className="wp-tl-icon">🍽</div><div className="wp-tl-connector" /></div>
+                      <div className="wp-tl-node"><div className="wp-tl-icon"><ForkKnife size={ICON_SIZE} color={ICON_COLOR} /></div><div className="wp-tl-connector" /></div>
                       <div className="wp-tl-body">
                         <div className="wp-tl-label">{t(`wedding.timeline.${getMealType(dinner_time)}`)}</div>
                         <div className="wp-tl-value">{fmt12h(dinner_time)}</div>
@@ -778,7 +730,7 @@ export default function WeddingPage() {
               )}
               {(venue_name || venue_address) && (
                 <div className="wp-tl-item">
-                  <div className="wp-tl-node"><div className="wp-tl-icon">📍</div><div className="wp-tl-connector" /></div>
+                  <div className="wp-tl-node"><div className="wp-tl-icon"><MapPin size={ICON_SIZE} color={ICON_COLOR} /></div><div className="wp-tl-connector" /></div>
                   <div className="wp-tl-body">
                     <div className="wp-tl-label">{t("wedding.timeline.venue")}</div>
                     {venue_name && <div className="wp-tl-value">{venue_name}</div>}
@@ -812,13 +764,9 @@ export default function WeddingPage() {
               <div className="wp-getting-there">
                 {getting_there.split('\n\n').filter(p => p.trim()).map((para, i) => {
                   const text = para.trim();
-                  const icon = /mrt|bus|train|transit/i.test(text) ? '🚇'
-                             : /car|park|drive|taxi|grab/i.test(text) ? '🚗'
-                             : /walk|drop.?off|entrance|arrive/i.test(text) ? '🚶'
-                             : '📍';
                   return (
                     <div key={i} className="wp-getting-there-block">
-                      <div className="wp-getting-there-icon">{icon}</div>
+                      <div className="wp-getting-there-icon"><GettingThereIcon text={text} /></div>
                       <p className="wp-story-text" style={{ margin: 0 }}>{text}</p>
                     </div>
                   );
@@ -851,7 +799,6 @@ export default function WeddingPage() {
 
           {/* RSVP CTA */}
           <section className="wp-section wp-cta">
-            <div className="wp-section-eyebrow">{t("wedding.join.eyebrow")}</div>
             <div className="wp-cta-title">{t("wedding.join.title")}</div>
             {rsvp_deadline && (
               <div className="wp-cta-deadline">

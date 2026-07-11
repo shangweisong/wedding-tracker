@@ -5,6 +5,58 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2026-07-10] — feature/planning-checklist
+
+### Added
+
+- **Planning checklist** — new ✅ Checklist tab in the admin panel (Planning mode, couple-only, matching Budget's access gating). Auto-seeds a curated 19-task default checklist (venue/vendor booking, attire, legal, guests & invitations, day-of prep) on first open. Each task has a text description, category, assignee (Bride / Groom / Both), and a due-date preset expressed as an offset from the wedding date (e.g. "6 months before") rather than a stored absolute date — deadlines recompute automatically if the wedding date changes. Tasks are sorted by computed due date, overdue tasks are flagged, and a progress bar shows completion (`X of Y tasks done`). Changes auto-save with an 800 ms debounce.
+- **Migration `0014_planning_checklist.sql`** — adds `checklist` (JSONB) to the `weddings` singleton; adds couple-only `get_checklist_config` and `upsert_checklist_config` RPCs (same `is_helper()`-gated pattern as the Budget tab's config RPCs — no public page, this is private planning data, not guest-facing).
+
+---
+
+## [2026-07-10] — feature/design-taste-rsvp-wedding
+
+### Added
+
+- **Midnight Bloom presentation theme** — third theme option for the Wishes Wrapped slideshow. Deep midnight navy (`#06080f`) base, blush rose accent (`#f9a8b8`), cool off-white text. Numbers use DM Sans tabular figures for a harder-edged feel; slide transitions use a lateral x-shift crossfade (feels like a page turn) instead of the vertical slide-up used by Elegant and Vibrant. A thin blush rule appears above each slide label as a signature accent. Selectable via the Theme picker in the Wishes Wrapped admin tab.
+
+### Changed
+
+- **RunsheetPage (`/runsheet/:slug`) redesigned** — HTML table replaced with a flex timeline layout (time column / dot-and-vline gutter / content body). Phosphor `ClipboardText` icon replaces the clipboard emoji in empty and not-found states. Font updated to DM Sans; viewport uses `100svh`; mobile breakpoint added for screens narrower than 480 px.
+- **WishesWrappedPage visual polish** — all text-character navigation controls (←, →, ▶, ⏸, ⤡, ⤢) replaced with Phosphor icons (`ArrowLeft`, `ArrowRight`, `Play`/`Pause`, `CornersOut`/`CornersIn`); title slide ✨ replaced with `Sparkle` icon. Body overflow/background moved from a `<style>` string into a `useEffect` with cleanup so styles do not bleed to other routes on unmount. Viewport uses `100svh`. `prefers-reduced-motion` guard added for all slide, heart, word-cloud, and progress-bar animations. Decorative `::before` quote mark removed.
+- **Admin mobile responsiveness** — tab bar scrolls horizontally on small screens instead of overflowing the viewport. RSVP guest rows wrap actions to a second line on narrow screens. Budget category rows reflow to a two-column grid on mobile with the progress bar spanning full width. Category section meta text wraps below the title row using CSS `order`. Vendor cards wrap actions below the company name on small screens. Stat pills no longer force equal width (fixes label wrapping on the days-to-go pill).
+
+---
+
+## [2026-07-10] — feat/wedding-day-runsheet
+
+### Added
+
+- **Wedding day runsheet** — new 📋 Runsheet tab in the admin panel (visible in both Planning and D-Day modes). Spreadsheet-style inline editor with five columns: Time (free text), Event, Duration, Involved, and Comments. Rows can be reordered by drag-and-drop, deleted, and added with a single click. Changes auto-save with an 800 ms debounce.
+- **Shareable read-only runsheet page** (`/runsheet/:slug`) — couple can publish the runsheet via a toggle; a copy-link button generates the URL for coordinators, emcees, and vendors to follow along without logging in.
+- **Helper access** — helpers in D-Day mode see the runsheet read-only so they can coordinate on the day.
+- **Migration `0013_runsheet.sql`** — adds `runsheet` (JSONB) and `is_runsheet_published` (boolean) columns to the `weddings` singleton; recreates `get_wedding_config` to include them; adds `upsert_runsheet` and `get_public_runsheet` RPCs.
+
+### Fixed
+
+- **Runsheet data visible after mode switch without reload** — `saveRunsheet` now updates the in-memory `wedding` state after a successful DB write, so switching from Planning to D-Day mode no longer shows a blank runsheet.
+
+---
+
+## [2026-07-09] — fix/issue-103-remaining (#104)
+
+### Fixed
+
+- **#4 — Enter key no longer bypasses brute-force lockout** — `pinLocked` is now checked in the `unlock()` guard; pressing Enter in the password input during a 60-second lockout is silently ignored, matching the disabled-button behaviour.
+- **#10 — PIN fail counter resets on role switch** — clicking Back now resets `pinFailCount` and `pinLocked`, so failed attempts against the Couple screen no longer count toward the Bridal Team lockout.
+- **#8 — Editing a vendor no longer corrupts milestone rows on delete** — `VendorModal` now assigns a stable `_key` (`crypto.randomUUID()`) to every DB-loaded milestone on open, so `MilestoneEditor` never falls back to array-index keys; deleting the middle item no longer mismaps the surviving rows.
+- **#13 — RSVP language switcher respects available translations** — `LanguageSwitcher` on `/rsvp` now receives `availableLocales` (derived from `wedding.content_translations`), matching the fix already applied to the Wedding Page; guests no longer see untranslated language options.
+- **#14 — Zero budget cap no longer displays as blank** — `CategoryManagerModal` uses `cap ?? ""` instead of `cap || ""`, so a cap of `0` renders as `0` rather than an empty field.
+- **#15 — Image size guard in `generate-theme.js` is now reachable** — `MAX_BASE64_CHARS` lowered from 7 000 000 to 3 300 000 (~3.3 MB base64 ≈ 4.4 MB body), just under Vercel's 4.5 MB request limit; the previous value made the guard dead code.
+- **#12 — Default helper email rename documented** — `.env.example` now includes a migration note for deployments that used the old default `helpers@wedding.local` (with an `s`) before it was standardised to `helper@wedding.local`.
+
+---
+
 ## [2026-07-09] — chore: sync fork with upstream
 
 ### Added

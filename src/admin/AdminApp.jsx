@@ -18,6 +18,8 @@ import WeddingSetupTab from "./WeddingSetupTab.jsx";
 import WeddingPageTab from "../wedding/WeddingPageTab.jsx";
 import WishesWrappedTab from "./WishesWrappedTab.jsx";
 import BudgetTab from "./BudgetTab.jsx";
+import RunsheetTab from "./RunsheetTab.jsx";
+import ChecklistTab from "./ChecklistTab.jsx";
 
 // ─── PAYNOW CONFIG ────────────────────────────────────────────────────────────
 // The host's PayNow-linked mobile number and display name. These are NOT secret
@@ -58,7 +60,7 @@ const DEMO_WEDDING = {
 
 // ─── STYLES ───────────────────────────────────────────────────────────────────
 const styles = theme + `
-  .app { min-height: 100vh; }
+  .app { min-height: 100vh; overflow-x: hidden; }
 
   /* HEADER */
   .header {
@@ -185,7 +187,11 @@ const styles = theme + `
     gap: 0;
     border-bottom: 1px solid rgba(201,168,76,0.2);
     background: var(--warm-white);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
   }
+  .view-tabs::-webkit-scrollbar { display: none; }
   .view-tab {
     padding: 14px 20px; border: none; background: transparent; cursor: pointer;
     font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
@@ -634,12 +640,13 @@ const styles = theme + `
 
   /* RESPONSIVE */
   @media (max-width: 640px) {
-    .header { padding: 16px; flex-wrap: wrap; gap: 12px; }
-    .header-stats { flex-wrap: wrap; gap: 8px; }
+    .header { padding: 12px 16px; flex-wrap: wrap; gap: 10px; }
+    .header-stats { flex-wrap: wrap; gap: 8px; width: 100%; }
     .stat-pill { padding: 6px 10px; }
     .toolbar { padding: 12px 16px; }
     .content { padding: 16px; }
-    .view-tabs { padding: 0 16px; }
+    .view-tabs { padding: 0 12px; }
+    .view-tab { padding: 12px 14px; font-size: 12px; white-space: nowrap; }
     .angbao-header { flex-wrap: wrap; gap: 16px; }
     /* Stack the guest card: check-in + name on top, actions wrap below,
        so controls never overflow a single cramped row on a phone. */
@@ -901,7 +908,7 @@ export default function WeddingTracker() {
   const unlock = async (e) => {
     e?.preventDefault?.();
     if (isDemoMode) { setUnlocked(true); return; }
-    if (!accessCode || unlocking || !selectedRole) return;
+    if (!accessCode || unlocking || !selectedRole || pinLocked) return;
     setUnlocking(true);
     setPinError("");
     // The access code is verified server-side by Supabase Auth — it is never
@@ -1042,7 +1049,13 @@ export default function WeddingTracker() {
         const brows = await sb.rpc("get_budget_config", {});
         budget = Array.isArray(brows) && brows.length ? brows[0] : null;
       } catch { /* RPC absent on un-migrated DBs, or caller is a helper — skip */ }
-      setWedding(base ? { ...base, ...(budget || {}) } : base);
+      // Checklist is served the same couple-only way as budget (0014).
+      let checklist = null;
+      try {
+        const crows = await sb.rpc("get_checklist_config", {});
+        checklist = Array.isArray(crows) && crows.length ? crows[0] : null;
+      } catch { /* RPC absent on un-migrated DBs, or caller is a helper — skip */ }
+      setWedding(base ? { ...base, ...(budget || {}), ...(checklist || {}) } : base);
     } catch {
       showToast("Failed to load wedding details");
     }
@@ -1283,6 +1296,39 @@ export default function WeddingTracker() {
       return true;
     } catch {
       showToast("Could not save budget settings — check connection");
+      return false;
+    }
+  };
+
+  const saveRunsheet = async ({ runsheet, is_runsheet_published }) => {
+    if (isDemoMode) {
+      setWedding((w) => ({ ...(w || {}), runsheet, is_runsheet_published }));
+      return true;
+    }
+    try {
+      await sb.rpc("upsert_runsheet", {
+        p_runsheet: runsheet,
+        p_is_runsheet_published: is_runsheet_published,
+      });
+      setWedding((w) => ({ ...(w || {}), runsheet, is_runsheet_published }));
+      return true;
+    } catch {
+      showToast("Could not save runsheet — check connection");
+      return false;
+    }
+  };
+
+  const saveChecklistConfig = async ({ checklist }) => {
+    if (isDemoMode) {
+      setWedding((w) => ({ ...(w || {}), checklist }));
+      return true;
+    }
+    try {
+      await sb.rpc("upsert_checklist_config", { p_checklist: checklist });
+      setWedding((w) => ({ ...(w || {}), checklist }));
+      return true;
+    } catch {
+      showToast("Could not save checklist — check connection");
       return false;
     }
   };
@@ -1731,7 +1777,7 @@ export default function WeddingTracker() {
             </div>
           ) : (
             <form className="pin-box" onSubmit={unlock}>
-              <button type="button" className="pin-back" onClick={() => { setSelectedRole(null); setAccessCode(""); setPinError(""); }}>
+              <button type="button" className="pin-back" onClick={() => { setSelectedRole(null); setAccessCode(""); setPinError(""); setPinFailCount(0); setPinLocked(false); }}>
                 ← Back
               </button>
               <div className="pin-label">
@@ -1870,6 +1916,14 @@ export default function WeddingTracker() {
                   💰 Budget
                 </button>
               )}
+              {role === "couple" && (
+                <button className={`view-tab ${view === "checklist" ? "active" : ""}`} onClick={() => setView("checklist")}>
+                  ✅ Checklist
+                </button>
+              )}
+              <button className={`view-tab ${view === "runsheet" ? "active" : ""}`} onClick={() => setView("runsheet")}>
+                📋 Runsheet
+              </button>
             </>
           ) : (
             <>
@@ -1890,6 +1944,9 @@ export default function WeddingTracker() {
                   {pendingSubs > 0 && <span className="sub-pill">{pendingSubs}</span>}
                 </button>
               )}
+              <button className={`view-tab ${view === "runsheet" ? "active" : ""}`} onClick={() => setView("runsheet")}>
+                📋 Runsheet
+              </button>
             </>
           )}
         </div>
@@ -2146,6 +2203,19 @@ export default function WeddingTracker() {
               onSaveBudget={saveBudgetConfig}
               showToast={showToast}
               isCouple={role === "couple"}
+            />
+          ) : view === "checklist" ? (
+            <ChecklistTab
+              wedding={wedding}
+              onSave={saveChecklistConfig}
+              isCouple={role === "couple"}
+            />
+          ) : view === "runsheet" ? (
+            <RunsheetTab
+              wedding={wedding}
+              onSave={saveRunsheet}
+              showToast={showToast}
+              isReadOnly={role === "helper"}
             />
           ) : ANGBAO_ENABLED && view === "angbao" ? (
             /* ANGBAO VIEW */

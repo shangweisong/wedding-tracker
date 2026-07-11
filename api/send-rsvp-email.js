@@ -174,7 +174,11 @@ export default async function handler(req, res) {
   if (error || !guest) return res.status(404).json({ error: "guest not found" });
   if (!guest.email) return res.status(200).json({ skipped: "no email on file" });
 
-  const { data: wedding } = await supabase.from("weddings").select("*").limit(1).single();
+  const { data: wedding } = await supabase
+    .from("weddings")
+    .select("bride_name, groom_name, hero_image_url, wedding_date, ceremony_time, dinner_time, venue_name, venue_address")
+    .limit(1)
+    .single();
   if (!wedding) return res.status(200).json({ skipped: "wedding not configured" });
 
   const coupleNames = `${wedding.bride_name} & ${wedding.groom_name}`;

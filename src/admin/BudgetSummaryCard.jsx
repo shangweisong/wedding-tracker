@@ -123,6 +123,13 @@ const styles = `
     transition: color 0.15s;
   }
   .cap-hint-btn:hover { color: var(--gold-light); }
+
+  @media (max-width: 640px) {
+    .budget-summary-card { padding: 16px 18px; }
+    .budget-cat-row { grid-template-columns: 1fr auto; }
+    .budget-cat-bar-wrap { grid-column: 1 / -1; margin-top: 1px; }
+    .budget-cat-amounts { text-align: left; font-size: 11px; }
+  }
 `;
 
 export default function BudgetSummaryCard({

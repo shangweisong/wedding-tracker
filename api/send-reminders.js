@@ -53,7 +53,11 @@ export default async function handler(req, res) {
   }
 
   const supabase = supabaseAdmin();
-  const { data: wedding } = await supabase.from("weddings").select("*").limit(1).single();
+  const { data: wedding } = await supabase
+    .from("weddings")
+    .select("bride_name, groom_name, wedding_date, venue_name, venue_address, dress_code, tea_ceremony_time, ceremony_time, dinner_time, hero_image_url, getting_there, slug, is_published")
+    .limit(1)
+    .single();
   if (!wedding?.wedding_date) return res.status(200).json({ sent: 0, reason: "wedding not configured yet" });
 
   // Allow days override for local testing (ignored in production).
@@ -86,7 +90,9 @@ export default async function handler(req, res) {
   const weddingPageUrl = siteUrl && wedding.slug && wedding.is_published
     ? `${siteUrl}/wedding/${wedding.slug}`
     : "";
-  let sent = 0;
+
+  const firstReminderIds = [];
+  const secondReminderIds = [];
 
   for (const guest of guests) {
     // 90-day: warm heads-up, only if never reminded.
@@ -108,16 +114,19 @@ export default async function handler(req, res) {
 
     await sendEmail({ from: coupleNames, fromAddress, to: guest.email, subject, html });
 
-    const updatePatch = isFirstReminder
-      ? { last_reminder_sent_at: new Date().toISOString() }
-      : { second_reminder_sent_at: new Date().toISOString() };
-
-    await supabase.from("guests").update(updatePatch).eq("id", guest.id);
-
-    sent += 1;
+    if (isFirstReminder) firstReminderIds.push(guest.id);
+    else secondReminderIds.push(guest.id);
   }
 
-  return res.status(200).json({ sent });
+  const now = new Date().toISOString();
+  if (firstReminderIds.length > 0) {
+    await supabase.from("guests").update({ last_reminder_sent_at: now }).in("id", firstReminderIds);
+  }
+  if (secondReminderIds.length > 0) {
+    await supabase.from("guests").update({ second_reminder_sent_at: now }).in("id", secondReminderIds);
+  }
+
+  return res.status(200).json({ sent: firstReminderIds.length + secondReminderIds.length });
 }
 
 function heroRow(heroImageUrl, coupleNames) {

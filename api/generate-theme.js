@@ -10,7 +10,7 @@
 import { generateThemeTokens } from "./_lib/themeProvider.js";
 import { supabaseAdmin } from "./_lib/supabaseAdmin.js";
 
-const MAX_BASE64_CHARS = 7_000_000; // ~5 MB image; Vercel body limit is ~4.5 MB.
+const MAX_BASE64_CHARS = 3_300_000; // ~3.3 MB base64 ≈ 4.4 MB body, just under Vercel's 4.5 MB limit.
 const ALLOWED_MIME = /^image\/(jpeg|png|gif|webp)$/;
 
 // Best-effort in-memory rate limit (per warm instance). Not a durable quota — a
@@ -90,7 +90,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "expected { imageBase64, mimeType }" });
   }
   if (imageBase64.length > MAX_BASE64_CHARS) {
-    return res.status(413).json({ error: "image too large (max ~5MB)" });
+    return res.status(413).json({ error: "image too large (max ~2.4MB)" });
   }
   if (!ALLOWED_MIME.test(mimeType)) {
     return res.status(400).json({ error: "mimeType must be image/jpeg, image/png, image/gif, or image/webp" });

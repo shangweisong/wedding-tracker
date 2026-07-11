@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { theme } from '../shared/theme.js';
+import { ArrowLeft, ArrowRight, Play, Pause, CornersOut, CornersIn, Sparkle } from '@phosphor-icons/react';
 
 // ─── Vibrant gradient backgrounds (one per slide type) ────────────────────────
 const VBG = {
@@ -37,11 +38,9 @@ function participationComment(rate, count) {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const wwStyles = theme + `
-  html, body { height: 100%; overflow: hidden; background: #1a1208; }
-
   /* ── Theme custom properties ── */
   .ww-page {
-    height: 100vh;
+    height: 100svh;
     display: flex;
     flex-direction: column;
     background: #1a1208;
@@ -87,6 +86,52 @@ const wwStyles = theme + `
   .ww-page.vibrant .ww-award-quote  { font-family: 'DM Sans', sans-serif; }
   .ww-page.vibrant .ww-word         { font-family: 'DM Sans', sans-serif; font-weight: 600; }
   .ww-page.vibrant .ww-thanks-names { font-family: 'DM Sans', sans-serif; font-weight: 700; }
+
+  /* ── Midnight Bloom theme ── */
+  .ww-page.midnight {
+    background: #06080f;
+    --ww-text:   #eef0f4;
+    --ww-accent: #f9a8b8;
+    --ww-muted:  rgba(238,240,244,0.38);
+    --ww-card:   rgba(255,255,255,0.04);
+    --ww-border: rgba(249,168,184,0.14);
+    --ww-quote:  rgba(238,240,244,0.72);
+  }
+  /* Lateral crossfade — feels like a page turn */
+  @keyframes wwFadeInX {
+    from { opacity: 0; transform: translateX(14px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes wwFadeOutX {
+    from { opacity: 1; transform: translateX(0); }
+    to   { opacity: 0; transform: translateX(-10px); }
+  }
+  .ww-page.midnight .ww-slide { animation-name: wwFadeInX; }
+  .ww-page.midnight .ww-slide-wrapper.ww-exiting .ww-slide { animation-name: wwFadeOutX; }
+  /* Thin blush rule above slide labels */
+  .ww-page.midnight .ww-slide-label::before {
+    content: ''; display: block;
+    width: 32px; height: 1px;
+    background: #f9a8b8; opacity: 0.4;
+    margin: 0 auto 12px;
+  }
+  /* Numbers: tabular DM Sans — punchy without serif */
+  .ww-page.midnight .ww-number-value {
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 700; letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+  }
+  /* Title: Cormorant slightly heavier on this cold bg */
+  .ww-page.midnight .ww-slide-title  { font-weight: 400; }
+  /* Award name: DM Sans bold for impact */
+  .ww-page.midnight .ww-award-name   { font-family: 'DM Sans', sans-serif; font-weight: 700; }
+  /* Controls */
+  .ww-page.midnight .ww-controls     { background: rgba(6,8,15,0.9); border-color: rgba(249,168,184,0.18); }
+  .ww-page.midnight .ww-btn          { border-color: rgba(249,168,184,0.2); color: rgba(238,240,244,0.8); }
+  .ww-page.midnight .ww-btn:hover:not(:disabled) { background: rgba(249,168,184,0.1); border-color: #f9a8b8; }
+  .ww-page.midnight .ww-btn.active   { background: rgba(249,168,184,0.15); border-color: #f9a8b8; color: #f9a8b8; }
+  .ww-page.midnight .ww-counter      { color: rgba(238,240,244,0.35); }
+  .ww-page.midnight .ww-sep          { background: rgba(249,168,184,0.14); }
 
   .ww-slide {
     flex: 1;
@@ -185,13 +230,6 @@ const wwStyles = theme + `
     font-size: clamp(18px, 2.2vw, 26px);
     color: var(--ww-quote); font-style: italic;
     max-width: 680px; line-height: 1.7; margin-bottom: 28px;
-    position: relative; padding: 0 20px;
-  }
-  .ww-award-quote::before {
-    content: '"';
-    font-size: 80px; font-style: normal;
-    position: absolute; top: -16px; left: -8px;
-    color: var(--ww-accent); opacity: 0.25; line-height: 1;
   }
   .ww-award-stat {
     display: inline-flex; align-items: center; gap: 8px;
@@ -285,7 +323,7 @@ const wwStyles = theme + `
 
   /* ── No-data ── */
   .ww-no-data {
-    height: 100vh; display: flex; flex-direction: column;
+    height: 100svh; display: flex; flex-direction: column;
     align-items: center; justify-content: center;
     background: #1a1208; text-align: center; gap: 16px; padding: 32px;
   }
@@ -303,6 +341,14 @@ const wwStyles = theme + `
     .ww-numbers { gap: 16px; }
     .ww-number-card { padding: 18px 22px; min-width: 120px; }
   }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ww-slide,
+    .ww-slide-wrapper.ww-exiting .ww-slide { animation: none; }
+    .ww-heart { animation: none; }
+    .ww-word  { animation: none; }
+    .ww-progress-fill { animation: none; width: 100%; }
+  }
 `;
 
 // ─── SLIDE COMPONENTS ────────────────────────────────────────────────────────
@@ -312,7 +358,7 @@ function TitleSlide({ wedding, totalWishes, bg }) {
     ? `${wedding.bride_name} & ${wedding.groom_name}` : null;
   return (
     <div className="ww-slide" style={bg ? { background: bg } : {}}>
-      <div className="ww-slide-emoji">✨</div>
+      <Sparkle size={52} color="var(--ww-accent)" weight="light" style={{ marginBottom: 20, opacity: 0.85 }} />
       <div className="ww-slide-label">Your Wedding</div>
       <div className="ww-slide-title">
         Wedding Wishes<br />Wrapped
@@ -809,7 +855,18 @@ export default function WishesWrappedPage() {
   const [isFullscreen, setFs]   = useState(false);
   const exitTimer               = useRef(null);
 
-  useEffect(() => { document.title = 'Wedding Wishes Wrapped ✨'; }, []);
+  useEffect(() => { document.title = 'Wedding Wishes Wrapped'; }, []);
+
+  useEffect(() => {
+    const bg = pageTheme === 'vibrant' ? '#000000' : pageTheme === 'midnight' ? '#06080f' : '#1a1208';
+    const prev = { overflow: document.body.style.overflow, bg: document.body.style.background };
+    document.body.style.overflow = 'hidden';
+    document.body.style.background = bg;
+    return () => {
+      document.body.style.overflow = prev.overflow;
+      document.body.style.background = prev.bg;
+    };
+  }, [pageTheme]);
 
   const slides = useMemo(
     () => (data ? buildSlides(data, wedding, pageTheme, enabledSlides) : []),
@@ -870,7 +927,7 @@ export default function WishesWrappedPage() {
       <>
         <style>{wwStyles}</style>
         <div className="ww-no-data">
-          <div className="ww-slide-emoji">✨</div>
+          <Sparkle size={48} color="var(--ww-accent)" weight="light" style={{ opacity: 0.6, marginBottom: 8 }} />
           <div className="ww-nd-title">No data found</div>
           <div className="ww-nd-sub">
             Open the <strong>Wishes Wrapped</strong> tab in the admin panel,
@@ -885,7 +942,7 @@ export default function WishesWrappedPage() {
     <>
       <style>{wwStyles}</style>
       <div
-        className={`ww-page${pageTheme === 'vibrant' ? ' vibrant' : ''}`}
+        className={`ww-page${pageTheme === 'vibrant' ? ' vibrant' : pageTheme === 'midnight' ? ' midnight' : ''}`}
         onClick={(e) => {
           if (e.target.closest?.('.ww-controls')) return;
           if (e.clientX < window.innerWidth / 2) prev(); else next();
@@ -906,19 +963,23 @@ export default function WishesWrappedPage() {
         </div>
 
         <div className="ww-controls">
-          <button className="ww-btn" onClick={prev} disabled={idx === 0} title="Previous (←)">←</button>
+          <button className="ww-btn" onClick={prev} disabled={idx === 0} title="Previous (←)">
+            <ArrowLeft size={15} />
+          </button>
           <span className="ww-counter">{idx + 1} / {slides.length}</span>
-          <button className="ww-btn" onClick={next} disabled={idx === slides.length - 1} title="Next (→)">→</button>
+          <button className="ww-btn" onClick={next} disabled={idx === slides.length - 1} title="Next (→)">
+            <ArrowRight size={15} />
+          </button>
           <div className="ww-sep" />
           <button
             className={`ww-btn ${autoPlay ? 'active' : ''}`}
             onClick={() => setAutoPlay(v => !v)}
             title={autoPlay ? 'Pause' : 'Auto-advance (8s)'}
           >
-            {autoPlay ? '⏸' : '▶'}
+            {autoPlay ? <Pause size={14} weight="fill" /> : <Play size={14} weight="fill" />}
           </button>
           <button className="ww-btn" onClick={toggleFs} title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}>
-            {isFullscreen ? '⤡' : '⤢'}
+            {isFullscreen ? <CornersIn size={15} /> : <CornersOut size={15} />}
           </button>
         </div>
       </div>

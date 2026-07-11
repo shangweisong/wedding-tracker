@@ -1,4 +1,4 @@
--- 0013 — Hide couple-only guest columns from the helper (#99).
+-- 0016 — Hide couple-only guest columns from the helper (#99).
 --
 -- RLS filters rows, not columns: with `helpers_select ... using (true)` (0010)
 -- the helper could `select *` from public.guests via the SDK/DevTools and read

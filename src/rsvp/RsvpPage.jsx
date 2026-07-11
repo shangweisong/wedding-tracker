@@ -1,15 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { sb, isDemoMode } from "../lib/supabase.js";
 import { theme } from "../shared/theme.js";
 import { cleanName, cleanNotes, cleanParty, cleanRelationshipGroup, cleanFriendSubgroup, cleanEmail, cleanSpeech } from "../lib/validation.js";
-import { useLocale } from "../i18n/index.jsx";
-import { localizeWedding } from "../i18n/content.js";
+import { LOCALES, useLocale } from "../i18n/index.jsx";
+import { localizeWedding, TRANSLATABLE_FIELDS } from "../i18n/content.js";
 import { localizeEvents } from "../lib/eventLocalize.js";
 import { buildEventResponses, hydrateEventState, primaryAnsweredAllEvents } from "../lib/rsvpFormPayload.js";
 import { sanitizeThemeTokens, isCompleteThemeTokens, themeTokenStyle } from "../lib/themeTokens.js";
 import { buildIcsDataUrl } from "./buildIcs.js";
 import LanguageSwitcher from "../i18n/LanguageSwitcher.jsx";
+import { Heart, EnvelopeSimple } from "@phosphor-icons/react";
 
 const MEAL_OPTIONS = [
   { value: "Halal", labelKey: "rsvp.meal.Halal" },
@@ -60,18 +61,13 @@ const styles = theme + `
   }
   .rsvp-logo-heart {
     display: inline-block; margin-right: 5px;
-    animation: rsvpPulse 2.5s ease-in-out infinite;
+    animation: rsvpPulse 2.5s ease-in-out 2;
   }
   @keyframes rsvpPulse {
     0%, 100% { transform: scale(1); }
     50%       { transform: scale(1.15); }
   }
   @keyframes rsvp-spin { to { transform: rotate(360deg); } }
-  .rsvp-eyebrow {
-    font-size: 11px; color: var(--brown); opacity: 0.5;
-    letter-spacing: 0.35em; text-transform: uppercase;
-    text-align: center; margin-bottom: 24px;
-  }
   .rsvp-divider { height: 1px; background: rgba(201,168,76,0.2); margin-bottom: 24px; }
 
   .rsvp-label {
@@ -87,7 +83,7 @@ const styles = theme + `
     outline: none; background: var(--warm-white); transition: border-color 0.15s;
   }
   .rsvp-input:focus { border-color: var(--gold); background: white; }
-  .rsvp-input::placeholder { color: rgba(92,74,42,0.35); }
+  .rsvp-input::placeholder { color: rgba(92,74,42,0.55); }
   textarea.rsvp-input { resize: vertical; min-height: 80px; }
 
   .attend-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -134,8 +130,8 @@ const styles = theme + `
 
   .rsvp-confirm { text-align: center; }
   .rsvp-confirm-heart {
-    font-size: 56px; margin-bottom: 16px;
-    display: inline-block; animation: rsvpPulse 2.5s ease-in-out infinite;
+    margin-bottom: 16px;
+    display: flex; justify-content: center; align-items: center;
   }
   .rsvp-confirm-title {
     font-family: 'Cormorant Garamond', serif; font-size: 36px;
@@ -213,7 +209,8 @@ const styles = theme + `
       position: sticky; bottom: 0;
       margin: 4px -20px -28px;
       padding: 10px 20px 24px;
-      background: linear-gradient(to top, white 65%, transparent);
+      background: white;
+      border-top: 1px solid rgba(201,168,76,0.15);
     }
     .rsvp-submit { margin-top: 0; }
   }
@@ -278,7 +275,11 @@ function ConfirmationView({ name, attending, wedding }) {
   const icsUrl = attending ? buildIcsDataUrl(wedding, t("rsvp.confirm.eventTitleFallback")) : null;
   return (
     <div className="rsvp-confirm">
-      <div className="rsvp-confirm-heart">{attending ? "♡" : "💌"}</div>
+      <div className="rsvp-confirm-heart">
+        {attending
+          ? <Heart size={56} color="var(--gold)" weight="light" />
+          : <EnvelopeSimple size={56} color="var(--brown)" weight="light" />}
+      </div>
       <div className="rsvp-confirm-title">
         {attending ? t("rsvp.confirm.seeYou") : t("rsvp.confirm.miss")}
       </div>
@@ -331,6 +332,20 @@ export default function RsvpPage() {
   const [wedding, setWedding]         = useState(null);
   // Couple content in the active language (per-field fallback to English) — #53 Phase 2.
   const w = localizeWedding(wedding, locale);
+
+  const availableLocales = useMemo(() => {
+    if (!wedding?.content_translations) return ["en"];
+    const populated = ["en"];
+    for (const code of Object.keys(LOCALES)) {
+      if (code === "en") continue;
+      const tr = wedding.content_translations[code];
+      if (!tr || typeof tr !== "object") continue;
+      const hasField = TRANSLATABLE_FIELDS.some((f) => typeof tr[f] === "string" && tr[f].trim() !== "");
+      const hasQA = Array.isArray(tr.fun_qa) && tr.fun_qa.some((item) => typeof item?.answer === "string" && item.answer.trim() !== "");
+      if (hasField || hasQA) populated.push(code);
+    }
+    return populated;
+  }, [wedding]);
 
   // Custom (AI-generated) theme (#60): apply the palette on the RSVP form too, so
   // it matches the wedding page. Incomplete/invalid → fall back to the minimal preset.
@@ -410,7 +425,7 @@ export default function RsvpPage() {
     if (w?.bride_name && w?.groom_name) {
       document.title = t("rsvp.docTitle", { bride: w.bride_name, groom: w.groom_name });
     }
-  }, [wedding, t, locale]);
+  }, [w?.bride_name, w?.groom_name, t]);
 
   // Hydrate the form from the active token — both the "Update RSVP" deep link and
   // a guest picked from the name search. Also loads the guest's invited events and
@@ -562,7 +577,7 @@ export default function RsvpPage() {
     <>
       <style>{styles}</style>
       <div className="rsvp-wrap" data-theme={effectiveTheme} style={{ position: "relative", ...(customThemeStyle || {}) }}>
-        <LanguageSwitcher style={{ position: "absolute", top: 16, right: 16, zIndex: 20 }} />
+        <LanguageSwitcher availableLocales={availableLocales} style={{ position: "absolute", top: 16, right: 16, zIndex: 20 }} />
         <div className="rsvp-card">
           <div className="rsvp-logo">
             <span className="rsvp-logo-heart">♡</span>
@@ -575,7 +590,6 @@ export default function RsvpPage() {
               {[formatDate(wedding.wedding_date, dtLocale), w.venue_name].filter(Boolean).join(" · ")}
             </div>
           ) : null}
-          <div className="rsvp-eyebrow">{t("rsvp.eyebrow")}</div>
           <div className="rsvp-divider" />
 
           {configError && (
@@ -586,8 +600,8 @@ export default function RsvpPage() {
 
           {tokenLoading ? (
             <div style={{ textAlign: "center", padding: "32px 0" }}>
-              <div style={{ fontSize: 28, opacity: 0.4, animation: "rsvp-spin 1.2s linear infinite", display: "inline-block" }}>✦</div>
-              <div style={{ marginTop: 10, color: "var(--brown)", opacity: 0.55, fontSize: 13 }}>{t("rsvp.loading")}</div>
+              <div style={{ fontSize: 40, opacity: 0.65, animation: "rsvp-spin 1.2s linear infinite", display: "inline-block" }}>✦</div>
+              <div style={{ marginTop: 12, color: "var(--brown)", opacity: 0.7, fontSize: 13 }}>{t("rsvp.loading")}</div>
             </div>
           ) : done ? (
             <ConfirmationView
@@ -754,18 +768,26 @@ export default function RsvpPage() {
                 </div>
               )}
 
-              {attending && (
+              {/* Smart RSVP has no single yes/no, so `attending` stays null there —
+                  treat "confirmed for any event" as attending (same rule as the
+                  confirmation view above) so the field isn't unreachable. */}
+              {(useSmartForm
+                ? locEvents.some((ev) => attendance[PRIMARY_KEY]?.[ev.id] === "confirmed")
+                : attending) && (
                 <div className="rsvp-field">
-                  <label className="rsvp-label">{t("rsvp.closerTo")}</label>
-                  <select
-                    className="rsvp-input"
-                    value={closerTo}
-                    onChange={(e) => setCloserTo(e.target.value)}
-                  >
-                    <option value="">{t("common.selectOne")}</option>
-                    <option value="bride">💐 {w?.bride_name || t("rsvp.side.brideFallback")}</option>
-                    <option value="groom">🤵 {w?.groom_name || t("rsvp.side.groomFallback")}</option>
-                  </select>
+                  <span className="rsvp-label">{t("rsvp.closerTo")}</span>
+                  <div className="attend-btns">
+                    <button type="button"
+                      className={`attend-btn yes ${closerTo === "bride" ? "active" : ""}`}
+                      onClick={() => setCloserTo(closerTo === "bride" ? "" : "bride")}>
+                      {w?.bride_name || t("rsvp.side.brideFallback")}
+                    </button>
+                    <button type="button"
+                      className={`attend-btn yes ${closerTo === "groom" ? "active" : ""}`}
+                      onClick={() => setCloserTo(closerTo === "groom" ? "" : "groom")}>
+                      {w?.groom_name || t("rsvp.side.groomFallback")}
+                    </button>
+                  </div>
                 </div>
               )}
 
