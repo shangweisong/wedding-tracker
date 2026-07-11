@@ -768,7 +768,12 @@ export default function RsvpPage() {
                 </div>
               )}
 
-              {attending && (
+              {/* Smart RSVP has no single yes/no, so `attending` stays null there —
+                  treat "confirmed for any event" as attending (same rule as the
+                  confirmation view above) so the field isn't unreachable. */}
+              {(useSmartForm
+                ? locEvents.some((ev) => attendance[PRIMARY_KEY]?.[ev.id] === "confirmed")
+                : attending) && (
                 <div className="rsvp-field">
                   <span className="rsvp-label">{t("rsvp.closerTo")}</span>
                   <div className="attend-btns">

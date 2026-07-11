@@ -90,7 +90,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "expected { imageBase64, mimeType }" });
   }
   if (imageBase64.length > MAX_BASE64_CHARS) {
-    return res.status(413).json({ error: "image too large (max ~5MB)" });
+    return res.status(413).json({ error: "image too large (max ~2.4MB)" });
   }
   if (!ALLOWED_MIME.test(mimeType)) {
     return res.status(400).json({ error: "mimeType must be image/jpeg, image/png, image/gif, or image/webp" });
