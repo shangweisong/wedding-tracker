@@ -130,6 +130,12 @@ export default function RunsheetTab({ wedding, onSave, showToast, isReadOnly }) 
   const [overIdx, setOverIdx] = useState(null);
   const initialized = useRef(false);
   const saveTimer = useRef(null);
+  const statusTimer = useRef(null);
+
+  // Only the status-label timer is cleared on unmount. saveTimer is left to
+  // fire so an edit made just before switching tabs still persists (onSave
+  // lives in AdminApp, which stays mounted); its setSaveStatus is a no-op.
+  useEffect(() => () => clearTimeout(statusTimer.current), []);
 
   useEffect(() => {
     if (initialized.current || !wedding) return;
@@ -140,12 +146,19 @@ export default function RunsheetTab({ wedding, onSave, showToast, isReadOnly }) 
 
   const scheduleSave = useCallback((nextItems, nextPublished) => {
     clearTimeout(saveTimer.current);
+    // Also drop a pending "saved"-label reset so it can't wipe the fresh
+    // "saving" status of this newer edit.
+    clearTimeout(statusTimer.current);
     setSaveStatus("saving");
     saveTimer.current = setTimeout(async () => {
-      const ok = await onSave({ runsheet: nextItems, is_runsheet_published: nextPublished });
-      setSaveStatus(ok !== false ? "saved" : "");
-      if (ok !== false) {
-        setTimeout(() => setSaveStatus(""), 2000);
+      try {
+        const ok = await onSave({ runsheet: nextItems, is_runsheet_published: nextPublished });
+        setSaveStatus(ok !== false ? "saved" : "");
+        if (ok !== false) {
+          statusTimer.current = setTimeout(() => setSaveStatus(""), 2000);
+        }
+      } catch {
+        setSaveStatus("");
       }
     }, 800);
   }, [onSave]);
