@@ -1,10 +1,14 @@
 // Pure planning-checklist computation functions — no side effects, fully testable.
-// Task shape: { id, text, category, dueOffsetDays, assignee, done, reminders? }
+// Task shape: { id, text, category, dueOffsetDays, dueDate?, assignee, done, reminders? }
 //   dueOffsetDays: number | null — days relative to the wedding date (negative = before).
+//   dueDate: 'yyyy-mm-dd' | null — pinned exact due date; wins over dueOffsetDays and
+//     deliberately does NOT shift when the wedding date changes (#110). Absent on
+//     pre-existing checklists ⇒ offset-based.
 //   assignee: 'both' | 'bride' | 'groom'.
 //   reminders: [{ id, offsetDays }] — offsetDays ≤ 0, relative to the task's DUE date
 //     (not the wedding date). Absent on pre-existing checklists ⇒ no reminders.
 import { localDateISO } from "./budgetUtils.js";
+import { cleanDueDate } from "./validation.js";
 
 /** Preset offsets shown in the "due" picker, most-in-advance first. */
 export const OFFSET_PRESETS = [
@@ -67,6 +71,16 @@ export function computeDueDate(weddingDateISO, dueOffsetDays) {
   return localDateISO(date);
 }
 
+/**
+ * The single source of truth for a task's due date: a pinned exact `dueDate`
+ * wins; otherwise the offset resolves against the wedding date. A corrupt
+ * stored `dueDate` falls through to the offset — the reminder cron must never
+ * throw on bad data.
+ */
+export function resolveDueDate(weddingDateISO, task) {
+  return cleanDueDate(task?.dueDate) ?? computeDueDate(weddingDateISO, task?.dueOffsetDays);
+}
+
 /** A task is overdue only if it has a resolvable due date, isn't done, and that date has passed. */
 export function isTaskOverdue(dueDateISO, done, todayISO) {
   if (done || !dueDateISO) return false;
@@ -95,14 +109,14 @@ export function taskReminders(task) {
 }
 
 /**
- * Resolve a reminder's fire date: wedding date + due offset + reminder offset.
- * Both offsets must be present — in JS `null + (-7) === -7`, so composing
- * without the explicit guards would give no-due-date tasks a reminder date.
+ * Resolve a reminder's fire date: the task's RESOLVED due date + reminder
+ * offset. Anchoring on the resolved date (not wedding date + offsets) makes
+ * offset-based and pinned exact-date tasks behave identically — including
+ * exact-date tasks on a wedding with no date set yet.
  */
-export function computeReminderDate(weddingDateISO, dueOffsetDays, reminderOffsetDays) {
-  if (dueOffsetDays === null || dueOffsetDays === undefined) return null;
+export function computeReminderDate(dueDateISO, reminderOffsetDays) {
   if (reminderOffsetDays === null || reminderOffsetDays === undefined) return null;
-  return computeDueDate(weddingDateISO, dueOffsetDays + reminderOffsetDays);
+  return computeDueDate(dueDateISO, reminderOffsetDays);
 }
 
 /**
@@ -124,10 +138,10 @@ export function selectDueReminders(checklist, weddingDateISO, sentKeys, todayISO
   if (!Array.isArray(checklist)) return [];
   const due = [];
   for (const task of checklist) {
-    const dueDate = computeDueDate(weddingDateISO, task.dueOffsetDays);
+    const dueDate = resolveDueDate(weddingDateISO, task);
     if (!dueDate || task.done) continue;
     for (const reminder of taskReminders(task)) {
-      const reminderDate = computeReminderDate(weddingDateISO, task.dueOffsetDays, reminder.offsetDays);
+      const reminderDate = computeReminderDate(dueDate, reminder.offsetDays);
       if (!isReminderDue(reminderDate, todayISO, task.done)) continue;
       if (sentKeys.has(`${task.id}:${reminder.id}`)) continue;
       due.push({ task, reminder, reminderDate, dueDate });

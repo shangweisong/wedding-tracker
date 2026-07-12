@@ -43,6 +43,10 @@ function mapsUrl(address) {
 //    the checklist_reminder_log table (0018) so a re-run never re-sends; skipped
 //    with a reason when HOST_EMAIL is unset.
 //
+// A missing wedding date only skips the guest job — pinned exact-date checklist
+// tasks (#110) are meaningful before the wedding date is configured, so the
+// digest still runs.
+//
 // Each job is isolated: a failure in one is reported in the response JSON and
 // does not block the other.
 //
@@ -71,19 +75,20 @@ export default async function handler(req, res) {
     .select("bride_name, groom_name, wedding_date, venue_name, venue_address, dress_code, tea_ceremony_time, ceremony_time, dinner_time, hero_image_url, getting_there, slug, is_published, checklist")
     .limit(1)
     .single();
-  if (!wedding?.wedding_date) return res.status(200).json({ sent: 0, reason: "wedding not configured yet" });
+  if (!wedding) return res.status(200).json({ sent: 0, checklistSent: 0, reason: "wedding not configured yet" });
 
   // Allow days override for local testing (ignored in production).
   const overridden = process.env.NODE_ENV !== "production" && req.query?.override_days !== undefined;
-  const days = overridden ? parseInt(req.query.override_days, 10) : daysUntil(wedding.wedding_date);
+  const days = overridden
+    ? parseInt(req.query.override_days, 10)
+    : wedding.wedding_date ? daysUntil(wedding.wedding_date) : null;
   // Checklist "today": real runs use the actual date; an override simulates the
   // matching day (wedding date minus N days) so both jobs see the same clock.
   // localDateISO (not toISOString) keeps "today" on the same local-day basis as
   // computeDueDate/selectDueReminders — toISOString is the UTC calendar day and
-  // can differ near midnight on non-UTC servers.
-  const todayISO = overridden
-    ? computeDueDate(wedding.wedding_date, -days)
-    : localDateISO();
+  // can differ near midnight on non-UTC servers. Without a wedding date the
+  // override has nothing to anchor on, so fall back to the real today.
+  const todayISO = (overridden ? computeDueDate(wedding.wedding_date, -days) : null) ?? localDateISO();
 
   let fromAddress;
   try {
@@ -124,6 +129,9 @@ export default async function handler(req, res) {
 // ── Job 1: guest RSVP reminders ───────────────────────────────────────────────
 
 async function sendGuestReminders({ supabase, wedding, days, fromAddress, coupleNames, siteUrl }) {
+  // Guest reminders are keyed off days-until-wedding; without a wedding date
+  // (days === null) there is nothing to count down to.
+  if (!wedding.wedding_date || days === null) return { sent: 0, reason: "wedding date not set" };
   if (days > 90) return { sent: 0, reason: "more than 90 days out" };
 
   const { data: guests, error } = await supabase
