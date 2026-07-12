@@ -150,6 +150,31 @@ export function selectDueReminders(checklist, weddingDateISO, sentKeys, todayISO
   return due;
 }
 
+/**
+ * Distinct categories actually present on the checklist (trimmed, sorted) —
+ * unlike the datalist autocomplete, this deliberately excludes template
+ * categories nobody is using (#114).
+ */
+export function usedCategories(items) {
+  if (!Array.isArray(items)) return [];
+  const categories = new Set();
+  for (const item of items) {
+    const category = typeof item?.category === "string" ? item.category.trim() : "";
+    if (category) categories.add(category);
+  }
+  return [...categories].sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * Category-filter predicate: null = All, "" = uncategorized (blank/missing
+ * category), anything else = trimmed equality.
+ */
+export function matchesCategoryFilter(task, filter) {
+  if (filter === null || filter === undefined) return true;
+  const category = typeof task?.category === "string" ? task.category.trim() : "";
+  return category === filter;
+}
+
 /** { done, total, pct } completion summary for a checklist array. */
 export function checklistProgress(items) {
   const total = items.length;
