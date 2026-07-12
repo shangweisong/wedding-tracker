@@ -1,6 +1,8 @@
 import { supabaseAdmin } from "./_lib/supabaseAdmin.js";
 import { buildIcs } from "./_lib/ics.js";
 import { sendEmail, getFromAddress, missingEmailEnvVars } from "./_lib/emailProvider.js";
+import { escapeHtml, sanitizeSubject } from "./_lib/escapeHtml.js";
+import { secureCompare } from "./_lib/secureCompare.js";
 
 function toTitleCase(str) {
   return str.replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
@@ -24,7 +26,7 @@ function updateRsvpButton(rsvpUrl) {
       <p style="margin:0 0 10px;font-size:13px;color:#9c836a;font-family:Georgia,serif;">
         Need to update your response?
       </p>
-      <a href="${rsvpUrl}"
+      <a href="${escapeHtml(rsvpUrl)}"
          style="display:inline-block;padding:10px 24px;border:1px solid #c9a97a;color:#9c836a;
                 font-family:Georgia,serif;font-size:13px;text-decoration:none;border-radius:2px;
                 letter-spacing:0.04em;">
@@ -36,7 +38,7 @@ function updateRsvpButton(rsvpUrl) {
 function emailShell({ coupleNames, heroImageUrl, children }) {
   const hero = heroImageUrl
     ? `<tr><td style="padding:0;line-height:0;">
-        <img src="${heroImageUrl}" alt="${coupleNames}" width="600"
+        <img src="${escapeHtml(heroImageUrl)}" alt="${escapeHtml(coupleNames)}" width="600"
           style="display:block;width:100%;max-width:600px;height:auto;" />
       </td></tr>`
     : "";
@@ -53,7 +55,7 @@ function emailShell({ coupleNames, heroImageUrl, children }) {
         ${children}
         <tr><td style="padding:20px 48px;background:#f2ede6;border-top:1px solid #e8e0d5;">
           <p style="margin:0;font-size:12px;color:#a89380;text-align:center;font-family:Georgia,serif;font-style:italic;">
-            With love, ${coupleNames}
+            With love, ${escapeHtml(coupleNames)}
           </p>
         </td></tr>
       </table>
@@ -70,10 +72,10 @@ function confirmedHtml({ guestName, coupleNames, heroImageUrl, venue, address, d
     children: `
       <tr><td style="padding:40px 48px 32px;">
         <p style="margin:0 0 6px;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#9c836a;font-family:Georgia,serif;">
-          ${coupleNames}
+          ${escapeHtml(coupleNames)}
         </p>
         <h1 style="margin:0 0 20px;font-size:26px;font-weight:normal;line-height:1.35;color:#3d2e22;font-family:Georgia,serif;">
-          We can't wait to celebrate<br>with you, ${guestName}.
+          We can't wait to celebrate<br>with you, ${escapeHtml(guestName)}.
         </h1>
         <p style="margin:0 0 28px;font-size:15px;line-height:1.75;color:#5c4a39;font-family:Georgia,serif;">
           Thank you for confirming your attendance — it means the world to us
@@ -85,10 +87,10 @@ function confirmedHtml({ guestName, coupleNames, heroImageUrl, venue, address, d
               Event Details
             </p>
             <p style="margin:0;font-size:15px;line-height:1.85;color:#3d2e22;font-family:Georgia,serif;">
-              <strong>${venue}</strong><br>
-              ${address}<br>
-              ${date}<br>
-              Ceremony: ${ceremonyTime}&nbsp;&nbsp;·&nbsp;&nbsp;Dinner: ${dinnerTime}
+              <strong>${escapeHtml(venue)}</strong><br>
+              ${escapeHtml(address)}<br>
+              ${escapeHtml(date)}<br>
+              Ceremony: ${escapeHtml(ceremonyTime)}&nbsp;&nbsp;·&nbsp;&nbsp;Dinner: ${escapeHtml(dinnerTime)}
             </p>
           </td></tr>
         </table>
@@ -107,10 +109,10 @@ function declinedHtml({ guestName, coupleNames, heroImageUrl, rsvpUrl }) {
     children: `
       <tr><td style="padding:40px 48px 32px;">
         <p style="margin:0 0 6px;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#9c836a;font-family:Georgia,serif;">
-          ${coupleNames}
+          ${escapeHtml(coupleNames)}
         </p>
         <h1 style="margin:0 0 20px;font-size:26px;font-weight:normal;line-height:1.35;color:#3d2e22;font-family:Georgia,serif;">
-          We'll miss you, ${guestName}.
+          We'll miss you, ${escapeHtml(guestName)}.
         </h1>
         <p style="margin:0;font-size:15px;line-height:1.75;color:#5c4a39;font-family:Georgia,serif;">
           Thank you for letting us know. We'll miss having you there, but we hope
@@ -126,7 +128,7 @@ function hostNotificationHtml({ guestName, oldStatus, newStatus, mealChoice, die
   const changeDesc = `${statusLabel[oldStatus] ?? oldStatus} → ${statusLabel[newStatus] ?? newStatus}`;
   const mealLine = newStatus === "confirmed" && mealChoice
     ? `<p style="margin:8px 0 0;font-size:14px;color:#3d2e22;font-family:Georgia,serif;">
-        Meal: ${mealChoice}${dietaryNotes ? ` · Notes: ${dietaryNotes}` : ""}
+        Meal: ${escapeHtml(mealChoice)}${dietaryNotes ? ` · Notes: ${escapeHtml(dietaryNotes)}` : ""}
        </p>`
     : "";
 
@@ -137,8 +139,8 @@ function hostNotificationHtml({ guestName, oldStatus, newStatus, mealChoice, die
   <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;">
     <tr><td style="background:#fffdf9;border-radius:4px;padding:28px 32px;box-shadow:0 1px 4px rgba(0,0,0,.08);">
       <p style="margin:0 0 4px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#9c836a;">RSVP Update</p>
-      <h2 style="margin:0 0 16px;font-size:20px;font-weight:normal;color:#3d2e22;">${guestName} changed their RSVP</h2>
-      <p style="margin:0;font-size:15px;color:#5c4a39;font-family:Georgia,serif;">${changeDesc}</p>
+      <h2 style="margin:0 0 16px;font-size:20px;font-weight:normal;color:#3d2e22;">${escapeHtml(guestName)} changed their RSVP</h2>
+      <p style="margin:0;font-size:15px;color:#5c4a39;font-family:Georgia,serif;">${escapeHtml(changeDesc)}</p>
       ${mealLine}
     </td></tr>
   </table>
@@ -151,14 +153,16 @@ function hostNotificationHtml({ guestName, oldStatus, newStatus, mealChoice, die
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
 
-  const missing = missingEmailEnvVars();
-  if (missing.length > 0) {
-    return res.status(500).json({ error: `Missing env vars: ${missing.join(", ")}` });
+  // Auth first: callers without the shared secret learn nothing about config state.
+  const secret = process.env.RSVP_WEBHOOK_SECRET;
+  if (!secret || !secureCompare(req.headers["x-webhook-secret"], secret)) {
+    return res.status(401).json({ error: "unauthorized" });
   }
 
-  const secret = process.env.RSVP_WEBHOOK_SECRET;
-  if (!secret || req.headers["x-webhook-secret"] !== secret) {
-    return res.status(401).json({ error: "unauthorized" });
+  const missing = missingEmailEnvVars();
+  if (missing.length > 0) {
+    console.error("[send-rsvp-email] missing env vars:", missing.join(", "));
+    return res.status(500).json({ error: "email sending is not configured" });
   }
 
   const { guest_id: guestId, old_rsvp_status: oldStatus } = req.body ?? {};
@@ -192,7 +196,8 @@ export default async function handler(req, res) {
   try {
     fromAddress = getFromAddress();
   } catch (e) {
-    return res.status(500).json({ error: e.message });
+    console.error("[send-rsvp-email] from-address error:", e?.message || e);
+    return res.status(500).json({ error: "email sending is not configured" });
   }
 
   if (guest.rsvp_status === "confirmed") {
@@ -209,7 +214,7 @@ export default async function handler(req, res) {
       from: coupleNames,
       fromAddress,
       to: guest.email,
-      subject: `You're confirmed! ${coupleNames}'s Wedding`,
+      subject: sanitizeSubject(`You're confirmed! ${coupleNames}'s Wedding`),
       html: confirmedHtml({
         guestName,
         coupleNames,
@@ -230,7 +235,7 @@ export default async function handler(req, res) {
       from: coupleNames,
       fromAddress,
       to: guest.email,
-      subject: `We'll miss you — ${coupleNames}'s Wedding`,
+      subject: sanitizeSubject(`We'll miss you — ${coupleNames}'s Wedding`),
       html: declinedHtml({ guestName, coupleNames, heroImageUrl, rsvpUrl }),
     });
   }
@@ -244,7 +249,7 @@ export default async function handler(req, res) {
       from: coupleNames,
       fromAddress,
       to: hostEmail,
-      subject: `RSVP change: ${guestName} is now ${statusLabel[guest.rsvp_status] ?? guest.rsvp_status}`,
+      subject: sanitizeSubject(`RSVP change: ${guestName} is now ${statusLabel[guest.rsvp_status] ?? guest.rsvp_status}`),
       html: hostNotificationHtml({
         guestName,
         oldStatus,

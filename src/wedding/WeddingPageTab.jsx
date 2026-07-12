@@ -327,37 +327,21 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
     const auto = defaultSlug(wedding.bride_name, wedding.groom_name);
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSlug(wedding.slug || auto);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoveStory(wedding.love_story || "");
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDresscode(wedding.dress_code || "");
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHeroUrl(wedding.hero_image_url || "");
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHeroFocalPoint(normalizeFocalPoint(wedding.hero_focal_point));
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRsvpDeadline(wedding.rsvp_deadline || "");
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMealOptions(wedding.meal_options || "");
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setGettingThere(wedding.getting_there || "");
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSmokingNotice(wedding.smoking_notice || "");
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setParkingNotice(wedding.parking_notice || "");
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsPublished(wedding.is_published || false);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPageTheme(wedding.theme || "minimal");
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setEnableFunRsvpOptions(wedding.enable_fun_rsvp_options || false);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCustomQA(buildCustomQA(wedding.fun_qa));
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setTranslations(wedding.content_translations || {});
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setThemeTokens(wedding.theme_tokens || {});
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSectionPhotos(normalizeSectionPhotos(wedding.section_photos));
   }, [wedding]);
 
@@ -511,9 +495,14 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
         }
       });
 
+      const { data: { session } = {} } = (await supabase?.auth.getSession()) ?? { data: {} };
+      const token = session?.access_token;
       const res = await fetch("/api/translate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ items, source: "en", target: activeLocale }),
       });
       if (!res.ok) throw new Error(`translate request failed: ${res.status}`);

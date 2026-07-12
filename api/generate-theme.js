@@ -8,23 +8,18 @@
 //     API can't be abused by anonymous or other signed-up accounts
 //   - a best-effort per-helper throttle bounds runaway retries / replayed tokens
 import { generateThemeTokens } from "./_lib/themeProvider.js";
-import { supabaseAdmin } from "./_lib/supabaseAdmin.js";
+import { authorizedHelperEmail, isAllowedHelperEmail, makeRateLimiter } from "./_lib/requireCoupleAuth.js";
+
+// Re-export for existing consumers/tests; the implementation moved to
+// _lib/requireCoupleAuth.js so translate.js can share the same gate.
+export { isAllowedHelperEmail };
 
 const MAX_BASE64_CHARS = 3_300_000; // ~3.3 MB base64 ≈ 4.4 MB body, just under Vercel's 4.5 MB limit.
 const ALLOWED_MIME = /^image\/(jpeg|png|gif|webp)$/;
 
-// Best-effort in-memory rate limit (per warm instance). Not a durable quota — a
-// per-wedding daily cap in Postgres is a sensible follow-up — but it caps runaway
-// client retry loops / replayed tokens against the metered vision API.
-const RATE = { windowMs: 60_000, max: 8 };
-const hits = new Map();
-function rateLimited(key) {
-  const now = Date.now();
-  const recent = (hits.get(key) || []).filter((t) => now - t < RATE.windowMs);
-  recent.push(now);
-  hits.set(key, recent);
-  return recent.length > RATE.max;
-}
+// Best-effort per-warm-instance throttle; a per-wedding daily cap in Postgres
+// is a sensible follow-up for the metered vision API.
+const rateLimited = makeRateLimiter({ windowMs: 60_000, max: 8 });
 
 function providerKey(provider) {
   return {
@@ -41,33 +36,6 @@ function providerKey(provider) {
 export function resolveThemeModel(provider) {
   if (provider === "nvidia" && process.env.NVIDIA_MODEL) return process.env.NVIDIA_MODEL;
   return process.env.THEME_AI_MODEL || undefined;
-}
-
-// The endpoint spends real API budget per call, so require not just a valid
-// Supabase JWT but that it belongs to a configured account (couple or helper).
-// If neither email is configured, fall back to "any authenticated user" (back-compat).
-export function isAllowedHelperEmail(email) {
-  const coupleEmail = (process.env.COUPLE_EMAIL || process.env.VITE_COUPLE_EMAIL || "").trim().toLowerCase();
-  const helperEmail = (process.env.HELPER_EMAIL || process.env.VITE_HELPER_EMAIL || "").trim().toLowerCase();
-  const allowed = [coupleEmail, helperEmail].filter(Boolean);
-  if (!allowed.length) return true;
-  return typeof email === "string" && allowed.includes(email.trim().toLowerCase());
-}
-
-// Returns the authenticated helper's email, or null if the caller isn't an
-// authorized helper. Fails closed on any error.
-async function authorizedHelperEmail(req) {
-  const auth = req.headers?.authorization || "";
-  const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-  if (!token) return null;
-  try {
-    const { data, error } = await supabaseAdmin().auth.getUser(token);
-    const email = data?.user?.email;
-    if (error || !email || !isAllowedHelperEmail(email)) return null;
-    return email;
-  } catch {
-    return null;
-  }
 }
 
 export default async function handler(req, res) {
