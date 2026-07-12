@@ -9,6 +9,7 @@ import {
   cleanRelationshipGroup,
   cleanFriendSubgroup,
   cleanSpeech,
+  cleanDueDate,
   MAX_NAME,
   MAX_NOTES,
   MAX_ANGBAO,
@@ -123,5 +124,37 @@ describe("length slicing", () => {
     expect(cleanTable("")).toBe("1");
     expect(cleanTable("  ")).toBe("1");
     expect(cleanTable("VIP 1")).toBe("VIP 1");
+  });
+});
+
+describe("cleanDueDate", () => {
+  it("accepts a valid yyyy-mm-dd date, trimmed", () => {
+    expect(cleanDueDate("2026-03-17")).toBe("2026-03-17");
+    expect(cleanDueDate("  2026-03-17  ")).toBe("2026-03-17");
+  });
+
+  it("rejects malformed strings", () => {
+    expect(cleanDueDate("banana")).toBeNull();
+    expect(cleanDueDate("2026-3-7")).toBeNull();
+    expect(cleanDueDate("17/03/2026")).toBeNull();
+    expect(cleanDueDate("2026-03-17T00:00:00Z")).toBeNull();
+  });
+
+  it("rejects impossible calendar dates", () => {
+    expect(cleanDueDate("2026-02-30")).toBeNull();
+    expect(cleanDueDate("2026-13-01")).toBeNull();
+    expect(cleanDueDate("2026-00-10")).toBeNull();
+  });
+
+  it("accepts a leap-day only in a leap year", () => {
+    expect(cleanDueDate("2028-02-29")).toBe("2028-02-29");
+    expect(cleanDueDate("2026-02-29")).toBeNull();
+  });
+
+  it("rejects empty and non-string input", () => {
+    expect(cleanDueDate("")).toBeNull();
+    expect(cleanDueDate(null)).toBeNull();
+    expect(cleanDueDate(undefined)).toBeNull();
+    expect(cleanDueDate(20260317)).toBeNull();
   });
 });

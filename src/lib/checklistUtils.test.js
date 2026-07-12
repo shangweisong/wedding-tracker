@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   computeDueDate,
+  resolveDueDate,
   isTaskOverdue,
   checklistProgress,
   buildDefaultChecklist,
@@ -45,6 +46,43 @@ describe("computeDueDate", () => {
     const after = computeDueDate("2027-06-01", -180);
     expect(before).not.toBe(after);
     expect(after).toBe("2026-12-03");
+  });
+});
+
+// ── resolveDueDate ───────────────────────────────────────────────────────────
+
+describe("resolveDueDate", () => {
+  it("returns the exact date when dueDate is set", () => {
+    expect(resolveDueDate("2026-12-12", { dueDate: "2026-03-17", dueOffsetDays: null })).toBe("2026-03-17");
+  });
+
+  it("resolves an exact date even when the wedding date is unset", () => {
+    expect(resolveDueDate(null, { dueDate: "2026-03-17", dueOffsetDays: null })).toBe("2026-03-17");
+  });
+
+  it("prefers the exact date when both fields are set (legacy/raced saves)", () => {
+    expect(resolveDueDate("2026-12-12", { dueDate: "2026-03-17", dueOffsetDays: -30 })).toBe("2026-03-17");
+  });
+
+  it("falls back to the offset when dueDate is absent or null", () => {
+    expect(resolveDueDate("2026-12-12", { dueOffsetDays: -30 })).toBe("2026-11-12");
+    expect(resolveDueDate("2026-12-12", { dueDate: null, dueOffsetDays: -30 })).toBe("2026-11-12");
+  });
+
+  it("falls back to the offset when dueDate is invalid or corrupt", () => {
+    expect(resolveDueDate("2026-12-12", { dueDate: "2026-13-45", dueOffsetDays: -30 })).toBe("2026-11-12");
+    expect(resolveDueDate("2026-12-12", { dueDate: "banana", dueOffsetDays: -30 })).toBe("2026-11-12");
+    expect(resolveDueDate("2026-12-12", { dueDate: "", dueOffsetDays: -30 })).toBe("2026-11-12");
+  });
+
+  it("returns null when neither field resolves", () => {
+    expect(resolveDueDate("2026-12-12", { dueDate: null, dueOffsetDays: null })).toBeNull();
+    expect(resolveDueDate(null, { dueOffsetDays: -30 })).toBeNull();
+  });
+
+  it("tolerates a null or undefined task", () => {
+    expect(resolveDueDate("2026-12-12", null)).toBeNull();
+    expect(resolveDueDate("2026-12-12", undefined)).toBeNull();
   });
 });
 
@@ -156,24 +194,24 @@ describe("taskReminders", () => {
 // ── computeReminderDate ──────────────────────────────────────────────────────
 
 describe("computeReminderDate", () => {
-  it("resolves the reminder date relative to the task's due date", () => {
-    // due = 2026-12-12 - 30d = 2026-11-12; reminder 7d before due = 2026-11-05
-    expect(computeReminderDate("2026-12-12", -30, -7)).toBe("2026-11-05");
+  it("resolves the reminder date relative to the task's resolved due date", () => {
+    // due = 2026-11-12; reminder 7d before due = 2026-11-05
+    expect(computeReminderDate("2026-11-12", -7)).toBe("2026-11-05");
   });
 
   it("supports an on-due-date reminder (offset 0)", () => {
-    expect(computeReminderDate("2026-12-12", -30, 0)).toBe("2026-11-12");
+    expect(computeReminderDate("2026-11-12", 0)).toBe("2026-11-12");
   });
 
-  it("returns null when the task has no due date — null must not coerce to 0", () => {
-    expect(computeReminderDate("2026-12-12", null, -7)).toBeNull();
-    expect(computeReminderDate("2026-12-12", undefined, -7)).toBeNull();
+  it("returns null when the task has no resolved due date", () => {
+    expect(computeReminderDate(null, -7)).toBeNull();
+    expect(computeReminderDate("", -7)).toBeNull();
+    expect(computeReminderDate(undefined, -7)).toBeNull();
   });
 
-  it("returns null when the reminder offset or wedding date is missing", () => {
-    expect(computeReminderDate("2026-12-12", -30, null)).toBeNull();
-    expect(computeReminderDate("2026-12-12", -30, undefined)).toBeNull();
-    expect(computeReminderDate(null, -30, -7)).toBeNull();
+  it("returns null when the reminder offset is missing — null must not coerce to 0", () => {
+    expect(computeReminderDate("2026-11-12", null)).toBeNull();
+    expect(computeReminderDate("2026-11-12", undefined)).toBeNull();
   });
 });
 
@@ -262,8 +300,43 @@ describe("selectDueReminders", () => {
     expect(selectDueReminders(null, WEDDING, new Set(), TODAY)).toEqual([]);
   });
 
-  it("returns nothing when the wedding date is unset", () => {
+  it("returns nothing for offset-based tasks when the wedding date is unset", () => {
     const checklist = [task({ reminders: [{ id: "r1", offsetDays: 0 }] })];
     expect(selectDueReminders(checklist, null, new Set(), TODAY)).toEqual([]);
+  });
+
+  it("fires exact-date task reminders even when the wedding date is unset", () => {
+    const checklist = [
+      task({ dueOffsetDays: null, dueDate: TODAY, reminders: [{ id: "r1", offsetDays: 0 }] }),
+    ];
+    const due = selectDueReminders(checklist, null, new Set(), TODAY);
+    expect(due).toHaveLength(1);
+    expect(due[0]).toMatchObject({ reminderDate: TODAY, dueDate: TODAY });
+  });
+
+  it("handles a mixed checklist of offset and exact-date tasks", () => {
+    const checklist = [
+      task({ reminders: [{ id: "r1", offsetDays: 0 }] }), // offset: due TODAY
+      task({
+        id: "t2",
+        dueOffsetDays: null,
+        dueDate: "2026-07-05",
+        reminders: [{ id: "r2", offsetDays: -3 }], // fires 2026-07-02, past ⇒ catch-up
+      }),
+    ];
+    const due = selectDueReminders(checklist, WEDDING, new Set(), TODAY);
+    expect(due.map((d) => [d.reminder.id, d.dueDate])).toEqual([
+      ["r1", TODAY],
+      ["r2", "2026-07-05"],
+    ]);
+  });
+
+  it("anchors on the exact date when both dueDate and dueOffsetDays are set", () => {
+    // The offset alone would resolve to TODAY, but the pinned exact date wins.
+    const checklist = [task({ dueDate: "2026-07-07", reminders: [{ id: "r1", offsetDays: 0 }] })];
+    const due = selectDueReminders(checklist, WEDDING, new Set(), TODAY);
+    expect(due).toHaveLength(1);
+    expect(due[0].dueDate).toBe("2026-07-07");
+    expect(due[0].reminderDate).toBe("2026-07-07");
   });
 });

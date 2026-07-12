@@ -49,3 +49,13 @@ export const cleanAmount = (v) => {
   const n = parseFloat(v);
   return Number.isFinite(n) && n > 0 ? Math.min(n, MAX_ANGBAO) : 0;
 };
+// Strict yyyy-mm-dd calendar date (checklist exact due dates). The Date
+// roundtrip rejects impossible dates like 2026-02-30 that the regex alone
+// would let through. Returns the valid ISO string, else null.
+export const cleanDueDate = (v) => {
+  const s = String(v ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const [y, m, d] = s.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d ? s : null;
+};

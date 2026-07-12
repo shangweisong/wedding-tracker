@@ -184,6 +184,8 @@ When a guest submits the RSVP form, they receive a confirmation email with a `.i
 
 You can also attach email reminders to your planning-checklist tasks (Checklist tab → bell icon on any task with a due date — e.g. 1 week before due, on the due date). The daily cron emails a digest of every reminder firing that day to `HOST_EMAIL`; each reminder is sent once, and finished tasks are skipped.
 
+A task's due date can be either a preset relative to the wedding date (e.g. "6 months before" — these shift automatically if the wedding date changes) or, via "Exact date…", a specific pinned calendar day for hard external deadlines like a vendor's booking cutoff. Pinned dates (marked 📌) deliberately stay put when the wedding date changes. Reminders work with both kinds — exact-date tasks can even fire reminders before you've set the wedding date.
+
 This is powered by a Supabase webhook trigger → Vercel serverless function.
 
 ### Choose a provider
