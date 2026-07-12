@@ -12,6 +12,8 @@ import {
   computeReminderDate,
   isReminderDue,
   selectDueReminders,
+  usedCategories,
+  matchesCategoryFilter,
 } from "./checklistUtils.js";
 
 const TODAY = "2026-07-10";
@@ -338,5 +340,63 @@ describe("selectDueReminders", () => {
     expect(due).toHaveLength(1);
     expect(due[0].dueDate).toBe("2026-07-07");
     expect(due[0].reminderDate).toBe("2026-07-07");
+  });
+});
+
+// ── usedCategories ───────────────────────────────────────────────────────────
+
+describe("usedCategories", () => {
+  it("returns the distinct categories actually present, sorted alphabetically", () => {
+    const items = [
+      { category: "Venue & Vendors" },
+      { category: "Attire" },
+      { category: "Venue & Vendors" },
+    ];
+    expect(usedCategories(items)).toEqual(["Attire", "Venue & Vendors"]);
+  });
+
+  it("trims whitespace and dedupes by the trimmed value", () => {
+    const items = [{ category: " Attire " }, { category: "Attire" }];
+    expect(usedCategories(items)).toEqual(["Attire"]);
+  });
+
+  it("drops blank, whitespace-only, and missing categories", () => {
+    const items = [{ category: "" }, { category: "   " }, { category: null }, {}];
+    expect(usedCategories(items)).toEqual([]);
+  });
+
+  it("returns [] for empty or non-array input", () => {
+    expect(usedCategories([])).toEqual([]);
+    expect(usedCategories(null)).toEqual([]);
+    expect(usedCategories(undefined)).toEqual([]);
+  });
+});
+
+// ── matchesCategoryFilter ────────────────────────────────────────────────────
+
+describe("matchesCategoryFilter", () => {
+  it("matches everything when the filter is null (All)", () => {
+    expect(matchesCategoryFilter({ category: "Attire" }, null)).toBe(true);
+    expect(matchesCategoryFilter({ category: "" }, null)).toBe(true);
+    expect(matchesCategoryFilter({}, null)).toBe(true);
+  });
+
+  it("matches by trimmed category equality", () => {
+    expect(matchesCategoryFilter({ category: "Attire" }, "Attire")).toBe(true);
+    expect(matchesCategoryFilter({ category: " Attire " }, "Attire")).toBe(true);
+    expect(matchesCategoryFilter({ category: "Venue & Vendors" }, "Attire")).toBe(false);
+  });
+
+  it("treats the empty-string filter as 'uncategorized'", () => {
+    expect(matchesCategoryFilter({ category: "" }, "")).toBe(true);
+    expect(matchesCategoryFilter({ category: "   " }, "")).toBe(true);
+    expect(matchesCategoryFilter({}, "")).toBe(true);
+    expect(matchesCategoryFilter({ category: "Attire" }, "")).toBe(false);
+  });
+
+  it("tolerates a null task", () => {
+    expect(matchesCategoryFilter(null, null)).toBe(true);
+    expect(matchesCategoryFilter(null, "")).toBe(true);
+    expect(matchesCategoryFilter(null, "Attire")).toBe(false);
   });
 });

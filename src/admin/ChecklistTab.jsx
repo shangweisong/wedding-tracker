@@ -11,6 +11,8 @@ import {
   isTaskOverdue,
   checklistProgress,
   taskReminders,
+  usedCategories,
+  matchesCategoryFilter,
 } from "../lib/checklistUtils.js";
 import { cleanDueDate } from "../lib/validation.js";
 import { localDateISO } from "../lib/budgetUtils.js";
@@ -50,6 +52,17 @@ const styles = `
   }
   .checklist-add-btn:hover { background: rgba(201,168,76,0.1); }
   .checklist-add-btn svg { width: 14px; height: 14px; }
+
+  .checklist-filter-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .checklist-filter-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; padding: 3px 10px; border-radius: 20px; cursor: pointer;
+    border: 1.5px solid rgba(201,168,76,0.25); background: transparent; color: var(--brown);
+    opacity: 0.6; transition: all 0.15s; font-family: inherit;
+  }
+  .checklist-filter-chip:hover { opacity: 1; }
+  .checklist-filter-chip.active { opacity: 1; border-color: var(--gold); background: rgba(201,168,76,0.15); color: var(--gold-dark); font-weight: 500; }
+  .checklist-filter-count { opacity: 0.65; font-weight: 400; }
 
   .checklist-list { display: flex; flex-direction: column; gap: 8px; }
 
@@ -170,6 +183,8 @@ export default function ChecklistTab({ wedding, onSave, isCouple }) {
   const [items, setItems] = useState([]);
   const [saveStatus, setSaveStatus] = useState("");
   const [remindersOpenId, setRemindersOpenId] = useState(null);
+  // null = All, "" = Uncategorized, otherwise a trimmed category name. Not persisted.
+  const [categoryFilter, setCategoryFilter] = useState(null);
   const initialized = useRef(false);
   const saveTimer = useRef(null);
   const statusTimer = useRef(null);
@@ -264,7 +279,17 @@ export default function ChecklistTab({ wedding, onSave, isCouple }) {
   const weddingDate = wedding?.wedding_date || null;
   const { done, total, pct } = checklistProgress(items);
 
+  // Chip set derives from the categories actually in use (#114); a filter whose
+  // category vanished (rename/delete) silently falls back to All at render time.
+  const filterCategories = usedCategories(items);
+  const hasUncategorized = items.some((item) => matchesCategoryFilter(item, ""));
+  const filterValid =
+    categoryFilter === null ||
+    (categoryFilter === "" ? hasUncategorized : filterCategories.includes(categoryFilter));
+  const effectiveFilter = filterValid ? categoryFilter : null;
+
   const rows = items
+    .filter((item) => matchesCategoryFilter(item, effectiveFilter))
     .map((item) => ({ item, dueDate: resolveDueDate(weddingDate, item) }))
     .sort((a, b) => {
       if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate);
@@ -305,6 +330,34 @@ export default function ChecklistTab({ wedding, onSave, isCouple }) {
           <Icon.Plus /> Add task
         </button>
       </div>
+
+      {filterCategories.length > 0 && (
+        <div className="checklist-filter-row">
+          {[
+            { value: null, label: "All", count: items.length },
+            ...filterCategories.map((category) => ({
+              value: category,
+              label: category,
+              count: items.filter((item) => matchesCategoryFilter(item, category)).length,
+            })),
+            ...(hasUncategorized
+              ? [{
+                  value: "",
+                  label: "Uncategorized",
+                  count: items.filter((item) => matchesCategoryFilter(item, "")).length,
+                }]
+              : []),
+          ].map(({ value, label, count }) => (
+            <button
+              key={value === null ? "all" : `c:${value}`}
+              className={`checklist-filter-chip ${effectiveFilter === value ? "active" : ""}`}
+              onClick={() => setCategoryFilter(value)}
+            >
+              {label} <span className="checklist-filter-count">{count}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       <datalist id="checklist-categories">
         {categoryOptions.map((c) => <option key={c} value={c} />)}

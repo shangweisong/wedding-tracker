@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2026-07-12] — feat/114-checklist-category-filter
+
+### Added
+
+- **Checklist category filter (#114)** — a chip row above the checklist tasks filters by category: **All**, one chip per category *currently in use* (derived from the tasks themselves, not the template — categories are free text), and **Uncategorized** when any task has no category. Each chip shows its task count; the row hides itself when no task has a category, and a filter whose category is renamed away falls back to All. The progress bar keeps tracking the whole checklist, not the filtered subset. Purely a UI refinement — the selected chip isn't persisted and `weddings.checklist` is unchanged (no migration).
+
+---
+
 ## [2026-07-12] — feat/110-exact-due-dates
 
 ### Added
