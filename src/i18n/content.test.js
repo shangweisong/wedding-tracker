@@ -61,4 +61,19 @@ describe("localizeWedding", () => {
     expect(TRANSLATABLE_FIELDS).toContain("bride_name");
     expect(TRANSLATABLE_FIELDS).toContain("groom_name");
   });
+
+  it("localizes the general extra notice (#125)", () => {
+    expect(TRANSLATABLE_FIELDS).toContain("extra_notice");
+    const w = {
+      ...base,
+      extra_notice: "Bring a jacket — the ballroom is cold.",
+      content_translations: {
+        "zh-TW": { extra_notice: "宴會廳較冷，請攜帶外套。" },
+      },
+    };
+    expect(localizeWedding(w, "zh-TW").extra_notice).toBe("宴會廳較冷，請攜帶外套。");
+    // blank translation falls back to English like every other field
+    const blank = { ...w, content_translations: { "zh-TW": { extra_notice: " " } } };
+    expect(localizeWedding(blank, "zh-TW").extra_notice).toBe("Bring a jacket — the ballroom is cold.");
+  });
 });

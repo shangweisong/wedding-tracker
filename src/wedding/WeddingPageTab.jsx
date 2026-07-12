@@ -301,6 +301,7 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
   const [gettingThere, setGettingThere] = useState("");
   const [smokingNotice, setSmokingNotice] = useState("");
   const [parkingNotice, setParkingNotice] = useState("");
+  const [extraNotice, setExtraNotice] = useState("");
   const [isPublished, setIsPublished]   = useState(false);
   const [pageTheme, setPageTheme]       = useState("minimal");
   const [themeTokens, setThemeTokens]   = useState({});
@@ -336,6 +337,7 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
     setGettingThere(wedding.getting_there || "");
     setSmokingNotice(wedding.smoking_notice || "");
     setParkingNotice(wedding.parking_notice || "");
+    setExtraNotice(wedding.extra_notice || "");
     setIsPublished(wedding.is_published || false);
     setPageTheme(wedding.theme || "minimal");
     setEnableFunRsvpOptions(wedding.enable_fun_rsvp_options || false);
@@ -452,6 +454,7 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
     { key: "getting_there",  label: "Getting There",   en: gettingThere },
     { key: "smoking_notice", label: "Smoking notice",  en: smokingNotice },
     { key: "parking_notice", label: "Parking notice",  en: parkingNotice },
+    { key: "extra_notice",   label: "Extra notice",    en: extraNotice },
   ];
 
   // The translation object for the locale currently being edited.
@@ -626,6 +629,7 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
       enable_fun_rsvp_options: enableFunRsvpOptions,
       smoking_notice:  smokingNotice.trim(),
       parking_notice:  parkingNotice.trim(),
+      extra_notice:    extraNotice.trim(),
       content_translations: { ...(wedding?.content_translations || {}), ...translations },
       theme_tokens:    themeTokens,
       section_photos:  sectionPhotos,
@@ -911,6 +915,18 @@ export default function WeddingPageTab({ wedding, onSave, showToast }) {
           />
           <div style={{ fontSize: 11, color: "var(--brown)", opacity: 0.4, textAlign: "right", marginTop: 4 }}>
             {smokingNotice.length} / 500
+          </div>
+          <label className="wpt-label" style={{ marginTop: 12 }}>Extra notice</label>
+          <textarea
+            className="wpt-textarea"
+            style={{ minHeight: 72 }}
+            value={extraNotice}
+            onChange={(e) => setExtraNotice(e.target.value)}
+            placeholder="e.g. The ballroom is air-conditioned — bring a light jacket. Kids' corner available."
+            maxLength={500}
+          />
+          <div style={{ fontSize: 11, color: "var(--brown)", opacity: 0.4, textAlign: "right", marginTop: 4 }}>
+            {extraNotice.length} / 500
           </div>
         </div>
 

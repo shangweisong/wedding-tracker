@@ -1267,6 +1267,7 @@ export default function WeddingTracker() {
         p_enable_fun_rsvp_options: form.enable_fun_rsvp_options,
         p_smoking_notice: form.smoking_notice,
         p_parking_notice: form.parking_notice,
+        p_extra_notice:   form.extra_notice,
         p_content_translations: form.content_translations,
         p_theme_tokens:   form.theme_tokens,
         p_section_photos: form.section_photos,
