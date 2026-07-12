@@ -1,4 +1,8 @@
--- 0009_smart_rsvp.sql — Smart RSVP: per-event attendance tracking (#78)
+-- 0004_smart_rsvp.sql — Smart RSVP: per-event attendance tracking (#78)
+--
+-- Consolidated from: 0009_smart_rsvp,
+--                    0015_guard_config_rpcs (§1 upsert_wedding_config),
+--                    0017_guard_runsheet (§2 get_wedding_config)
 --
 -- Adds a couple-defined event list (`wedding_events`) and a per-body × per-event
 -- RSVP junction (`guest_event_rsvps`), so guests can RSVP to each event (tea
@@ -15,12 +19,15 @@
 --     mirror columns, written by a trigger on `guest_event_rsvps`, so seating,
 --     wishes-wrapped, emails, and existing RSVP stats keep working unchanged.
 --
--- Security model: both new tables are `authenticated`-only (helper account).
--- `anon` reaches events only through security-definer RPCs — `get_public_events`
--- (active events by slug, no guest data), `get_guest_by_rsvp_token` (token-scoped),
--- and `submit_rsvp_events` (validates every event_id is in the party's invited set).
+-- Security model: both new tables are `authenticated`-only (policies in
+-- 0005_roles_security.sql). `anon` reaches events only through security-definer
+-- RPCs — `get_public_events` (active events by slug, no guest data),
+-- `get_guest_by_rsvp_token` (token-scoped), and `submit_rsvp_events` (validates
+-- every event_id is in the party's invited set).
 --
--- Idempotent & consolidated, consistent with migrations 0001–0008.
+-- This file also holds the final get_wedding_config / upsert_wedding_config:
+-- both expose the smart-RSVP fields, so they must be created after the tables
+-- and columns defined here.
 
 -- ── 1. `wedding_events` TABLE ─────────────────────────────────────────────────
 
@@ -51,16 +58,7 @@ create trigger wedding_events_set_updated_at
   for each row execute function public.set_updated_at();
 
 alter table public.wedding_events enable row level security;
-
-drop policy if exists "helpers_select" on public.wedding_events;
-drop policy if exists "helpers_insert" on public.wedding_events;
-drop policy if exists "helpers_update" on public.wedding_events;
-drop policy if exists "helpers_delete" on public.wedding_events;
-
-create policy "helpers_select" on public.wedding_events for select to authenticated using (true);
-create policy "helpers_insert" on public.wedding_events for insert to authenticated with check (true);
-create policy "helpers_update" on public.wedding_events for update to authenticated using (true) with check (true);
-create policy "helpers_delete" on public.wedding_events for delete to authenticated using (true);
+-- Policies: 0005_roles_security.sql.
 
 -- ── 2. `guest_event_rsvps` JUNCTION (per body × per event) ─────────────────────
 --
@@ -94,21 +92,11 @@ create trigger guest_event_rsvps_set_updated_at
   for each row execute function public.set_updated_at();
 
 alter table public.guest_event_rsvps enable row level security;
+-- Policies: 0005_roles_security.sql.
 
-drop policy if exists "helpers_select" on public.guest_event_rsvps;
-drop policy if exists "helpers_insert" on public.guest_event_rsvps;
-drop policy if exists "helpers_update" on public.guest_event_rsvps;
-drop policy if exists "helpers_delete" on public.guest_event_rsvps;
-
-create policy "helpers_select" on public.guest_event_rsvps for select to authenticated using (true);
-create policy "helpers_insert" on public.guest_event_rsvps for insert to authenticated with check (true);
-create policy "helpers_update" on public.guest_event_rsvps for update to authenticated using (true) with check (true);
-create policy "helpers_delete" on public.guest_event_rsvps for delete to authenticated using (true);
-
--- ── 3. `weddings` FLAG + DESIGNATED MEAL EVENT ────────────────────────────────
-
-alter table public.weddings
-  add column if not exists enable_smart_rsvp boolean not null default false;
+-- ── 3. DESIGNATED MEAL EVENT ON `weddings` ────────────────────────────────────
+-- (enable_smart_rsvp itself is created with the table in 0003_weddings_page.sql;
+-- this FK column must wait until wedding_events exists.)
 
 -- Which event feeds the legacy `guests.meal_choice` mirror (e.g. the banquet).
 alter table public.weddings
@@ -182,7 +170,7 @@ $$;
 
 -- Internal mirror helper — never called directly by clients (the trigger below
 -- is the only caller). Revoke the implicit PUBLIC execute grant so anon cannot
--- invoke it on an arbitrary guest id (mirrors 0002's assign_draw_number revoke).
+-- invoke it on an arbitrary guest id (mirrors 0001_core's assign_draw_number revoke).
 revoke execute on function public.recompute_guest_rsvp_mirror(uuid) from public;
 
 create or replace function public.tg_guest_event_rsvps_mirror()
@@ -247,7 +235,7 @@ $$;
 
 grant execute on function public.get_public_events(text) to anon, authenticated;
 
--- ── 6. TOKEN LOOKUP: append invited_events + event_responses ──────────────────
+-- ── 6. TOKEN LOOKUP: guest + invited_events + event_responses ──────────────────
 -- Append-only (existing columns keep their positions — RsvpPage reads by name).
 
 drop function if exists public.get_guest_by_rsvp_token(uuid);
@@ -531,50 +519,61 @@ $$;
 grant execute on function public.submit_rsvp_events(uuid, text, text, text, text, text, text, text[], jsonb)
   to anon, authenticated;
 
--- ── 8. SURFACE THE FLAG IN CONFIG / PAGE RPCs ─────────────────────────────────
--- Recreated from their latest (0008 / 0004) definitions with smart-RSVP fields
--- appended. Append-only: WeddingPage reads get_public_wedding positionally.
+-- ── 8. get_wedding_config — admin + public display config read ────────────────
+-- Column order in the returns table MUST match the select list exactly.
+--
+-- Granted to `anon` (the public RSVP form calls it), so it must expose ONLY
+-- public display config. It DELIBERATELY omits the budget/checklist fields:
+-- those are internal data served instead by the authenticated, couple-only
+-- get_budget_config / get_checklist_config (0006_planning_features.sql). The
+-- runsheet column is masked from anon until published (see below).
 
--- 8a. Admin read — append enable_smart_rsvp + primary_meal_event_id.
 drop function if exists public.get_wedding_config();
 
 create or replace function public.get_wedding_config()
 returns table (
-  id                uuid,
-  bride_name        text,
-  groom_name        text,
-  wedding_date      date,
-  venue_name        text,
-  venue_address     text,
-  ceremony_time     text,
-  dinner_time       text,
-  tea_ceremony_time text,
-  slug              text,
-  love_story        text,
-  dress_code        text,
-  hero_image_url    text,
-  hero_focal_point  text,
-  fun_qa            jsonb,
-  rsvp_deadline     date,
-  is_published      boolean,
-  meal_options      text,
-  getting_there     text,
-  theme             text,
+  id                      uuid,
+  bride_name              text,
+  groom_name              text,
+  wedding_date            date,
+  venue_name              text,
+  venue_address           text,
+  ceremony_time           text,
+  dinner_time             text,
+  tea_ceremony_time       text,
+  slug                    text,
+  love_story              text,
+  dress_code              text,
+  hero_image_url          text,
+  hero_focal_point        text,
+  fun_qa                  jsonb,
+  rsvp_deadline           date,
+  is_published            boolean,
+  meal_options            text,
+  getting_there           text,
+  theme                   text,
   enable_fun_rsvp_options boolean,
-  smoking_notice    text,
-  parking_notice    text,
-  content_translations jsonb,
-  theme_tokens      jsonb,
-  section_photos    jsonb,
-  enable_smart_rsvp boolean,
-  primary_meal_event_id uuid
+  smoking_notice          text,
+  parking_notice          text,
+  content_translations    jsonb,
+  theme_tokens            jsonb,
+  section_photos          jsonb,
+  enable_smart_rsvp       boolean,
+  primary_meal_event_id   uuid,
+  runsheet                jsonb,
+  is_runsheet_published   boolean
 )
 language sql
 security definer
 set search_path = public
 as $$
   select
-    id, bride_name, groom_name, wedding_date, venue_name, venue_address,
+    id,
+    bride_name,
+    groom_name,
+    wedding_date,
+    venue_name,
+    venue_address,
     to_char(ceremony_time,     'HH24:MI'),
     to_char(dinner_time,       'HH24:MI'),
     to_char(tea_ceremony_time, 'HH24:MI'),
@@ -596,7 +595,18 @@ as $$
     coalesce(theme_tokens, '{}'::jsonb),
     coalesce(section_photos, '{}'::jsonb),
     coalesce(enable_smart_rsvp, false),
-    primary_meal_event_id
+    primary_meal_event_id,
+    -- Draft runsheets are couple-internal coordination data: anon callers get
+    -- an empty list until the couple flips the publish toggle. auth.role() is
+    -- 'authenticated' for any signed-in account (couple or helper) and
+    -- 'anon' / null for the public key alone.
+    case
+      when coalesce(is_runsheet_published, false)
+        or coalesce(auth.role(), '') = 'authenticated'
+      then coalesce(runsheet, '[]'::jsonb)
+      else '[]'::jsonb
+    end,
+    coalesce(is_runsheet_published, false)
   from public.weddings
   limit 1;
 $$;
@@ -606,67 +616,13 @@ $$;
 -- display config only (no guest data), so anon read is intentional, not a leak.
 grant execute on function public.get_wedding_config() to anon, authenticated;
 
--- 8b. Public page read — append enable_smart_rsvp (positional consumer; keep last).
-drop function if exists public.get_public_wedding(text);
+-- ── 9. upsert_wedding_config — admin write (Wedding Setup), couple-only ───────
+-- Security definer bypasses the weddings_write RLS policy, so the role gate
+-- lives inside the function (#101). is_helper() FAILS OPEN, so this guard can
+-- never block the couple.
 
-create or replace function public.get_public_wedding(p_slug text)
-returns table (
-  bride_name        text,
-  groom_name        text,
-  wedding_date      date,
-  venue_name        text,
-  venue_address     text,
-  ceremony_time     text,
-  dinner_time       text,
-  tea_ceremony_time text,
-  slug              text,
-  love_story        text,
-  dress_code        text,
-  hero_image_url    text,
-  hero_focal_point  text,
-  fun_qa            jsonb,
-  rsvp_deadline     date,
-  is_published      boolean,
-  meal_options      text,
-  getting_there     text,
-  theme             text,
-  content_translations jsonb,
-  theme_tokens      jsonb,
-  section_photos    jsonb,
-  enable_smart_rsvp boolean
-)
-language sql
-security definer
-set search_path = public
-as $$
-  select
-    bride_name, groom_name, wedding_date, venue_name, venue_address,
-    to_char(ceremony_time,     'HH24:MI'),
-    to_char(dinner_time,       'HH24:MI'),
-    to_char(tea_ceremony_time, 'HH24:MI'),
-    slug,
-    coalesce(love_story, ''),
-    coalesce(dress_code, ''),
-    coalesce(hero_image_url, ''),
-    coalesce(hero_focal_point, 'center'),
-    coalesce(fun_qa, '[]'::jsonb),
-    rsvp_deadline,
-    coalesce(is_published, false),
-    coalesce(meal_options, ''),
-    coalesce(getting_there, ''),
-    coalesce(theme, 'minimal'),
-    coalesce(content_translations, '{}'::jsonb),
-    coalesce(theme_tokens, '{}'::jsonb),
-    coalesce(section_photos, '{}'::jsonb),
-    coalesce(enable_smart_rsvp, false)
-  from public.weddings
-  where slug = p_slug
-  limit 1;
-$$;
-
-grant execute on function public.get_public_wedding(text) to anon, authenticated;
-
--- 8c. Admin write (Wedding Setup) — append the smart-RSVP flag + meal event.
+-- Superseded historical signatures.
+drop function if exists public.upsert_wedding_config(text, text, date, text, text, text, text);
 drop function if exists public.upsert_wedding_config(text, text, date, text, text, text, text, text);
 
 create or replace function public.upsert_wedding_config(
@@ -687,6 +643,13 @@ security definer
 set search_path = public
 as $$
 begin
+  -- Couple-only: security definer bypasses the weddings_write RLS policy, so
+  -- the role gate must live inside the function (same pattern as
+  -- upsert_budget_config in 0006).
+  if (select public.is_helper()) then
+    raise exception 'insufficient_privilege' using errcode = '42501';
+  end if;
+
   insert into public.weddings (
     bride_name, groom_name, wedding_date,
     venue_name, venue_address,
@@ -721,18 +684,7 @@ begin
 end;
 $$;
 
--- Admin WRITE — restrict to authenticated helpers. These are only ever called by
--- the signed-in admin console (AdminApp.jsx); anon must not be able to overwrite
--- the wedding singleton (names/venue/times/flags). Closes the pre-existing anon
--- grant on the config-write RPCs (mirrors it for its twin upsert_wedding_page).
-revoke execute on function public.upsert_wedding_config(text, text, date, text, text, text, text, text, boolean, uuid)
-  from anon;
+revoke all on function public.upsert_wedding_config(text, text, date, text, text, text, text, text, boolean, uuid)
+  from public, anon;
 grant execute on function public.upsert_wedding_config(text, text, date, text, text, text, text, text, boolean, uuid)
   to authenticated;
-
-revoke execute on function public.upsert_wedding_page(
-  text, text, text, text, jsonb, date, boolean, text, text, text, boolean, text, text, jsonb, jsonb, jsonb, text
-) from anon;
-grant execute on function public.upsert_wedding_page(
-  text, text, text, text, jsonb, date, boolean, text, text, text, boolean, text, text, jsonb, jsonb, jsonb, text
-) to authenticated;

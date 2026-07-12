@@ -12,7 +12,8 @@ This project is configured so that:
 - **The database is locked to authenticated helpers only.** RLS grants access to
   the `authenticated` role; the anonymous role has no policy, so the public anon
   key alone cannot read, insert, update, or delete any guest data. See
-  [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql).
+  [`supabase/migrations/0001_core.sql`](supabase/migrations/0001_core.sql) and
+  [`supabase/migrations/0005_roles_security.sql`](supabase/migrations/0005_roles_security.sql).
 - **Access is gated by a real server-side sign-in.** Helpers unlock the app by
   entering a shared access code, which is verified by Supabase Auth on the
   server (`signInWithPassword`). The code is **never** hard-coded in the bundle
@@ -25,7 +26,8 @@ This project is configured so that:
 
 ### Required setup to be secure
 
-1. Run `supabase/migrations/0001_init.sql` in your Supabase project.
+1. Run the migrations in `supabase/migrations/` (0001–0006; 0007 is the
+   optional email automation) in your Supabase project.
 2. In **Authentication → Providers → Email**, create one helper user and
    **disable public sign-ups** so strangers can't self-register an account.
 3. Set `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and `VITE_HELPER_EMAIL`
@@ -36,7 +38,7 @@ This project is configured so that:
    the lock screen at runtime and verified server-side; it must never appear in
    any env file.
 4. For email automation (Phase 3, optional): run
-   `supabase/migrations/0005_email_automation.sql`, then create the two
+   `supabase/migrations/0007_email_automation.sql`, then create the two
    Supabase Vault secrets it documents (`rsvp_email_webhook_url`,
    `rsvp_email_webhook_secret`), and set the server-only env vars listed in
    `.env.example` (`SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`,
@@ -48,8 +50,8 @@ This project is configured so that:
    The proxy requires the signed-in couple/helper's Supabase token (same gate
    as `/api/generate-theme`), so anonymous callers can't spend the translation
    quota or use it as an open relay.
-6. For AI theme generation (optional, migration
-   `supabase/migrations/0006_ai_theme.sql`): pick a provider with
+6. For AI theme generation (optional; schema support ships in
+   `supabase/migrations/0003_weddings_page.sql`): pick a provider with
    `THEME_AI_PROVIDER` and set only its **server-only** key (`ANTHROPIC_API_KEY`
    / `OPENAI_API_KEY` / `NVIDIA_API_KEY`). Never give any of these a `VITE_`
    prefix. Keep public sign-ups disabled (step 2) — `/api/generate-theme` is
@@ -64,7 +66,8 @@ This project is configured so that:
   isolation, switch to per-helper accounts.
 - **Couple vs helper is enforced in the database for writes (#92).** The helper
   and couple are two distinct Supabase Auth users. RLS keys off the signed-in
-  email via `public.is_helper()` (migration `0010_role_enforcement.sql`): the
+  email via `public.is_helper()` (defined in `0001_core.sql`; policies in
+  `0005_roles_security.sql`): the
   helper account has **no insert/update/delete** on `guests`, `tables`,
   `wedding_events`, or `guest_event_rsvps`, and **no access to the financial
   `submissions` table**. Its one permitted guest write — check-in — goes through
@@ -86,18 +89,19 @@ This project is configured so that:
     **Fail-open:** if `helper_email` is unset, `is_helper()` returns false for
     everyone and all authenticated users keep full access — the couple is never
     locked out, and `is_helper()` also fails open on any internal error.
-  - **Residual (read side).** RLS filters rows, not columns, so the helper can
-    still *read* couple-only guest columns (private `notes`, `angbao_amount`)
-    directly via the SDK — only the UI hides them. Routing those reads through a
-    projection view/RPC is tracked as a follow-up; #92 closes the write bypass and
-    the financial-table read.
+  - **Read side (#99).** RLS filters rows, not columns, so direct guest selects
+    are couple-only and the helper's D-Day reads go through the
+    `get_checkin_guests()` security-definer projection
+    (`0005_roles_security.sql`), which omits couple-only columns (private
+    `notes`, `angbao_*`, `rsvp_token`, contact details).
 - **Google Fonts** is loaded from an external origin (allow-listed in the CSP).
   Self-hosting the fonts would remove this dependency.
 - **`VITE_ENABLE_ANGBAO=false` is a UI toggle, not a security control.** Disabling
   ang-bao tracking hides the public `#pay` page and the helper-side ang-bao UI in
   the browser bundle, but it does **not** alter RLS or storage policies: the
   anonymous *insert a pending submission* / *upload a receipt* grants from
-  [`0002_draw_and_submissions.sql`](supabase/migrations/0002_draw_and_submissions.sql)
+  [`0001_core.sql`](supabase/migrations/0001_core.sql) /
+  [`0005_roles_security.sql`](supabase/migrations/0005_roles_security.sql)
   still exist server-side. If you need those endpoints fully closed (not just
   hidden), drop or tighten the corresponding policies in Supabase as well.
 
@@ -128,22 +132,22 @@ This project is configured so that:
   `OPENAI_API_KEY` / `NVIDIA_API_KEY`) are server-only. A durable per-day quota
   (beyond the in-memory rate limit) is a sensible future hardening.
 
-- **Wedding-page content writes are couple-gated since
-  [`0015_guard_config_rpcs.sql`](supabase/migrations/0015_guard_config_rpcs.sql).**
-  The `upsert_wedding_page` / `upsert_wedding_config` RPCs (which carry the
-  `section_photos` JSONB from
-  [`0007_section_photos.sql`](supabase/migrations/0007_section_photos.sql)) had
-  historically been granted to `anon`; 0015 revoked `public`/`anon` and added an
-  internal couple-only gate, closing that editor path. The server-side
-  `weddings_section_photos_size` check constraint
+- **Wedding-page content writes are couple-gated (#101).** The
+  `upsert_wedding_page` / `upsert_wedding_config` / `upsert_runsheet` /
+  `upsert_budget_config` / `upsert_checklist_config` RPCs had historically been
+  reachable with the anon key; their grants are now `authenticated`-only and each
+  carries an internal couple-only gate (see
+  [`0003_weddings_page.sql`](supabase/migrations/0003_weddings_page.sql),
+  [`0004_smart_rsvp.sql`](supabase/migrations/0004_smart_rsvp.sql),
+  [`0006_planning_features.sql`](supabase/migrations/0006_planning_features.sql)).
+  The server-side `weddings_section_photos_size` check constraint
   (`pg_column_size(section_photos) < 200000`) remains the authoritative payload
   cap — the client-side "12 photos / 4 columns per slot" limits are UI-only.
   Photo URLs are stored and rendered as plain image `src`s (not HTML), so they
   can't inject markup. Likewise, the public `wedding-photos` storage bucket
-  accepted anonymous upload/overwrite/delete until
-  [`0019_wedding_photos_policies.sql`](supabase/migrations/0019_wedding_photos_policies.sql)
-  restricted writes to the authenticated couple (public read stays — the bucket
-  serves the hero/section images).
+  accepted anonymous upload/overwrite/delete until writes were restricted to the
+  authenticated couple ([`0003_weddings_page.sql`](supabase/migrations/0003_weddings_page.sql) §3;
+  public read stays — the bucket serves the hero/section images).
 
 - **RSVP-by-name is anonymous by design.** `find_guest_by_name` and
   `submit_rsvp_by_name` are executable by `anon` so guests can RSVP with just

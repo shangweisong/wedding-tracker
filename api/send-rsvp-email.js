@@ -149,7 +149,7 @@ function hostNotificationHtml({ guestName, oldStatus, newStatus, mealChoice, die
 }
 
 // Webhook target for the `guests_rsvp_status_webhook` Postgres trigger
-// (supabase/migrations/0005_email_automation.sql, updated in 0006_rsvp_host_notify.sql).
+// (supabase/migrations/0007_email_automation.sql).
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
 

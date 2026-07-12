@@ -1,4 +1,6 @@
--- Email Automation — RSVP confirmation emails + 90/30-day reminder cron
+-- 0007_email_automation.sql — RSVP confirmation emails + 90/30-day reminder cron
+--
+-- Consolidated from: 0005_email_automation (renumbered; content unchanged)
 --
 -- ┌─────────────────────────────────────────────────────────────────────────┐
 -- │  OPTIONAL — apply only after completing these steps:                   │
@@ -83,7 +85,7 @@ create trigger guests_rsvp_status_webhook
 
 -- ── 3. REMINDER TRACKING COLUMN ──────────────────────────────────────────────
 -- Tracks the 30-day reminder independently from last_reminder_sent_at (which
--- covers the 90-day reminder in 0003_rsvp_seating.sql) so both thresholds
+-- covers the 90-day reminder in 0002_rsvp_seating.sql) so both thresholds
 -- can fire without interfering with each other.
 
 alter table public.guests

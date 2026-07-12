@@ -29,35 +29,47 @@ Open the **SQL Editor** in your Supabase dashboard and run the migrations **in o
 
 | File | What it creates |
 |---|---|
-| [`0001_init.sql`](../supabase/migrations/0001_init.sql) | `guests` table, RLS policies, `set_updated_at` trigger |
-| [`0002_draw_and_submissions.sql`](../supabase/migrations/0002_draw_and_submissions.sql) | Lucky-draw number, guest receipt-upload queue (`submissions` table), private `receipts` storage bucket |
-| [`0003_rsvp_seating.sql`](../supabase/migrations/0003_rsvp_seating.sql) | `tables` table; all RSVP columns on guests (`rsvp_status`, `meal_choice`, `email`, etc.); fuzzy name-match RPC (`submit_rsvp_by_name`); relationship taxonomy columns |
-| [`0004_weddings.sql`](../supabase/migrations/0004_weddings.sql) | Singleton `weddings` table; wedding page columns (slug, love story, hero photo, etc.); `get_wedding_config` / `upsert_wedding_config` / `get_public_wedding` RPCs; photo storage bucket |
-| [`0005_email_automation.sql`](../supabase/migrations/0005_email_automation.sql) | `pg_net` extension; RSVP status-change webhook trigger (with `old_rsvp_status` for host change-of-mind notifications); `second_reminder_sent_at` column — **apply only after completing the email setup in step 5** |
-| [`0006_ai_theme.sql`](../supabase/migrations/0006_ai_theme.sql) | `weddings.theme_tokens jsonb` column (AI-generated "Custom" theme palette); re-threads it through `get_wedding_config` / `upsert_wedding_page` / `get_public_wedding` — **only needed if you use AI theme generation** |
-| [`0007_section_photos.sql`](../supabase/migrations/0007_section_photos.sql) | `weddings.section_photos jsonb` column (optional photo galleries between wedding-page sections) + a `weddings_section_photos_size` size-cap check constraint; re-threads it through `get_wedding_config` / `upsert_wedding_page` / `get_public_wedding` — **only needed if you use section photo galleries** |
+| [`0001_core.sql`](../supabase/migrations/0001_core.sql) | `guests` + `submissions` tables, `set_updated_at` trigger, lucky-draw number (`assign_draw_number`), private `receipts` storage bucket, role plumbing (`app_config` + `is_helper()`) |
+| [`0002_rsvp_seating.sql`](../supabase/migrations/0002_rsvp_seating.sql) | `tables` table; all RSVP columns on guests (`rsvp_status`, `meal_choice`, `email`, etc.); relationship taxonomy columns; RSVP RPCs (`submit_rsvp`, fuzzy `submit_rsvp_by_name`, `find_guest_by_name`); reminder-cron indexes |
+| [`0003_weddings_page.sql`](../supabase/migrations/0003_weddings_page.sql) | Singleton `weddings` table with **all** columns (page content, AI theme tokens, section photos, hero focal point, budget/runsheet/checklist storage); `wedding-photos` bucket with couple-only write policies; `upsert_wedding_page` / `get_public_wedding` RPCs |
+| [`0004_smart_rsvp.sql`](../supabase/migrations/0004_smart_rsvp.sql) | Smart RSVP: `wedding_events` + `guest_event_rsvps` tables, legacy-mirror trigger, `get_public_events` / `get_guest_by_rsvp_token` / `submit_rsvp_events`; final `get_wedding_config` / `upsert_wedding_config` |
+| [`0005_roles_security.sql`](../supabase/migrations/0005_roles_security.sql) | Couple/helper RLS split for `guests` / `tables` / `wedding_events` / `guest_event_rsvps` / `submissions` / `receipts`; `set_guest_checkin` + helper-safe `get_checkin_guests` projection |
+| [`0006_planning_features.sql`](../supabase/migrations/0006_planning_features.sql) | `vendors` table + RLS; budget / runsheet / checklist config RPCs (couple-gated); `checklist_reminder_log` table |
+| [`0007_email_automation.sql`](../supabase/migrations/0007_email_automation.sql) | `pg_net` extension; RSVP status-change webhook trigger (with `old_rsvp_status` for host change-of-mind notifications); `second_reminder_sent_at` column — **apply only after completing the email setup in step 5** |
 
-All migrations are idempotent (`CREATE OR REPLACE`, `IF NOT EXISTS`) — safe to re-run.
+All migrations are idempotent (`CREATE OR REPLACE`, `IF NOT EXISTS`) — safe to re-run,
+including against a database that already ran the pre-consolidation files.
 
-> **Supabase CLI users (existing deployments):** some files have been consolidated since earlier releases. If you applied any of the files listed below via `supabase db push`, remove their stale tracking entries so the CLI stays in sync:
+> **Supabase CLI users (existing deployments):** the migration folder was consolidated
+> from 19 files down to these 7 (each object now appears once, in its final form).
+> If you applied the old files via `supabase db push`, the CLI's tracking table still
+> lists the old versions — and because the new files reuse versions `0001`–`0007`,
+> `db push` would wrongly treat them as already applied. Reset the tracking rows once,
+> then push (the files are no-ops against an already-migrated schema):
 >
-> | Removed file | Consolidated into |
+> | Removed files | Consolidated into |
 > |---|---|
-> | `0006_rsvp_host_notify.sql` | `0005_email_automation.sql` |
-> | `0007_second_reminder.sql` | `0005_email_automation.sql` |
-> | `0006_themes.sql` | `0004_weddings.sql` |
+> | `0001_init`, `0002_draw_and_submissions`, `0010_role_enforcement` (config/`is_helper`) | `0001_core.sql` |
+> | `0003_rsvp_seating`, `0012_perf_indexes` | `0002_rsvp_seating.sql` |
+> | `0004_weddings`, `0006_ai_theme`, `0007_section_photos`, `0008_hero_focal_point`, `0019_wedding_photos_policies` | `0003_weddings_page.sql` |
+> | `0009_smart_rsvp`, `0015_guard_config_rpcs`, `0017_guard_runsheet` (RPC bodies) | `0004_smart_rsvp.sql` |
+> | `0010_role_enforcement` (policies), `0016_helper_guest_projection` | `0005_roles_security.sql` |
+> | `0011_vendors_budget`, `0013_runsheet`, `0014_planning_checklist`, `0018_checklist_reminders` | `0006_planning_features.sql` |
+> | `0005_email_automation` | `0007_email_automation.sql` |
 >
 > ```sql
-> -- Remove whichever rows match files you previously applied.
-> -- Check your actual version timestamps first:
-> --   select * from supabase_migrations.schema_migrations;
+> -- One-time cleanup: drop every pre-consolidation tracking row (0001–0019).
+> -- Verify what you have first:  select * from supabase_migrations.schema_migrations;
 > delete from supabase_migrations.schema_migrations
 >   where version in (
->     '<timestamp_for_0006_rsvp_host_notify>',
->     '<timestamp_for_0007_second_reminder>',
->     '<timestamp_for_0006_themes>'
+>     '0001','0002','0003','0004','0005','0006','0007','0008','0009','0010',
+>     '0011','0012','0013','0014','0015','0016','0017','0018','0019'
 >   );
 > ```
+>
+> Then run `supabase db push` — it re-applies the 7 new files, which change nothing
+> on an up-to-date schema (one exception: they close a small grant gap on the
+> checklist RPCs; see the changelog).
 
 > Never use `for all using (true)` — that exposes the entire guest list to anyone with the public anon key.
 
@@ -293,7 +305,7 @@ This is a one-time step that tells Supabase where to call when a guest RSVPs.
 
 **Step 1 — Apply the email automation migration** (if you haven't already):
 
-Run [`0005_email_automation.sql`](../supabase/migrations/0005_email_automation.sql) in the SQL Editor.
+Run [`0007_email_automation.sql`](../supabase/migrations/0007_email_automation.sql) in the SQL Editor.
 
 **Step 2 — Register the webhook URL and secret in Supabase Vault:**
 
@@ -364,7 +376,7 @@ Priya Nair,2,,false,bride
    - Attending guests can bring up to **6 additional guests** — each becomes its own guest entry (seatable and checkable-in independently). In the **RSVP tab** these appear as rows labelled *"↳ additional guest of …"*; the confirmed **headcount** stat counts every body, while the confirmed/pending counts track invitations.
    - The public **Wedding page** and **RSVP form** offer a language selector (top-right) covering **English, 繁體中文 (Traditional Chinese), 简体中文 (Simplified Chinese), Bahasa Melayu, 日本語, and 한국어**. With more than three languages the toggle becomes a dropdown; the app's own labels are translated automatically, the guest's choice is remembered per browser, and the initial language is sniffed from the browser. The admin dashboard and emails stay in English.
    - To translate **your own text**, open **Wedding Setup → Wedding Page → Translations** and pick the target language: fill each field (or click **Auto-translate from English** to draft them, then edit). Blank fields fall back to English per-field on the public page. Auto-translate prefers **DeepL** for more natural output (set the server-only `DEEPL_API_KEY`; use `DEEPL_API_URL` for a Pro key) and falls back to **MyMemory** for languages DeepL doesn't cover (e.g. Malay) or when no DeepL key is set; the optional `MYMEMORY_EMAIL` raises MyMemory's daily limit.
-   - Optional: under **Wedding Page**, add **section photo galleries** — photo bands inserted between the public page's sections (after the hero, Our Story, Fun Q&A, event details, or directions). Enable a slot, choose its column count (1–4), and paste the photo URLs (up to 12 per slot); they render as a masonry layout so tall and wide photos aren't cropped. (Requires migration `0007_section_photos.sql`.)
+   - Optional: under **Wedding Page**, add **section photo galleries** — photo bands inserted between the public page's sections (after the hero, Our Story, Fun Q&A, event details, or directions). Enable a slot, choose its column count (1–4), and paste the photo URLs (up to 12 per slot); they render as a masonry layout so tall and wide photos aren't cropped. (Schema support ships in `0003_weddings_page.sql`.)
 2. Import your guest list via CSV (or add guests one by one)
 3. Share `https://your-app.vercel.app/rsvp` in your wedding group chat
 4. Guests fill in the RSVP form — responses appear in the **RSVP tab** in real time
@@ -415,7 +427,7 @@ The toggle is **build-time** and read once at startup — changing it requires a
 
 No backend of its own — the database is the trust boundary.
 
-- **Role-based access** — two Supabase Auth accounts gate the dashboard. The couple account (`VITE_COUPLE_EMAIL`) gets full access. The bridal team account (`VITE_HELPER_EMAIL`) is locked to D-Day controls only: guest check-in, angbao recording, lucky draw, and a read-only seating chart. Planning tabs, guest add/delete/edit, exports, and financial totals are hidden. **The write side of this split is now enforced in the database, not just the browser.** RLS policies key off the signed-in email (via `is_helper()`): the helper account cannot insert, update, or delete guests, seating, events, or RSVPs, and has **no access to the financial `submissions` table at all** — check-in is the one write it can do, routed through the `set_guest_checkin` RPC. So a helper who bypasses the hidden buttons (DevTools/SDK) is refused by Postgres, not merely by the UI. **To activate this, the DB must know which email is the helper:** the `0010_role_enforcement` migration seeds `public.app_config` with the default emails; a deployment using its own addresses overrides them with a service-role `update public.app_config …` (see `SECURITY.md`). Until configured, enforcement is fail-open (everyone keeps full access — the couple is never locked out). **One honest gap remains:** RLS filters rows, not columns, so the helper can still *read* couple-only guest columns (private notes, ang-bao amount) directly via the SDK — hiding those reads behind a projection is tracked as a follow-up. Treat that residual read as a convenience gap, not the write guarantee.
+- **Role-based access** — two Supabase Auth accounts gate the dashboard. The couple account (`VITE_COUPLE_EMAIL`) gets full access. The bridal team account (`VITE_HELPER_EMAIL`) is locked to D-Day controls only: guest check-in, angbao recording, lucky draw, and a read-only seating chart. Planning tabs, guest add/delete/edit, exports, and financial totals are hidden. **The write side of this split is now enforced in the database, not just the browser.** RLS policies key off the signed-in email (via `is_helper()`): the helper account cannot insert, update, or delete guests, seating, events, or RSVPs, and has **no access to the financial `submissions` table at all** — check-in is the one write it can do, routed through the `set_guest_checkin` RPC. So a helper who bypasses the hidden buttons (DevTools/SDK) is refused by Postgres, not merely by the UI. **To activate this, the DB must know which email is the helper:** the `0001_core` migration seeds `public.app_config` with the default emails; a deployment using its own addresses overrides them with a service-role `update public.app_config …` (see `SECURITY.md`). Until configured, enforcement is fail-open (everyone keeps full access — the couple is never locked out). Direct guest *reads* are couple-only too (#99): the helper's D-Day views go through the `get_checkin_guests()` projection, which omits couple-only columns (private notes, ang-bao amounts, contact details, RSVP tokens).
 - **Never set access codes as env vars** — any variable with a `VITE_` prefix is embedded in the JavaScript bundle and visible to anyone who opens DevTools. Access codes are entered at the lock screen at runtime and verified server-side by Supabase. If you ever find `VITE_COUPLE_PASSWORD` or `VITE_HELPER_PASSWORD` in your env files, delete them and rotate both Supabase passwords immediately.
 - **Public RSVP** — the `/rsvp` page has zero direct table access. It calls `security definer` RPC functions that expose only the minimum needed: name search and writing RSVP fields. The guest list is never returned to the browser.
 - **Residual risk** — each account is a shared credential (one password per role), so anyone who knows the bridal team password can use D-Day features. The couple password should be kept private; only the bridal team password is shared with helpers.

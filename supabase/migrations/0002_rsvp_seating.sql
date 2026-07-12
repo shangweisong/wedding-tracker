@@ -1,16 +1,15 @@
--- RSVP Collection + Table Assignment Planning
+-- 0002_rsvp_seating.sql — RSVP collection + table assignment planning
 --
--- Consolidated from: 0003_phase2_rsvp_seating, 0004_fuzzy_rsvp_by_name,
---                    0005_phase3_relationship_taxonomy, 0006_email_automation (columns + RPCs only)
---
--- Email webhook trigger is intentionally excluded — see 0005_email_automation.sql
--- (optional, apply only after Resend + Vercel are configured).
+-- Consolidated from: 0003_rsvp_seating, 0012_perf_indexes
 --
 -- Security model:
---   - `tables` table: authenticated helpers only.
+--   - `tables` table: authenticated helpers only (policies in 0005_roles_security.sql).
 --   - New `guests` columns: inherit existing guests RLS automatically.
---   - Public RSVP access is via three security-definer RPCs granted to anon —
+--   - Public RSVP access is via security-definer RPCs granted to anon —
 --     they expose only the minimum fields needed for a guest to complete their RSVP.
+--
+-- `get_guest_by_rsvp_token` lives in 0004_smart_rsvp.sql: its final body reads
+-- the smart-RSVP tables created there.
 
 -- ── 1. TRIGRAM EXTENSION (fuzzy name search) ──────────────────────────────────
 
@@ -34,16 +33,7 @@ create trigger tables_set_updated_at
   for each row execute function public.set_updated_at();
 
 alter table public.tables enable row level security;
-
-drop policy if exists "helpers_select" on public.tables;
-drop policy if exists "helpers_insert" on public.tables;
-drop policy if exists "helpers_update" on public.tables;
-drop policy if exists "helpers_delete" on public.tables;
-
-create policy "helpers_select" on public.tables for select to authenticated using (true);
-create policy "helpers_insert" on public.tables for insert to authenticated with check (true);
-create policy "helpers_update" on public.tables for update to authenticated using (true) with check (true);
-create policy "helpers_delete" on public.tables for delete to authenticated using (true);
+-- Policies: 0005_roles_security.sql.
 
 -- ── 3. NEW COLUMNS ON `guests` ────────────────────────────────────────────────
 
@@ -160,55 +150,20 @@ alter table public.guests
 alter table public.guests
   add column if not exists last_reminder_sent_at timestamptz;
 
--- Constrain party to valid values (column already exists from 0001_init.sql).
+-- Constrain party to valid values (column already exists from 0001_core.sql).
 alter table public.guests drop constraint if exists guests_party_check;
 alter table public.guests
   add constraint guests_party_check check (party in ('', 'bride', 'groom'));
 
+-- Performance indexes for the daily cron query in send-reminders.js.
+-- Both columns are used in WHERE filters on every cron run; without indexes
+-- Postgres falls back to a sequential scan of the full guests table.
+create index if not exists guests_rsvp_status_idx on guests (rsvp_status);
+create index if not exists guests_email_idx on guests (email);
+
 -- ── 4. RSVP RPC FUNCTIONS ─────────────────────────────────────────────────────
 
--- 4a. Look up a guest by their personalised token.
-drop function if exists public.get_guest_by_rsvp_token(uuid);
-
-create or replace function public.get_guest_by_rsvp_token(p_token uuid)
-returns table (
-  id                 uuid,
-  name               text,
-  rsvp_status        text,
-  meal_choice        text,
-  plus_one_name      text,
-  dietary_notes      text,
-  relationship_group text,
-  friend_subgroup    text,
-  party              text,
-  rsvp_message       text,
-  email              text,
-  wants_to_speak     text,
-  plus_one_names     text[]
-)
-language sql
-security definer
-set search_path = public
-as $$
-  select
-    g.id, g.name, g.rsvp_status, g.meal_choice,
-    g.plus_one_name, g.dietary_notes, g.relationship_group, g.friend_subgroup, g.party, g.rsvp_message,
-    g.email, g.wants_to_speak,
-    coalesce(
-      array(
-        select c.name from public.guests c
-        where c.primary_guest_id = g.id
-        order by c.name
-      ),
-      '{}'
-    )
-  from public.guests g
-  where g.rsvp_token = p_token;
-$$;
-
-grant execute on function public.get_guest_by_rsvp_token(uuid) to anon, authenticated;
-
--- 4b. Submit an RSVP via personalised token.
+-- 4a. Submit an RSVP via personalised token.
 drop function if exists public.submit_rsvp(uuid, text, text, text, text, text, text);
 drop function if exists public.submit_rsvp(uuid, text, text, text, text, text, text, text, text);
 drop function if exists public.submit_rsvp(uuid, text, text, text, text, text, text, text, text, text);
@@ -322,7 +277,7 @@ $$;
 
 grant execute on function public.submit_rsvp(uuid, text, text, text, text, text, text, text, text, text, text, text[]) to anon, authenticated;
 
--- 4c. Fuzzy name-based RSVP submission (fallback when no token link).
+-- 4b. Fuzzy name-based RSVP submission (fallback when no token link).
 --     Raises: 'not_found' | 'ambiguous' | 'invalid_status'
 --     Known issue: substring fallback can report 'ambiguous' when a guest's
 --     full name is a prefix of another guest's name. See GitHub issue #18.
@@ -405,7 +360,7 @@ $$;
 grant execute on function public.submit_rsvp_by_name(text, text, text, text, text, text, text, text, text)
   to anon, authenticated;
 
--- 4d. Partial name lookup for the no-token RSVP flow.
+-- 4c. Partial name lookup for the no-token RSVP flow.
 --     Returns name + token only (no other guest data), max 5 results.
 create or replace function public.find_guest_by_name(p_name text)
 returns table (

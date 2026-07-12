@@ -600,7 +600,8 @@ Explicit "intentionally no auth check" comment added in `AdminApp.jsx` near the 
   - `0005_email_automation.sql` — **optional**, apply after Resend + Vercel are configured
   - `reconcile_remote_db.sql` — run once in Supabase SQL Editor on existing projects to sync migration tracking
 - ✅ **Migration consolidation** — `0006` (`old_rsvp_status` in webhook payload) and `0007` (`second_reminder_sent_at` column) both merged into `0005` and deleted. Migration folder was brought back to a clean 5-file structure. CLI users on existing deployments: see USER_GUIDE §1a for the one-time tracking cleanup SQL.
-  - _Since then, two feature migrations were added on top:_ `0006_ai_theme.sql` (AI "Custom" theme, #60) and `0007_section_photos.sql` (section photo galleries, #71) — the folder is now **7 files** (`0001`–`0007`).
+  - _Since then, two feature migrations were added on top:_ `0006_ai_theme.sql` (AI "Custom" theme, #60) and `0007_section_photos.sql` (section photo galleries, #71) — the folder grew to 7, then 19 files.
+  - _2026-07 re-consolidation:_ the folder later grew to 19 files and was squashed again to **7 domain files** (`0001_core` … `0007_email_automation`) — see CHANGELOG `chore/consolidate-migrations` and USER_GUIDE §1a for the CLI tracking cleanup.
 - ✅ **README → User Guide split** — detailed setup instructions (Supabase, email, Vercel, CSV, PayNow, angbao) extracted to [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md). README is now a 1-page overview + quick-start that links to the guide for depth.
 - ✅ **README hero GIF + screenshots** — `docs/demo.gif` added after title; `## Screenshots` section with per-section PNGs (`docs/screenshot-*.png`) added after Features. Branch `docs/readme-hero-gif`.
 
