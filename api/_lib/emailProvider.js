@@ -87,12 +87,16 @@ async function sendViaGmail({ from, fromAddress, to, subject, html, attachments 
 async function sendViaResend({ from, fromAddress, to, subject, html, attachments }) {
   if (!process.env.RESEND_API_KEY) throw new Error("Missing RESEND_API_KEY");
   const resend = new Resend(process.env.RESEND_API_KEY);
-  await resend.emails.send({
+  // The Resend SDK never throws — it returns { data, error } even for network
+  // failures. Surface errors as rejections so callers don't record a send
+  // (reminder dedup stamps, host notifications) that never happened.
+  const { error } = await resend.emails.send({
     from: `${from} <${fromAddress}>`,
     to,
     subject,
     html,
     ...(attachments.length > 0 && { attachments }),
   });
+  if (error) throw new Error(`Resend send failed: ${error.message || error.name || "unknown error"}`);
 }
 

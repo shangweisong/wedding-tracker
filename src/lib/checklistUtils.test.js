@@ -6,6 +6,11 @@ import {
   buildDefaultChecklist,
   DEFAULT_CHECKLIST_TEMPLATE,
   OFFSET_PRESETS,
+  REMINDER_PRESETS,
+  taskReminders,
+  computeReminderDate,
+  isReminderDue,
+  selectDueReminders,
 } from "./checklistUtils.js";
 
 const TODAY = "2026-07-10";
@@ -115,5 +120,150 @@ describe("OFFSET_PRESETS", () => {
     const dated = OFFSET_PRESETS.filter((p) => p.days !== null).map((p) => p.days);
     const sorted = [...dated].sort((a, b) => a - b);
     expect(dated).toEqual(sorted);
+  });
+});
+
+// ── REMINDER_PRESETS ─────────────────────────────────────────────────────────
+
+describe("REMINDER_PRESETS", () => {
+  it("only offers due-relative offsets at or before the due date (days <= 0)", () => {
+    expect(REMINDER_PRESETS.length).toBeGreaterThan(0);
+    expect(REMINDER_PRESETS.every((p) => Number.isInteger(p.days) && p.days <= 0)).toBe(true);
+  });
+
+  it("includes an on-due-date option and is sorted furthest-in-advance first", () => {
+    expect(REMINDER_PRESETS.some((p) => p.days === 0)).toBe(true);
+    const days = REMINDER_PRESETS.map((p) => p.days);
+    expect(days).toEqual([...days].sort((a, b) => a - b));
+  });
+});
+
+// ── taskReminders ────────────────────────────────────────────────────────────
+
+describe("taskReminders", () => {
+  it("returns the reminders array when present", () => {
+    const reminders = [{ id: "r1", offsetDays: -7 }];
+    expect(taskReminders({ reminders })).toBe(reminders);
+  });
+
+  it("returns [] for tasks without a reminders field (pre-existing checklists)", () => {
+    expect(taskReminders({})).toEqual([]);
+    expect(taskReminders({ reminders: null })).toEqual([]);
+    expect(taskReminders({ reminders: "bogus" })).toEqual([]);
+  });
+});
+
+// ── computeReminderDate ──────────────────────────────────────────────────────
+
+describe("computeReminderDate", () => {
+  it("resolves the reminder date relative to the task's due date", () => {
+    // due = 2026-12-12 - 30d = 2026-11-12; reminder 7d before due = 2026-11-05
+    expect(computeReminderDate("2026-12-12", -30, -7)).toBe("2026-11-05");
+  });
+
+  it("supports an on-due-date reminder (offset 0)", () => {
+    expect(computeReminderDate("2026-12-12", -30, 0)).toBe("2026-11-12");
+  });
+
+  it("returns null when the task has no due date — null must not coerce to 0", () => {
+    expect(computeReminderDate("2026-12-12", null, -7)).toBeNull();
+    expect(computeReminderDate("2026-12-12", undefined, -7)).toBeNull();
+  });
+
+  it("returns null when the reminder offset or wedding date is missing", () => {
+    expect(computeReminderDate("2026-12-12", -30, null)).toBeNull();
+    expect(computeReminderDate("2026-12-12", -30, undefined)).toBeNull();
+    expect(computeReminderDate(null, -30, -7)).toBeNull();
+  });
+});
+
+// ── isReminderDue ────────────────────────────────────────────────────────────
+
+describe("isReminderDue", () => {
+  it("is due when the reminder date is today", () => {
+    expect(isReminderDue(TODAY, TODAY, false)).toBe(true);
+  });
+
+  it("is due when the reminder date has passed (missed cron day fires late, not never)", () => {
+    expect(isReminderDue("2026-07-01", TODAY, false)).toBe(true);
+  });
+
+  it("is not due for future dates, done tasks, or missing dates", () => {
+    expect(isReminderDue("2026-08-01", TODAY, false)).toBe(false);
+    expect(isReminderDue(TODAY, TODAY, true)).toBe(false);
+    expect(isReminderDue(null, TODAY, false)).toBe(false);
+  });
+});
+
+// ── selectDueReminders ───────────────────────────────────────────────────────
+
+describe("selectDueReminders", () => {
+  const WEDDING = "2026-08-09"; // due for -30 = 2026-07-10 = TODAY
+  const task = (overrides) => ({
+    id: "t1",
+    text: "Book florist",
+    category: "Venue & Vendors",
+    dueOffsetDays: -30,
+    assignee: "both",
+    done: false,
+    ...overrides,
+  });
+
+  it("selects a not-done task whose reminder date is today", () => {
+    const checklist = [task({ reminders: [{ id: "r1", offsetDays: 0 }] })];
+    const due = selectDueReminders(checklist, WEDDING, new Set(), TODAY);
+    expect(due).toHaveLength(1);
+    expect(due[0]).toMatchObject({
+      task: { id: "t1" },
+      reminder: { id: "r1" },
+      reminderDate: TODAY,
+      dueDate: TODAY,
+    });
+  });
+
+  it("includes catch-up reminders whose date passed but were never sent", () => {
+    const checklist = [task({ reminders: [{ id: "r1", offsetDays: -7 }] })];
+    const due = selectDueReminders(checklist, WEDDING, new Set(), TODAY);
+    expect(due).toHaveLength(1);
+    expect(due[0].reminderDate).toBe("2026-07-03");
+  });
+
+  it("excludes reminders already in the sent set", () => {
+    const checklist = [task({ reminders: [{ id: "r1", offsetDays: 0 }] })];
+    const due = selectDueReminders(checklist, WEDDING, new Set(["t1:r1"]), TODAY);
+    expect(due).toEqual([]);
+  });
+
+  it("excludes done tasks and future reminders", () => {
+    const checklist = [
+      task({ id: "t1", done: true, reminders: [{ id: "r1", offsetDays: 0 }] }),
+      task({ id: "t2", dueOffsetDays: -1, reminders: [{ id: "r2", offsetDays: 0 }] }),
+    ];
+    expect(selectDueReminders(checklist, WEDDING, new Set(), TODAY)).toEqual([]);
+  });
+
+  it("excludes tasks with no due date even if stale reminders linger", () => {
+    const checklist = [task({ dueOffsetDays: null, reminders: [{ id: "r1", offsetDays: -7 }] })];
+    expect(selectDueReminders(checklist, WEDDING, new Set(), TODAY)).toEqual([]);
+  });
+
+  it("returns one entry per due reminder, across tasks and within a task", () => {
+    const checklist = [
+      task({ reminders: [{ id: "r1", offsetDays: -7 }, { id: "r2", offsetDays: 0 }] }),
+      task({ id: "t2", dueOffsetDays: -60, reminders: [{ id: "r3", offsetDays: -14 }] }),
+    ];
+    const due = selectDueReminders(checklist, WEDDING, new Set(), TODAY);
+    expect(due.map((d) => d.reminder.id)).toEqual(["r1", "r2", "r3"]);
+  });
+
+  it("tolerates tasks without a reminders field and empty inputs", () => {
+    expect(selectDueReminders([task()], WEDDING, new Set(), TODAY)).toEqual([]);
+    expect(selectDueReminders([], WEDDING, new Set(), TODAY)).toEqual([]);
+    expect(selectDueReminders(null, WEDDING, new Set(), TODAY)).toEqual([]);
+  });
+
+  it("returns nothing when the wedding date is unset", () => {
+    const checklist = [task({ reminders: [{ id: "r1", offsetDays: 0 }] })];
+    expect(selectDueReminders(checklist, null, new Set(), TODAY)).toEqual([]);
   });
 });
