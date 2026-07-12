@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { parseCSV, csvCell, toCSV, guestImportTemplateCSV, IMPORT_TEMPLATE_HEADERS } from "./csv.js";
+import {
+  parseCSV,
+  csvCell,
+  toCSV,
+  guestImportTemplateCSV,
+  IMPORT_TEMPLATE_HEADERS,
+  toChecklistCSV,
+  CHECKLIST_EXPORT_HEADERS,
+} from "./csv.js";
 
 describe("parseCSV", () => {
   it("parses a basic guest list", () => {
@@ -128,5 +136,89 @@ describe("guestImportTemplateCSV — downloadable import template", () => {
     expect(parsed[1]).toMatchObject({
       name: "Priya Nair", table_number: "2", notes: "Vegetarian", is_vip: false, party: "bride",
     });
+  });
+});
+
+describe("toChecklistCSV — planning-checklist export", () => {
+  const WEDDING = "2026-12-12";
+  const task = (overrides) => ({
+    id: "t1",
+    text: "Book venue",
+    category: "Venue & Vendors",
+    dueOffsetDays: -365,
+    assignee: "both",
+    done: false,
+    ...overrides,
+  });
+
+  it("emits the documented header row plus one row per task", () => {
+    const lines = toChecklistCSV([task(), task({ id: "t2", text: "Order suit" })], WEDDING).split("\n");
+    expect(CHECKLIST_EXPORT_HEADERS).toEqual([
+      "Task", "Category", "Assignee", "Due date", "Due", "Reminders", "Done",
+    ]);
+    expect(lines[0]).toBe(CHECKLIST_EXPORT_HEADERS.join(","));
+    expect(lines).toHaveLength(3);
+  });
+
+  it("emits only the header row for an empty checklist", () => {
+    expect(toChecklistCSV([], WEDDING)).toBe(CHECKLIST_EXPORT_HEADERS.join(","));
+  });
+
+  it("writes the task fields with the assignee label and Yes/No done state", () => {
+    const row = toChecklistCSV([task({ assignee: "bride", done: true })], WEDDING).split("\n")[1];
+    expect(row).toContain('"Book venue"');
+    expect(row).toContain('"Venue & Vendors"');
+    expect(row).toContain('"Bride"');
+    expect(row).toContain('"Yes"');
+  });
+
+  it("resolves offset due dates against the wedding date, labelled with the preset", () => {
+    const row = toChecklistCSV([task({ dueOffsetDays: -30 })], WEDDING).split("\n")[1];
+    expect(row).toContain('"2026-11-12"');
+    expect(row).toContain('"1 month before"');
+  });
+
+  it("resolves a pinned exact date (winning over the offset) labelled 'Exact date'", () => {
+    const row = toChecklistCSV([task({ dueDate: "2026-03-17", dueOffsetDays: -30 })], WEDDING).split("\n")[1];
+    expect(row).toContain('"2026-03-17"');
+    expect(row).toContain('"Exact date"');
+    expect(row).not.toContain("2026-11-12");
+  });
+
+  it("leaves the due-date cell empty for no-deadline tasks and unresolvable offsets", () => {
+    const noDeadline = toChecklistCSV([task({ dueOffsetDays: null })], WEDDING).split("\n")[1];
+    expect(noDeadline).toContain('"No specific deadline"');
+    const noWeddingDate = toChecklistCSV([task()], null).split("\n")[1];
+    expect(noWeddingDate).toContain('"12 months before"');
+    expect(noWeddingDate).not.toContain("2025");
+  });
+
+  it("labels non-preset offsets in plain days", () => {
+    const row = toChecklistCSV([task({ dueOffsetDays: -45 })], WEDDING).split("\n")[1];
+    expect(row).toContain('"45 days before"');
+  });
+
+  it("joins reminder labels with '; '", () => {
+    const row = toChecklistCSV(
+      [task({ reminders: [{ id: "r1", offsetDays: -7 }, { id: "r2", offsetDays: 0 }] })],
+      WEDDING
+    ).split("\n")[1];
+    expect(row).toContain('"1 week before due; On due date"');
+  });
+
+  it("labels non-preset reminder offsets in plain days and leaves the cell empty without reminders", () => {
+    const custom = toChecklistCSV([task({ reminders: [{ id: "r1", offsetDays: -10 }] })], WEDDING).split("\n")[1];
+    expect(custom).toContain('"10 days before due"');
+    const none = toChecklistCSV([task()], WEDDING).split("\n")[1];
+    expect(none.split(",")[5]).toBe('""');
+  });
+
+  it("neutralises formula injection in task text and category", () => {
+    const csv = toChecklistCSV(
+      [task({ text: "=cmd|'/c calc'!A1", category: "+SUM(A1)" })],
+      WEDDING
+    );
+    expect(csv).toContain("\"'=cmd");
+    expect(csv).toContain("\"'+SUM");
   });
 });

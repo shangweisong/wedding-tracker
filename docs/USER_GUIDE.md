@@ -186,6 +186,10 @@ You can also attach email reminders to your planning-checklist tasks (Checklist 
 
 A task's due date can be either a preset relative to the wedding date (e.g. "6 months before" — these shift automatically if the wedding date changes) or, via "Exact date…", a specific pinned calendar day for hard external deadlines like a vendor's booking cutoff. Pinned dates (marked 📌) deliberately stay put when the wedding date changes. Reminders work with both kinds — exact-date tasks can even fire reminders before you've set the wedding date.
 
+Once the checklist grows, the category chips above the list (e.g. **Attire**, **Venue & Vendors**, plus **All** and **Uncategorized**) filter the visible tasks; the progress bar always reflects the whole checklist.
+
+**Export CSV** (next to *Add task*) downloads the full checklist as a spreadsheet-ready CSV — task, category, assignee, resolved due date, how the deadline is configured, reminders, and done state — handy for sharing progress outside the app or printing a physical copy.
+
 This is powered by a Supabase webhook trigger → Vercel serverless function.
 
 ### Choose a provider
