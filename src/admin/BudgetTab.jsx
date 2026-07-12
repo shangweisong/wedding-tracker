@@ -79,6 +79,8 @@ export default function BudgetTab({ wedding, onSaveBudget, showToast, isCouple }
   }, [loadVendors]);
 
   // Seed default categories on first open if none are set.
+  // Deps intentionally narrowed to the wedding id: this must run once per wedding,
+  // not on every `wedding` object refresh, and it reads the fresh row when it fires.
   useEffect(() => {
     if (!wedding || !isCouple) return;
     const cats = wedding.budget_categories;

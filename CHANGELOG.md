@@ -5,6 +5,43 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2026-07-12] — fix/security-lint-audit
+
+### Security
+
+- **`wedding-photos` bucket writes are now couple-only** (migration
+  `0019_wedding_photos_policies.sql`). The 0004 policies allowed *anonymous*
+  upload/overwrite/delete on the public bucket with the anon key that ships in
+  the JS bundle; writes now require the signed-in couple (`authenticated` +
+  `not is_helper()`), public read is unchanged. Remote projects need
+  `supabase db push`.
+- **`/api/translate` now requires the couple/helper Supabase token** — the same
+  gate as `/api/generate-theme` (JWT verified server-side + email allowlist,
+  shared via new `api/_lib/requireCoupleAuth.js`) plus a per-minute rate limit,
+  so anonymous callers can't burn the DeepL/MyMemory quota. The admin
+  auto-translate button sends the session token.
+- **Outbound email hardening** (`send-rsvp-email.js`, `send-reminders.js`):
+  guest-controlled values (name, meal choice, dietary notes) and all other
+  dynamic fields are HTML-escaped before interpolation into email templates
+  (new `api/_lib/escapeHtml.js`); subjects are stripped of CR/LF; the webhook /
+  cron shared-secret checks use constant-time comparison (new
+  `api/_lib/secureCompare.js`); config-error 500s no longer echo internal
+  `e.message` (logged server-side instead).
+- `scripts/setup-vault-secrets.sh` no longer prints a prefix of
+  `RSVP_WEBHOOK_SECRET`; SECURITY.md refreshed (0015 already closed the anon
+  wedding-page editor path; documented the by-design RSVP-by-name tradeoff).
+
+### Changed
+
+- **Lint waiver audit**: removed 16 stale `react-hooks/set-state-in-effect`
+  disable directives in `WeddingPageTab.jsx` (the rule reports once per effect;
+  one live directive remains); `npm run lint` now runs with `--max-warnings 0`
+  so stale directives fail CI. All remaining waivers were reviewed and kept
+  (the three `exhaustive-deps` ones were verified not to mask stale-closure
+  bugs; intent comment added in `BudgetTab.jsx`).
+
+---
+
 ## [2026-07-12] — feat/115-checklist-csv-export
 
 ### Added

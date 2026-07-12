@@ -45,6 +45,9 @@ This project is configured so that:
 5. For auto-translation (optional): set `DEEPL_API_KEY` (and/or
    `MYMEMORY_EMAIL`) as **server-only** Vercel env vars — the browser calls the
    same-origin `/api/translate` proxy, never the translation host directly.
+   The proxy requires the signed-in couple/helper's Supabase token (same gate
+   as `/api/generate-theme`), so anonymous callers can't spend the translation
+   quota or use it as an open relay.
 6. For AI theme generation (optional, migration
    `supabase/migrations/0006_ai_theme.sql`): pick a provider with
    `THEME_AI_PROVIDER` and set only its **server-only** key (`ANTHROPIC_API_KEY`
@@ -125,20 +128,35 @@ This project is configured so that:
   `OPENAI_API_KEY` / `NVIDIA_API_KEY`) are server-only. A durable per-day quota
   (beyond the in-memory rate limit) is a sensible future hardening.
 
-- **Wedding-page content (incl. section photo galleries) is anon-writable by
-  design.** The `upsert_wedding_page` RPC — which now also carries the
+- **Wedding-page content writes are couple-gated since
+  [`0015_guard_config_rpcs.sql`](supabase/migrations/0015_guard_config_rpcs.sql).**
+  The `upsert_wedding_page` / `upsert_wedding_config` RPCs (which carry the
   `section_photos` JSONB from
-  [`0007_section_photos.sql`](supabase/migrations/0007_section_photos.sql) — is
-  granted to `anon` as well as `authenticated` (the public editor path predates
-  the helper-auth admin console). Since these values, including the gallery photo
-  URLs, render on the public `/wedding/:slug` page, the **authoritative** cap is a
-  server-side `weddings_section_photos_size` check constraint
-  (`pg_column_size(section_photos) < 200000`) — the client-side "12 photos /
-  4 columns per slot" limits can be bypassed by a direct RPC call, so the DB
-  constraint, not the browser, is what bounds the payload. Photo URLs are stored
-  and rendered as plain image `src`s (not HTML), so they can't inject markup;
-  tightening the RPC grant to `authenticated` only is a sensible future hardening
-  if you don't rely on the anon editor path.
+  [`0007_section_photos.sql`](supabase/migrations/0007_section_photos.sql)) had
+  historically been granted to `anon`; 0015 revoked `public`/`anon` and added an
+  internal couple-only gate, closing that editor path. The server-side
+  `weddings_section_photos_size` check constraint
+  (`pg_column_size(section_photos) < 200000`) remains the authoritative payload
+  cap — the client-side "12 photos / 4 columns per slot" limits are UI-only.
+  Photo URLs are stored and rendered as plain image `src`s (not HTML), so they
+  can't inject markup. Likewise, the public `wedding-photos` storage bucket
+  accepted anonymous upload/overwrite/delete until
+  [`0019_wedding_photos_policies.sql`](supabase/migrations/0019_wedding_photos_policies.sql)
+  restricted writes to the authenticated couple (public read stays — the bucket
+  serves the hero/section images).
+
+- **RSVP-by-name is anonymous by design.** `find_guest_by_name` and
+  `submit_rsvp_by_name` are executable by `anon` so guests can RSVP with just
+  their invitation name. The tradeoff: anyone can probe whether a name is on the
+  guest list and submit/alter that guest's RSVP without a token. The token deep
+  link (`/rsvp?token=…`) is the stricter path; if the enumeration tradeoff is
+  unacceptable for your deployment, revoke the by-name RPCs from `anon` and send
+  token links only.
+
+- **Outbound email hardening.** Guest-controlled fields (name, meal choice,
+  dietary notes) are HTML-escaped before interpolation into RSVP/reminder email
+  templates, subjects are stripped of CR/LF, and the webhook / cron shared
+  secrets are compared in constant time (`api/_lib/secureCompare.js`).
 
 ## Reporting a vulnerability
 

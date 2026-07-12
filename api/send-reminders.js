@@ -1,5 +1,7 @@
 import { supabaseAdmin } from "./_lib/supabaseAdmin.js";
 import { sendEmail, getFromAddress, missingEmailEnvVars } from "./_lib/emailProvider.js";
+import { escapeHtml } from "./_lib/escapeHtml.js";
+import { secureCompare } from "./_lib/secureCompare.js";
 import { selectDueReminders, computeDueDate } from "../src/lib/checklistUtils.js";
 import { localDateISO } from "../src/lib/budgetUtils.js";
 
@@ -54,19 +56,21 @@ function mapsUrl(address) {
 // touching the DB wedding date (checklist "today" becomes wedding_date - n days
 // so one call exercises both jobs coherently). Ignored in production.
 export default async function handler(req, res) {
-  const missing = missingEmailEnvVars();
-  if (missing.length > 0) {
-    return res.status(500).json({ error: `Missing env vars: ${missing.join(", ")}` });
-  }
-
   // CRON_SECRET is mandatory — fail loudly if missing so misconfiguration is
-  // obvious rather than silently leaving the endpoint open.
+  // obvious rather than silently leaving the endpoint open. Auth runs before the
+  // email-env check so unauthenticated callers learn nothing about config state.
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) {
     return res.status(500).json({ error: "CRON_SECRET env var is not set" });
   }
-  if (req.headers.authorization !== `Bearer ${cronSecret}`) {
+  if (!secureCompare(req.headers.authorization, `Bearer ${cronSecret}`)) {
     return res.status(401).json({ error: "unauthorized" });
+  }
+
+  const missing = missingEmailEnvVars();
+  if (missing.length > 0) {
+    console.error("[send-reminders] missing env vars:", missing.join(", "));
+    return res.status(500).json({ error: "email sending is not configured" });
   }
 
   const supabase = supabaseAdmin();
@@ -94,7 +98,8 @@ export default async function handler(req, res) {
   try {
     fromAddress = getFromAddress();
   } catch (e) {
-    return res.status(500).json({ error: e.message });
+    console.error("[send-reminders] from-address error:", e?.message || e);
+    return res.status(500).json({ error: "email sending is not configured" });
   }
 
   const coupleNames = `${wedding.bride_name} & ${wedding.groom_name}`;
@@ -235,7 +240,7 @@ async function sendChecklistDigest({ supabase, wedding, todayISO, fromAddress, c
 function heroRow(heroImageUrl, coupleNames) {
   if (!heroImageUrl) return "";
   return `<tr><td style="padding:0;line-height:0;">
-    <img src="${heroImageUrl}" alt="${coupleNames}" width="520"
+    <img src="${escapeHtml(heroImageUrl)}" alt="${escapeHtml(coupleNames)}" width="520"
       style="display:block;width:100%;max-width:520px;height:auto;" />
   </td></tr>`;
 }
@@ -243,7 +248,7 @@ function heroRow(heroImageUrl, coupleNames) {
 function firstReminderHtml({ guest, wedding, coupleNames, weddingPageUrl }) {
   const weddingPageButton = weddingPageUrl
     ? `<p style="margin:24px 0 0;">
-         <a href="${weddingPageUrl}"
+         <a href="${escapeHtml(weddingPageUrl)}"
             style="display:inline-block;padding:16px 36px;background:#c9a97a;color:#fff;
                    font-family:Georgia,serif;font-size:16px;text-decoration:none;border-radius:2px;
                    letter-spacing:0.04em;">
@@ -262,10 +267,10 @@ function firstReminderHtml({ guest, wedding, coupleNames, weddingPageUrl }) {
         ${heroRow(wedding.hero_image_url, coupleNames)}
         <tr><td style="padding:40px 40px 32px;">
           <p style="margin:0 0 6px;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#9c836a;font-family:Georgia,serif;">
-            ${coupleNames}
+            ${escapeHtml(coupleNames)}
           </p>
           <h1 style="margin:0 0 20px;font-size:24px;font-weight:normal;line-height:1.4;color:#3d2e22;font-family:Georgia,serif;">
-            90 days to go, ${guest.name} —<br>we're so excited to see you!
+            90 days to go, ${escapeHtml(guest.name)} —<br>we're so excited to see you!
           </h1>
           <p style="margin:0 0 20px;font-size:15px;line-height:1.8;color:#5c4a39;font-family:Georgia,serif;">
             Can you believe it's almost time? We're counting down the days and
@@ -275,7 +280,7 @@ function firstReminderHtml({ guest, wedding, coupleNames, weddingPageUrl }) {
             <tr><td style="background:#f9f5ef;border-left:3px solid #c9a97a;padding:16px 20px;border-radius:2px;">
               <p style="margin:0;font-size:14px;line-height:1.85;color:#3d2e22;font-family:Georgia,serif;">
                 <strong>${formatDate(wedding.wedding_date)}</strong><br>
-                ${wedding.venue_name}${wedding.dress_code ? `<br><em>Dress code: ${wedding.dress_code}</em>` : ""}
+                ${escapeHtml(wedding.venue_name)}${wedding.dress_code ? `<br><em>Dress code: ${escapeHtml(wedding.dress_code)}</em>` : ""}
               </p>
             </td></tr>
           </table>
@@ -286,7 +291,7 @@ function firstReminderHtml({ guest, wedding, coupleNames, weddingPageUrl }) {
         </td></tr>
         <tr><td style="padding:16px 40px;background:#f2ede6;border-top:1px solid #e8e0d5;">
           <p style="margin:0;font-size:12px;color:#a89380;text-align:center;font-family:Georgia,serif;font-style:italic;">
-            With love, ${coupleNames}
+            With love, ${escapeHtml(coupleNames)}
           </p>
         </td></tr>
       </table>
@@ -317,7 +322,7 @@ function secondReminderHtml({ guest, wedding, coupleNames, rsvpUrl }) {
     </table>`;
 
   const mapsButton = wedding.venue_address
-    ? `<a href="${mapsUrl(wedding.venue_address)}"
+    ? `<a href="${escapeHtml(mapsUrl(wedding.venue_address))}"
           style="display:inline-block;margin-top:12px;padding:8px 18px;border:1px solid #c9a97a;
                  color:#9c836a;font-family:Georgia,serif;font-size:13px;text-decoration:none;
                  border-radius:2px;letter-spacing:0.04em;">
@@ -328,7 +333,7 @@ function secondReminderHtml({ guest, wedding, coupleNames, rsvpUrl }) {
   const gettingThere = wedding.getting_there
     ? `<tr><td style="padding:24px 40px 0;">
          <p style="margin:0 0 8px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#9c836a;font-family:Georgia,serif;">Getting There</p>
-         <p style="margin:0;font-size:14px;line-height:1.75;color:#5c4a39;font-family:Georgia,serif;white-space:pre-line;">${wedding.getting_there}</p>
+         <p style="margin:0;font-size:14px;line-height:1.75;color:#5c4a39;font-family:Georgia,serif;white-space:pre-line;">${escapeHtml(wedding.getting_there)}</p>
        </td></tr>`
     : "";
 
@@ -337,7 +342,7 @@ function secondReminderHtml({ guest, wedding, coupleNames, rsvpUrl }) {
          <p style="margin:0 0 10px;font-size:13px;color:#9c836a;font-family:Georgia,serif;">
            Changed your plans?
          </p>
-         <a href="${rsvpUrl}"
+         <a href="${escapeHtml(rsvpUrl)}"
             style="display:inline-block;padding:10px 24px;border:1px solid #c9a97a;color:#9c836a;
                    font-family:Georgia,serif;font-size:13px;text-decoration:none;border-radius:2px;
                    letter-spacing:0.04em;">
@@ -356,10 +361,10 @@ function secondReminderHtml({ guest, wedding, coupleNames, rsvpUrl }) {
         ${heroRow(wedding.hero_image_url, coupleNames)}
         <tr><td style="padding:40px 40px 8px;">
           <p style="margin:0 0 6px;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#9c836a;font-family:Georgia,serif;">
-            ${coupleNames}
+            ${escapeHtml(coupleNames)}
           </p>
           <h1 style="margin:0 0 16px;font-size:24px;font-weight:normal;line-height:1.4;color:#3d2e22;font-family:Georgia,serif;">
-            One month to go, ${guest.name}!<br>Here's everything you need.
+            One month to go, ${escapeHtml(guest.name)}!<br>Here's everything you need.
           </h1>
           <p style="margin:0;font-size:15px;line-height:1.8;color:#5c4a39;font-family:Georgia,serif;">
             It's almost here — and we're beyond excited to celebrate with you.
@@ -380,8 +385,8 @@ function secondReminderHtml({ guest, wedding, coupleNames, rsvpUrl }) {
         <tr><td style="padding:24px 40px 0;">
           <p style="margin:0 0 8px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#9c836a;font-family:Georgia,serif;">Venue</p>
           <p style="margin:0;font-size:14px;line-height:1.75;color:#3d2e22;font-family:Georgia,serif;">
-            <strong>${wedding.venue_name}</strong><br>
-            ${wedding.venue_address || ""}
+            <strong>${escapeHtml(wedding.venue_name)}</strong><br>
+            ${escapeHtml(wedding.venue_address || "")}
           </p>
           ${mapsButton}
         </td></tr>
@@ -389,7 +394,7 @@ function secondReminderHtml({ guest, wedding, coupleNames, rsvpUrl }) {
         ${wedding.dress_code ? `
         <tr><td style="padding:24px 40px 0;">
           <p style="margin:0 0 8px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#9c836a;font-family:Georgia,serif;">Dress Code</p>
-          <p style="margin:0;font-size:14px;color:#3d2e22;font-family:Georgia,serif;">${wedding.dress_code}</p>
+          <p style="margin:0;font-size:14px;color:#3d2e22;font-family:Georgia,serif;">${escapeHtml(wedding.dress_code)}</p>
         </td></tr>` : ""}
 
         ${gettingThere}
@@ -399,7 +404,7 @@ function secondReminderHtml({ guest, wedding, coupleNames, rsvpUrl }) {
         </td></tr>
         <tr><td style="padding:16px 40px;background:#f2ede6;border-top:1px solid #e8e0d5;">
           <p style="margin:0;font-size:12px;color:#a89380;text-align:center;font-family:Georgia,serif;font-style:italic;">
-            With love, ${coupleNames}
+            With love, ${escapeHtml(coupleNames)}
           </p>
         </td></tr>
       </table>
@@ -419,8 +424,8 @@ function checklistDigestHtml({ entries, coupleNames, wedding, todayISO }) {
       const meta = [task.category, ASSIGNEE_LABELS[task.assignee] || ""].filter(Boolean).join(" · ");
       return `<tr>
         <td style="padding:12px 0;border-bottom:1px solid #efe8dd;">
-          <p style="margin:0;font-size:15px;line-height:1.5;color:#3d2e22;font-family:Georgia,serif;">${task.text}</p>
-          ${meta ? `<p style="margin:2px 0 0;font-size:12px;color:#9c836a;font-family:Georgia,serif;">${meta}</p>` : ""}
+          <p style="margin:0;font-size:15px;line-height:1.5;color:#3d2e22;font-family:Georgia,serif;">${escapeHtml(task.text)}</p>
+          ${meta ? `<p style="margin:2px 0 0;font-size:12px;color:#9c836a;font-family:Georgia,serif;">${escapeHtml(meta)}</p>` : ""}
         </td>
         <td style="padding:12px 0 12px 16px;border-bottom:1px solid #efe8dd;text-align:right;white-space:nowrap;vertical-align:top;">
           <p style="margin:0;font-size:13px;color:${overdue ? "#b03a2e" : "#5c4a39"};font-family:Georgia,serif;">
@@ -440,7 +445,7 @@ function checklistDigestHtml({ entries, coupleNames, wedding, todayISO }) {
         style="max-width:520px;width:100%;background:#fffdf9;border-radius:4px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08);">
         <tr><td style="padding:40px 40px 32px;">
           <p style="margin:0 0 6px;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#9c836a;font-family:Georgia,serif;">
-            ${coupleNames} — Planning Checklist
+            ${escapeHtml(coupleNames)} — Planning Checklist
           </p>
           <h1 style="margin:0 0 20px;font-size:24px;font-weight:normal;line-height:1.4;color:#3d2e22;font-family:Georgia,serif;">
             ${entries.length === 1 ? "A task needs" : `${entries.length} tasks need`} your attention

@@ -72,7 +72,7 @@ SQL
 
 echo ""
 echo "Webhook URL : $WEBHOOK_URL"
-echo "Secret      : ${RSVP_WEBHOOK_SECRET:0:8}…  (truncated for display)"
+echo "Secret      : (hidden — read from .env RSVP_WEBHOOK_SECRET)"
 echo ""
 
 # ── Try Supabase CLI ───────────────────────────────────────────────────────────
