@@ -7,6 +7,9 @@
 //   assignee: 'both' | 'bride' | 'groom'.
 //   reminders: [{ id, offsetDays }] — offsetDays ≤ 0, relative to the task's DUE date
 //     (not the wedding date). Absent on pre-existing checklists ⇒ no reminders.
+//   notes: string — free-text remarks (#124), capped at 500 chars via cleanNotes.
+//     Absent on pre-existing checklists ⇒ no remarks. Exported in the CSV; not
+//     included in reminder emails.
 import { localDateISO } from "./budgetUtils.js";
 import { cleanDueDate } from "./validation.js";
 

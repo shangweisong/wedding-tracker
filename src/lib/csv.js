@@ -126,6 +126,7 @@ export const CHECKLIST_EXPORT_HEADERS = [
   "Due date",
   "Due",
   "Reminders",
+  "Notes",
   "Done",
 ];
 
@@ -162,6 +163,7 @@ export function toChecklistCSV(items, weddingDateISO) {
         resolveDueDate(weddingDateISO, task) || "",
         dueLabel(task),
         taskReminders(task).map(reminderLabel).join("; "),
+        task.notes || "",
         task.done ? "Yes" : "No",
       ]
         .map(csvCell)
