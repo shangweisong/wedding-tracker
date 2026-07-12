@@ -5,6 +5,41 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2026-07-12] — chore/consolidate-migrations
+
+### Changed
+
+- **Migration folder consolidated: 19 files → 7** (`0001_core`, `0002_rsvp_seating`,
+  `0003_weddings_page`, `0004_smart_rsvp`, `0005_roles_security`,
+  `0006_planning_features`, `0007_email_automation` — the last one stays optional).
+  Every database object now appears once, in its final form: previously
+  `get_wedding_config` was redefined 8 times, `upsert_wedding_page` /
+  `get_public_wedding` 5 times each, and the RLS policies for
+  `guests`/`tables`/events were rewritten across three files. All files remain
+  idempotent and are verified no-ops against an already-migrated database
+  (schema-snapshot diff old-19 vs new-7: identical modulo the fix below).
+  `app_config` + `is_helper()` moved ahead of the tables (into `0001_core`) so
+  every later file can reference them. **Supabase CLI users:** one-time
+  `schema_migrations` cleanup required — see USER_GUIDE §1a.
+- Docs/refs updated to the new filenames (`USER_GUIDE`, `SECURITY.md`,
+  `CLAUDE.md`, `.env.example`, `supabase/tests/role_rls_verification.sql`);
+  stale "0001–0005" notes and the already-closed helper column-read gap (#99)
+  corrected along the way.
+
+### Security
+
+- **Checklist config RPCs no longer callable with the anon key.**
+  `get_checklist_config` / `upsert_checklist_config` (former
+  `0014_planning_checklist.sql`) were granted to `authenticated` but never had
+  the implicit `PUBLIC` execute grant revoked — the same gap class #101 fixed
+  for the budget RPCs — so the public anon key alone could read and overwrite
+  the couple's checklist (`is_helper()` is false for an unauthenticated
+  caller). The consolidated `0006_planning_features.sql` revokes
+  `public`/`anon` and re-grants `authenticated` only. This is the single
+  intentional behavioural change of the consolidation.
+
+---
+
 ## [2026-07-12] — fix/security-lint-audit
 
 ### Security
