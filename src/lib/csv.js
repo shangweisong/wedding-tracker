@@ -1,4 +1,11 @@
-import { cleanName, cleanNotes, cleanTable, cleanParty } from "./validation.js";
+import { cleanName, cleanNotes, cleanTable, cleanParty, cleanDueDate } from "./validation.js";
+import {
+  ASSIGNEES,
+  OFFSET_PRESETS,
+  REMINDER_PRESETS,
+  resolveDueDate,
+  taskReminders,
+} from "./checklistUtils.js";
 
 const RSVP_STATUSES = new Set(['pending', 'confirmed', 'declined']);
 
@@ -103,6 +110,59 @@ export function toCSV(guests) {
         g.draw_number ?? "",
         g.notes || "",
         g.is_vip,
+      ]
+        .map(csvCell)
+        .join(",")
+    ),
+  ];
+  return rows.join("\n");
+}
+
+// ─── CHECKLIST EXPORT ─────────────────────────────────────────────────────────
+export const CHECKLIST_EXPORT_HEADERS = [
+  "Task",
+  "Category",
+  "Assignee",
+  "Due date",
+  "Due",
+  "Reminders",
+  "Done",
+];
+
+// Human label for how a task's due date is configured. Presets cover everything
+// the UI can produce; the plain-days fallback keeps arbitrary stored offsets legible.
+function dueLabel(task) {
+  if (cleanDueDate(task?.dueDate) !== null) return "Exact date";
+  const days = task?.dueOffsetDays ?? null;
+  const preset = OFFSET_PRESETS.find((p) => p.days === days);
+  if (preset) return preset.label;
+  if (days === 0) return "On wedding date";
+  return `${Math.abs(days)} days ${days < 0 ? "before" : "after"}`;
+}
+
+function reminderLabel({ offsetDays }) {
+  const preset = REMINDER_PRESETS.find((p) => p.days === offsetDays);
+  if (preset) return preset.label;
+  return `${Math.abs(offsetDays)} days ${offsetDays < 0 ? "before" : "after"} due`;
+}
+
+/**
+ * Export the planning checklist (#115). The due-date column holds the task's
+ * RESOLVED date (pinned exact date wins over the wedding-date offset), so both
+ * kinds of task read uniformly; the "Due" column says how it was configured.
+ */
+export function toChecklistCSV(items, weddingDateISO) {
+  const rows = [
+    CHECKLIST_EXPORT_HEADERS.join(","),
+    ...items.map((task) =>
+      [
+        task.text,
+        task.category || "",
+        ASSIGNEES.find((a) => a.key === task.assignee)?.label ?? task.assignee ?? "",
+        resolveDueDate(weddingDateISO, task) || "",
+        dueLabel(task),
+        taskReminders(task).map(reminderLabel).join("; "),
+        task.done ? "Yes" : "No",
       ]
         .map(csvCell)
         .join(",")

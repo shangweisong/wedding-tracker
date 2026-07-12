@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2026-07-12] — feat/115-checklist-csv-export
+
+### Added
+
+- **Checklist CSV export (#115)** — an **Export CSV** button in the Checklist tab downloads the planning checklist as `<bride>-<groom>-checklist.csv` (columns: Task, Category, Assignee, Due date, Due, Reminders, Done), for sharing progress outside the app or printing. The **Due date** column holds each task's *resolved* date — a pinned exact date wins over the wedding-date offset — so both kinds of task read uniformly; the **Due** column says how it was configured ("Exact date", a preset like "6 months before", or "No specific deadline"). Reminders are listed as their labels ("1 week before due; On due date"). Cells go through the same formula-injection escaping as the guest-list export. Export-only (no import); always exports the full checklist regardless of the category filter. `ASSIGNEES` moved from `ChecklistTab` to `checklistUtils` so the CSV module shares the label source.
+
+---
+
 ## [2026-07-12] — feat/114-checklist-category-filter
 
 ### Added
