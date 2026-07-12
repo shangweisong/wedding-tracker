@@ -88,6 +88,17 @@ export function resolveDueDate(weddingDateISO, task) {
   return cleanDueDate(task?.dueDate) ?? computeDueDate(weddingDateISO, task?.dueOffsetDays);
 }
 
+/**
+ * Patch to apply when an exact-date edit is committed (#120). A valid date pins
+ * it (reminders keep their anchor); clearing or an invalid value means "no
+ * deadline", so reminders are cleared in the same patch — one save round-trip
+ * keeps them consistent.
+ */
+export function dueDateCommitPatch(rawValue) {
+  const v = cleanDueDate(rawValue);
+  return v ? { dueDate: v } : { dueDate: null, reminders: [] };
+}
+
 /** A task is overdue only if it has a resolvable due date, isn't done, and that date has passed. */
 export function isTaskOverdue(dueDateISO, done, todayISO) {
   if (done || !dueDateISO) return false;

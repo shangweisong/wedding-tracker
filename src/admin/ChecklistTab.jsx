@@ -14,6 +14,7 @@ import {
   taskReminders,
   usedCategories,
   matchesCategoryFilter,
+  dueDateCommitPatch,
 } from "../lib/checklistUtils.js";
 import { cleanDueDate } from "../lib/validation.js";
 import { localDateISO } from "../lib/budgetUtils.js";
@@ -188,6 +189,11 @@ export default function ChecklistTab({ wedding, onSave, isCouple }) {
   const [remindersOpenId, setRemindersOpenId] = useState(null);
   // null = All, "" = Uncategorized, otherwise a trimmed category name. Not persisted.
   const [categoryFilter, setCategoryFilter] = useState(null);
+  // { id, value } | null — in-progress exact-date edit (#120). Committing on
+  // every onChange re-sorted the list under the open native picker (moving the
+  // row force-committed big jumps) and re-rendered over small in-progress
+  // edits, so the value only lands in items on blur/Enter.
+  const [dueDateDraft, setDueDateDraft] = useState(null);
   const initialized = useRef(false);
   const saveTimer = useRef(null);
   const statusTimer = useRef(null);
@@ -235,6 +241,12 @@ export default function ChecklistTab({ wedding, onSave, isCouple }) {
       return next;
     });
   }, [scheduleSave]);
+
+  const commitDueDateDraft = useCallback(() => {
+    if (!dueDateDraft) return;
+    updateTask(dueDateDraft.id, dueDateCommitPatch(dueDateDraft.value));
+    setDueDateDraft(null);
+  }, [dueDateDraft, updateTask]);
 
   const toggleDone = useCallback((id) => {
     setItems((prev) => {
@@ -464,12 +476,11 @@ export default function ChecklistTab({ wedding, onSave, isCouple }) {
                       <input
                         type="date"
                         className="checklist-due-date-input"
-                        value={item.dueDate}
-                        onChange={(e) => {
-                          const v = cleanDueDate(e.target.value);
-                          // Clearing (or an invalid value from) the input means "no
-                          // deadline" — same one-patch reminder clear as the select.
-                          updateTask(item.id, v ? { dueDate: v } : { dueDate: null, reminders: [] });
+                        value={dueDateDraft?.id === item.id ? dueDateDraft.value : item.dueDate}
+                        onChange={(e) => setDueDateDraft({ id: item.id, value: e.target.value })}
+                        onBlur={commitDueDateDraft}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") e.currentTarget.blur();
                         }}
                       />
                     )}
