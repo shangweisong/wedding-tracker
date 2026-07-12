@@ -188,6 +188,8 @@ A task's due date can be either a preset relative to the wedding date (e.g. "6 m
 
 Once the checklist grows, the category chips above the list (e.g. **Attire**, **Venue & Vendors**, plus **All** and **Uncategorized**) filter the visible tasks; the progress bar always reflects the whole checklist.
 
+**Export CSV** (next to *Add task*) downloads the full checklist as a spreadsheet-ready CSV — task, category, assignee, resolved due date, how the deadline is configured, reminders, and done state — handy for sharing progress outside the app or printing a physical copy.
+
 This is powered by a Supabase webhook trigger → Vercel serverless function.
 
 ### Choose a provider

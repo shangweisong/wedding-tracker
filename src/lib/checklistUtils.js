@@ -10,6 +10,13 @@
 import { localDateISO } from "./budgetUtils.js";
 import { cleanDueDate } from "./validation.js";
 
+/** Assignee options: keys stored on tasks, labels shown in the UI and CSV export. */
+export const ASSIGNEES = [
+  { key: "both", label: "Both" },
+  { key: "bride", label: "Bride" },
+  { key: "groom", label: "Groom" },
+];
+
 /** Preset offsets shown in the "due" picker, most-in-advance first. */
 export const OFFSET_PRESETS = [
   { label: "12 months before", days: -365 },
