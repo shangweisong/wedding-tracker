@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2026-07-11] — feat/113-checklist-reminders
+
+### Added
+
+- **Checklist reminder notifications (#113)** — checklist tasks can now carry multiple email reminders, each an offset relative to the task's due date (1 month / 2 weeks / 1 week / 3 days / day before / on due date). Configured per task via a bell toggle in the Checklist tab (due-dated tasks only; clearing a task's due date clears its reminders). The daily `send-reminders` cron emails a single digest of all reminders firing that day to `HOST_EMAIL` (skipped with a reason when unset); done tasks never fire, and a missed cron day fires late rather than never.
+- **Migration `0018_checklist_reminders.sql`** — new `checklist_reminder_log` table (composite PK `task_id, reminder_id`) recording sent reminders. Written only by the service-role cron: reminder *config* stays in the couple-edited `weddings.checklist` JSONB while sent *state* lives here, so a stale admin tab re-saving the checklist can never wipe sent-state and re-trigger emails. RLS enabled with no policies — invisible to `anon`/`authenticated`.
+
+### Changed
+
+- **`api/send-reminders.js`** — restructured into two isolated jobs (guest RSVP reminders + checklist digest); a failure or skip in one no longer blocks the other, and the >90-days-out early exit now applies only to guest reminders. Response gains `checklistSent` plus per-job `reason`/`error` fields (`sent` unchanged). `?override_days=<n>` (non-prod) now also simulates the checklist clock (today = wedding date − n days).
+
+---
+
 ## [2026-07-10] — feature/planning-checklist
 
 ### Added

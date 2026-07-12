@@ -1,7 +1,9 @@
 // Pure planning-checklist computation functions — no side effects, fully testable.
-// Task shape: { id, text, category, dueOffsetDays, assignee, done }
+// Task shape: { id, text, category, dueOffsetDays, assignee, done, reminders? }
 //   dueOffsetDays: number | null — days relative to the wedding date (negative = before).
 //   assignee: 'both' | 'bride' | 'groom'.
+//   reminders: [{ id, offsetDays }] — offsetDays ≤ 0, relative to the task's DUE date
+//     (not the wedding date). Absent on pre-existing checklists ⇒ no reminders.
 import { localDateISO } from "./budgetUtils.js";
 
 /** Preset offsets shown in the "due" picker, most-in-advance first. */
@@ -70,6 +72,68 @@ export function isTaskOverdue(dueDateISO, done, todayISO) {
   if (done || !dueDateISO) return false;
   const today = todayISO ?? localDateISO();
   return dueDateISO < today;
+}
+
+/** Preset offsets for the per-task reminder picker, relative to the DUE date. */
+export const REMINDER_PRESETS = [
+  { label: "1 month before due", days: -30 },
+  { label: "2 weeks before due", days: -14 },
+  { label: "1 week before due", days: -7 },
+  { label: "3 days before due", days: -3 },
+  { label: "Day before due", days: -1 },
+  { label: "On due date", days: 0 },
+];
+
+/**
+ * A task's reminders, normalized to an array. The single access point for both
+ * the UI and the reminder cron. Reminder ids are minted once when a reminder is
+ * added and must NEVER be regenerated — checklist_reminder_log dedups sent
+ * emails by (task.id, reminder.id).
+ */
+export function taskReminders(task) {
+  return Array.isArray(task?.reminders) ? task.reminders : [];
+}
+
+/**
+ * Resolve a reminder's fire date: wedding date + due offset + reminder offset.
+ * Both offsets must be present — in JS `null + (-7) === -7`, so composing
+ * without the explicit guards would give no-due-date tasks a reminder date.
+ */
+export function computeReminderDate(weddingDateISO, dueOffsetDays, reminderOffsetDays) {
+  if (dueOffsetDays === null || dueOffsetDays === undefined) return null;
+  if (reminderOffsetDays === null || reminderOffsetDays === undefined) return null;
+  return computeDueDate(weddingDateISO, dueOffsetDays + reminderOffsetDays);
+}
+
+/**
+ * A reminder fires when its date is today OR already past (`<=`, not `===`):
+ * a missed cron day fires late rather than never; checklist_reminder_log
+ * prevents repeats.
+ */
+export function isReminderDue(reminderDateISO, todayISO, done) {
+  return Boolean(!done && reminderDateISO && reminderDateISO <= todayISO);
+}
+
+/**
+ * The reminder cron's whole decision, kept pure for testing: every reminder on
+ * a not-done, due-dated task whose fire date is ≤ today and whose
+ * `${taskId}:${reminderId}` key is not in `sentKeys`.
+ * Returns [{ task, reminder, reminderDate, dueDate }].
+ */
+export function selectDueReminders(checklist, weddingDateISO, sentKeys, todayISO) {
+  if (!Array.isArray(checklist)) return [];
+  const due = [];
+  for (const task of checklist) {
+    const dueDate = computeDueDate(weddingDateISO, task.dueOffsetDays);
+    if (!dueDate || task.done) continue;
+    for (const reminder of taskReminders(task)) {
+      const reminderDate = computeReminderDate(weddingDateISO, task.dueOffsetDays, reminder.offsetDays);
+      if (!isReminderDue(reminderDate, todayISO, task.done)) continue;
+      if (sentKeys.has(`${task.id}:${reminder.id}`)) continue;
+      due.push({ task, reminder, reminderDate, dueDate });
+    }
+  }
+  return due;
 }
 
 /** { done, total, pct } completion summary for a checklist array. */
