@@ -103,6 +103,43 @@ describe('diffEvents — content_translations', () => {
   });
 });
 
+describe('diffEvents — audience_groups (#131)', () => {
+  it('blankEvent defaults to no audience restriction', () => {
+    expect(blankEvent().audience_groups).toEqual([]);
+  });
+
+  it('carries normalized audience_groups on create', () => {
+    const { toCreate } = diffEvents([], [{ name: 'Tea', audience_groups: ['friends', 'family', 'friends', 'bogus'] }]);
+    expect(toCreate[0].audience_groups).toEqual(['family', 'friends']);
+  });
+
+  it('emits a patch when groups are added or removed', () => {
+    const original = [saved('a', { sort_order: 0, audience_groups: ['family'] })];
+    const added = [{ ...saved('a', { sort_order: 0 }), audience_groups: ['family', 'friends'] }];
+    expect(diffEvents(original, added).toUpdate[0].patch.audience_groups).toEqual(['family', 'friends']);
+    const removed = [{ ...saved('a', { sort_order: 0 }), audience_groups: [] }];
+    expect(diffEvents(original, removed).toUpdate[0].patch.audience_groups).toEqual([]);
+  });
+
+  it('does not churn on order/duplicate differences', () => {
+    const original = [saved('a', { sort_order: 0, audience_groups: ['friends', 'family'] })];
+    const draft = [saved('a', { sort_order: 0, audience_groups: ['family', 'friends', 'family'] })];
+    expect(diffEvents(original, draft).toUpdate).toEqual([]);
+  });
+
+  it('does not churn when the persisted row predates the column (missing vs [])', () => {
+    const original = [saved('a', { sort_order: 0 })]; // no audience_groups key at all
+    const draft = [{ ...saved('a', { sort_order: 0 }), audience_groups: [] }];
+    expect(diffEvents(original, draft).toUpdate).toEqual([]);
+  });
+
+  it('drops invalid values before comparing', () => {
+    const original = [saved('a', { sort_order: 0, audience_groups: ['family'] })];
+    const draft = [saved('a', { sort_order: 0, audience_groups: ['family', 'bogus'] })];
+    expect(diffEvents(original, draft).toUpdate).toEqual([]);
+  });
+});
+
 describe('diffEvents — delete', () => {
   it('deletes originals no longer present in the draft', () => {
     const original = [saved('a', { sort_order: 0 }), saved('b', { sort_order: 1 })];

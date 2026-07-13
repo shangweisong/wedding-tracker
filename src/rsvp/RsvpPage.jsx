@@ -6,7 +6,8 @@ import { cleanName, cleanNotes, cleanParty, cleanRelationshipGroup, cleanFriendS
 import { LOCALES, useLocale } from "../i18n/index.jsx";
 import { localizeWedding, TRANSLATABLE_FIELDS } from "../i18n/content.js";
 import { localizeEvents } from "../lib/eventLocalize.js";
-import { buildEventResponses, hydrateEventState, primaryAnsweredAllEvents } from "../lib/rsvpFormPayload.js";
+import { buildEventResponses, declineAllResponses, hydrateEventState, primaryAnsweredAllEvents } from "../lib/rsvpFormPayload.js";
+import { visibleEventsFor } from "../lib/eventVisibility.js";
 import { MAX_PIN, cleanPin, isOpenMode, openRsvpErrorKey, registerResultErrorKey } from "../lib/openRsvp.js";
 import { sanitizeThemeTokens, isCompleteThemeTokens, themeTokenStyle } from "../lib/themeTokens.js";
 import { buildIcsDataUrl } from "./buildIcs.js";
@@ -399,6 +400,9 @@ export default function RsvpPage() {
   const [eventMeals, setEventMeals] = useState({}); // { bodyKey: { eventId: mealString } }
   const locEvents = localizeEvents(invitedEvents, locale);
   const useSmartForm = locEvents.length > 0;
+  // #131: audience-restricted events only show once the guest's relationship
+  // matches (reactive to the form's own relationship select in open mode).
+  const visibleEvents = visibleEventsFor(locEvents, relationshipGroup);
   // Bodies = the primary + each named plus-one (blank plus-ones are ignored).
   const bodies = [
     { key: PRIMARY_KEY, name, is_primary: true },
@@ -530,14 +534,14 @@ export default function RsvpPage() {
       if (!cleanName(name)) { setError(t("rsvp.err.nameEnter")); return; }
       if (!cleanPin(pin)) { setError(t("rsvp.err.pinRequired")); return; }
     }
-    if (useSmartForm) {
-      if (!primaryAnsweredAllEvents(attendance, PRIMARY_KEY, locEvents)) {
+    if (attending === null) { setError(t("rsvp.err.attendingSelect")); return; }
+    // Declining overall skips the rest (#131) — only a "yes" needs the
+    // per-event answers (smart mode) and a reachable email.
+    if (attending) {
+      if (useSmartForm && !primaryAnsweredAllEvents(attendance, PRIMARY_KEY, visibleEvents)) {
         setError(t("rsvp.err.answerAllEvents")); return;
       }
       if (!cleanEmail(email)) { setError(t("rsvp.err.emailInvalid")); return; }
-    } else {
-      if (attending === null) { setError(t("rsvp.err.attendingSelect")); return; }
-      if (attending && !cleanEmail(email)) { setError(t("rsvp.err.emailInvalid")); return; }
     }
     setError("");
     setSubmitting(true);
@@ -573,14 +577,21 @@ export default function RsvpPage() {
           p_token:              token,
           p_email:              cleanEmail(email),
           p_message:            cleanNotes(message),
-          p_wants_to_speak:     cleanSpeech(wantsToSpeak),
+          p_wants_to_speak:     attending ? cleanSpeech(wantsToSpeak) : "",
           p_relationship_group: cleanRelationshipGroup(relationshipGroup),
           p_friend_subgroup:    relationshipGroup === "friends" ? cleanFriendSubgroup(friendSubgroup) : "",
           p_party:              cleanParty(closerTo),
-          p_plus_one_names:     plusOneNames.map((n) => cleanName(n)).filter(Boolean).slice(0, 6),
-          p_event_responses:    buildEventResponses({
-            bodies, attendance, meals: eventMeals, events: locEvents, dietary: cleanNotes(dietary),
-          }),
+          p_plus_one_names:     attending
+            ? plusOneNames.map((n) => cleanName(n)).filter(Boolean).slice(0, 6)
+            : [],
+          // Yes → answers for the visible (audience-matched) events; hidden ones
+          // stay pending. No → decline the FULL invited list, so the rsvp-status
+          // mirror sees every event declined and lands the guest on 'declined'.
+          p_event_responses:    attending
+            ? buildEventResponses({
+                bodies, attendance, meals: eventMeals, events: visibleEvents, dietary: cleanNotes(dietary),
+              })
+            : declineAllResponses(locEvents, cleanNotes(dietary)),
         });
       } else {
         await sb.rpc("submit_rsvp", {
@@ -642,7 +653,7 @@ export default function RsvpPage() {
             <ConfirmationView
               name={cleanName(name)}
               attending={useSmartForm
-                ? locEvents.some((ev) => attendance[PRIMARY_KEY]?.[ev.id] === "confirmed")
+                ? attending === true && visibleEvents.some((ev) => attendance[PRIMARY_KEY]?.[ev.id] === "confirmed")
                 : attending}
               wedding={w}
             />
@@ -770,24 +781,23 @@ export default function RsvpPage() {
                 />
               </div>
 
-              {/* Attendance — single yes/no (legacy). Smart RSVP asks per event below. */}
-              {!useSmartForm && (
-                <div className="rsvp-field">
-                  <span className="rsvp-label">{t("rsvp.attending.q")}</span>
-                  <div className="attend-btns">
-                    <button type="button"
-                      className={`attend-btn yes ${attending === true ? "active" : ""}`}
-                      onClick={() => { setAttending(true); setError(""); }}>
-                      {t("rsvp.attending.yes")}
-                    </button>
-                    <button type="button"
-                      className={`attend-btn no ${attending === false ? "active" : ""}`}
-                      onClick={() => { setAttending(false); setError(""); }}>
-                      {t("rsvp.attending.no")}
-                    </button>
-                  </div>
+              {/* Attendance — single yes/no. In smart mode this gates the per-event
+                  section below (#131): "no" hides it and declines every event. */}
+              <div className="rsvp-field">
+                <span className="rsvp-label">{t("rsvp.attending.q")}</span>
+                <div className="attend-btns">
+                  <button type="button"
+                    className={`attend-btn yes ${attending === true ? "active" : ""}`}
+                    onClick={() => { setAttending(true); setError(""); }}>
+                    {t("rsvp.attending.yes")}
+                  </button>
+                  <button type="button"
+                    className={`attend-btn no ${attending === false ? "active" : ""}`}
+                    onClick={() => { setAttending(false); setError(""); }}>
+                    {t("rsvp.attending.no")}
+                  </button>
                 </div>
-              )}
+              </div>
 
               {/* Relationship to the couple */}
               <div className="rsvp-field">
@@ -820,11 +830,10 @@ export default function RsvpPage() {
                 </div>
               )}
 
-              {/* Smart RSVP has no single yes/no, so `attending` stays null there —
-                  treat "confirmed for any event" as attending (same rule as the
-                  confirmation view above) so the field isn't unreachable. */}
+              {/* Only ask "closer to" once the guest is actually coming — for smart
+                  mode that means the gate is yes AND some visible event confirmed. */}
               {(useSmartForm
-                ? locEvents.some((ev) => attendance[PRIMARY_KEY]?.[ev.id] === "confirmed")
+                ? attending === true && visibleEvents.some((ev) => attendance[PRIMARY_KEY]?.[ev.id] === "confirmed")
                 : attending) && (
                 <div className="rsvp-field">
                   <span className="rsvp-label">{t("rsvp.closerTo")}</span>
@@ -843,8 +852,8 @@ export default function RsvpPage() {
                 </div>
               )}
 
-              {/* ── SMART RSVP: per-event attendance (#78) ── */}
-              {useSmartForm && (
+              {/* ── SMART RSVP: per-event attendance (#78), gated on attending (#131) ── */}
+              {useSmartForm && attending === true && (
                 <>
                   {/* Additional guests first, so each appears in the per-event grid */}
                   <div className="rsvp-field">
@@ -890,12 +899,13 @@ export default function RsvpPage() {
                     ))}
                   </div>
 
+                  {visibleEvents.length > 0 && (
                   <div className="rsvp-field">
                     <span className="rsvp-label">{t("rsvp.smart.title")}</span>
                     <div style={{ fontSize: 12, color: "var(--brown)", opacity: 0.6, margin: "2px 0 10px" }}>
                       {t("rsvp.smart.hint")}
                     </div>
-                    {locEvents.map((ev) => (
+                    {visibleEvents.map((ev) => (
                       <div key={ev.id} className="rsvp-event-card">
                         <div className="rsvp-event-hd">
                           <span className="rsvp-event-name">{ev.name}</span>
@@ -931,6 +941,7 @@ export default function RsvpPage() {
                       </div>
                     ))}
                   </div>
+                  )}
 
                   <div className="rsvp-field">
                     <label className="rsvp-label">
