@@ -71,6 +71,10 @@ export default {
   "rsvp.searching": "搜尋中…",
   "rsvp.noMatch": "找不到相符的名字 — 請檢查拼寫或聯絡新人",
 
+  // Open RSVP self-registration (#126)
+  "rsvp.pin.label": "回覆密碼 (PIN)",
+  "rsvp.pin.placeholder": "邀請函上的密碼",
+
   "rsvp.email.label": "您的電子郵件",
   "rsvp.email.placeholder": "以便寄送確認信給您",
 
@@ -144,6 +148,9 @@ export default {
   "rsvp.err.attendingSelect": "請選擇您是否出席。",
   "rsvp.err.answerAllEvents": "請為每項活動選擇是否出席。",
   "rsvp.err.emailInvalid": "請輸入有效的電子郵件地址。",
+  "rsvp.err.pinRequired": "請輸入邀請函上的回覆密碼。",
+  "rsvp.err.pinInvalid": "密碼不正確 — 請核對您的邀請函。",
+  "rsvp.err.tooManyAttempts": "密碼嘗試次數過多 — 請稍後再試。",
   "rsvp.err.notSetup": "回覆功能尚未設定 — 資料庫尚未完成遷移，請聯絡新人。",
   "rsvp.err.linkExpired": "您的回覆連結已失效，請聯絡新人取得新連結。",
   "rsvp.err.generic": "發生錯誤，請再試一次或聯絡新人。",

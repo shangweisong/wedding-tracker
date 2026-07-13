@@ -71,6 +71,10 @@ export default {
   "rsvp.searching": "검색 중…",
   "rsvp.noMatch": "일치하는 이름을 찾을 수 없습니다 — 철자를 확인하거나 신랑 신부에게 문의하세요",
 
+  // Open RSVP self-registration (#126)
+  "rsvp.pin.label": "RSVP PIN",
+  "rsvp.pin.placeholder": "청첩장에 적힌 PIN",
+
   "rsvp.email.label": "이메일",
   "rsvp.email.placeholder": "확인 메일을 보내드립니다",
 
@@ -145,6 +149,9 @@ export default {
   "rsvp.err.attendingSelect": "참석 여부를 선택해 주세요.",
   "rsvp.err.answerAllEvents": "각 행사에 대해 참석 여부를 선택해 주세요.",
   "rsvp.err.emailInvalid": "유효한 이메일 주소를 입력해 주세요.",
+  "rsvp.err.pinRequired": "청첩장에 적힌 RSVP PIN을 입력해 주세요.",
+  "rsvp.err.pinInvalid": "PIN이 일치하지 않습니다 — 청첩장을 확인해 주세요.",
+  "rsvp.err.tooManyAttempts": "PIN 시도 횟수가 너무 많습니다 — 잠시 후 다시 시도해 주세요.",
   "rsvp.err.notSetup": "참석 회신이 아직 설정되지 않았습니다 — 데이터베이스 마이그레이션이 실행되지 않았습니다. 신랑 신부에게 문의하세요.",
   "rsvp.err.linkExpired": "참석 회신 링크가 만료되었습니다. 새 링크는 신랑 신부에게 문의하세요.",
   "rsvp.err.generic": "오류가 발생했습니다 — 다시 시도하거나 신랑 신부에게 문의하세요.",

@@ -71,6 +71,10 @@ export default {
   "rsvp.searching": "Mencari…",
   "rsvp.noMatch": "Tiada padanan dijumpai — semak ejaan atau hubungi pasangan pengantin",
 
+  // Open RSVP self-registration (#126)
+  "rsvp.pin.label": "PIN RSVP",
+  "rsvp.pin.placeholder": "PIN daripada kad jemputan anda",
+
   "rsvp.email.label": "E-mel Anda",
   "rsvp.email.placeholder": "Supaya kami boleh menghantar pengesahan anda",
 
@@ -145,6 +149,9 @@ export default {
   "rsvp.err.attendingSelect": "Sila pilih sama ada anda akan hadir.",
   "rsvp.err.answerAllEvents": "Sila jawab ya atau tidak untuk setiap acara.",
   "rsvp.err.emailInvalid": "Sila masukkan alamat e-mel yang sah.",
+  "rsvp.err.pinRequired": "Sila masukkan PIN RSVP daripada kad jemputan anda.",
+  "rsvp.err.pinInvalid": "PIN tidak sepadan — sila semak kad jemputan anda.",
+  "rsvp.err.tooManyAttempts": "Terlalu banyak percubaan PIN — sila cuba lagi sebentar nanti.",
   "rsvp.err.notSetup": "RSVP belum disediakan — migrasi pangkalan data belum dijalankan. Hubungi pasangan pengantin.",
   "rsvp.err.linkExpired": "Pautan RSVP anda telah tamat tempoh. Sila hubungi pasangan pengantin untuk pautan baharu.",
   "rsvp.err.generic": "Sesuatu tidak kena — sila cuba lagi atau hubungi pasangan pengantin.",

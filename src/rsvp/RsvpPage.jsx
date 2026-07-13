@@ -7,6 +7,7 @@ import { LOCALES, useLocale } from "../i18n/index.jsx";
 import { localizeWedding, TRANSLATABLE_FIELDS } from "../i18n/content.js";
 import { localizeEvents } from "../lib/eventLocalize.js";
 import { buildEventResponses, hydrateEventState, primaryAnsweredAllEvents } from "../lib/rsvpFormPayload.js";
+import { MAX_PIN, cleanPin, isOpenMode, openRsvpErrorKey, registerResultErrorKey } from "../lib/openRsvp.js";
 import { sanitizeThemeTokens, isCompleteThemeTokens, themeTokenStyle } from "../lib/themeTokens.js";
 import { buildIcsDataUrl } from "./buildIcs.js";
 import LanguageSwitcher from "../i18n/LanguageSwitcher.jsx";
@@ -384,6 +385,12 @@ export default function RsvpPage() {
   // activeToken: URL token takes precedence, then one selected from the name dropdown
   const activeToken = urlToken || selectedToken;
 
+  // Open RSVP (#126): the couple disabled guest-list name checking, so the name
+  // field is free-text and registration happens server-side at submit time
+  // (register_open_rsvp), gated by a mandatory PIN. A token link still wins.
+  const openMode = isOpenMode({ wedding, isDemoMode, activeToken });
+  const [pin, setPin] = useState("");
+
   // Smart RSVP (#78): per-event attendance. `invitedEvents` comes from the token
   // lookup (empty unless the couple enabled smart RSVP and invited this guest).
   const PRIMARY_KEY = "__primary__";
@@ -465,9 +472,22 @@ export default function RsvpPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeToken]);
 
-  // Debounced name search — fires when guest types in the no-token name field.
+  // Open mode (#126): the token lookup never runs, so fetch the active events
+  // directly for the smart per-event form. With no slug or no active events the
+  // form gracefully stays on the legacy yes/no flow (locEvents stays empty).
   useEffect(() => {
-    if (activeToken || isDemoMode || nameQuery.trim().length < 2) return;
+    if (!openMode || !wedding?.enable_smart_rsvp || !wedding?.slug) return;
+    let cancelled = false;
+    sb.rpc("get_public_events", { p_slug: wedding.slug })
+      .then((rows) => { if (!cancelled && Array.isArray(rows)) setInvitedEvents(rows); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [openMode, wedding?.enable_smart_rsvp, wedding?.slug]);
+
+  // Debounced name search — fires when guest types in the no-token name field.
+  // Never in open mode: the whole point is that names are not cross-checked.
+  useEffect(() => {
+    if (activeToken || isDemoMode || openMode || nameQuery.trim().length < 2) return;
     const t = setTimeout(async () => {
       setNameSearching(true);
       try {
@@ -480,7 +500,7 @@ export default function RsvpPage() {
       }
     }, 300);
     return () => clearTimeout(t);
-  }, [nameQuery, activeToken]);
+  }, [nameQuery, activeToken, openMode]);
 
   function selectGuest(guest) {
     setName(guest.name);
@@ -497,15 +517,19 @@ export default function RsvpPage() {
 
   // Dropdown is visible only when there is no active token, not in demo mode,
   // and the query is long enough — derived, not stored in state.
-  const showSuggestions = !activeToken && !isDemoMode && nameQuery.trim().length >= 2;
+  const showSuggestions = !activeToken && !isDemoMode && !openMode && nameQuery.trim().length >= 2;
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!isDemoMode && !activeToken) {
+    if (!isDemoMode && !activeToken && !openMode) {
       setError(t("rsvp.err.nameSelect"));
       return;
     }
     if (isDemoMode && !name.trim()) { setError(t("rsvp.err.nameEnter")); return; }
+    if (openMode) {
+      if (!cleanName(name)) { setError(t("rsvp.err.nameEnter")); return; }
+      if (!cleanPin(pin)) { setError(t("rsvp.err.pinRequired")); return; }
+    }
     if (useSmartForm) {
       if (!primaryAnsweredAllEvents(attendance, PRIMARY_KEY, locEvents)) {
         setError(t("rsvp.err.answerAllEvents")); return;
@@ -526,9 +550,27 @@ export default function RsvpPage() {
     }
 
     try {
+      // Open mode registers at submit time: the RPC verifies the PIN, then
+      // finds-or-creates the guest (idempotent per name) and returns the token
+      // the normal submit flow needs. Kept in a local variable on purpose —
+      // setSelectedToken would fire the hydration effect and clobber the form.
+      let token = activeToken;
+      if (openMode) {
+        const res = await sb.rpc("register_open_rsvp", {
+          p_name: cleanName(name),
+          p_pin:  cleanPin(pin),
+        });
+        // PIN failures come back as {error} (not thrown) so the server can
+        // record the attempt for its brute-force rate limit.
+        if (!res?.token) {
+          setError(t(registerResultErrorKey(res?.error)));
+          return;
+        }
+        token = res.token;
+      }
       if (useSmartForm) {
         await sb.rpc("submit_rsvp_events", {
-          p_token:              activeToken,
+          p_token:              token,
           p_email:              cleanEmail(email),
           p_message:            cleanNotes(message),
           p_wants_to_speak:     cleanSpeech(wantsToSpeak),
@@ -542,7 +584,7 @@ export default function RsvpPage() {
         });
       } else {
         await sb.rpc("submit_rsvp", {
-          p_token:              activeToken,
+          p_token:              token,
           p_status:             attending ? "confirmed" : "declined",
           p_meal_choice:        attending ? mealChoice : "",
           p_dietary_notes:      cleanNotes(dietary),
@@ -559,15 +601,8 @@ export default function RsvpPage() {
       }
       setDone(true);
     } catch (err) {
-      const msg = (err?.message ?? "").toLowerCase();
       console.error("[RSVP] submit error:", err);
-      if (msg.includes("function") || msg.includes("does not exist") || msg.includes("pgrst")) {
-        setError(t("rsvp.err.notSetup"));
-      } else if (msg.includes("invalid rsvp token")) {
-        setError(t("rsvp.err.linkExpired"));
-      } else {
-        setError(t("rsvp.err.generic"));
-      }
+      setError(t(openRsvpErrorKey(err?.message)));
     } finally {
       setSubmitting(false);
     }
@@ -615,14 +650,15 @@ export default function RsvpPage() {
             <form onSubmit={submit}>
               {isDemoMode && <div className="demo-badge">{t("rsvp.demoBadge")}</div>}
 
-              {/* Name — three modes:
+              {/* Name — four modes:
                   1. urlToken present → read-only pre-filled from DB (same as before)
                   2. selectedToken set → read-only after guest picks from search list; × to re-search
-                  3. Neither → search-and-select dropdown (no-token flow) */}
+                  3. openMode → free-text (#126: no guest-list cross-check; PIN field below)
+                  4. Neither → search-and-select dropdown (no-token flow) */}
               <div className="rsvp-field">
                 <label className="rsvp-label">{t("rsvp.name.label")}</label>
 
-                {isDemoMode ? (
+                {isDemoMode || openMode ? (
                   <input
                     className="rsvp-input"
                     placeholder={t("rsvp.name.placeholder")}
@@ -705,6 +741,22 @@ export default function RsvpPage() {
                   </div>
                 )}
               </div>
+
+              {/* Open RSVP (#126): mandatory PIN from the invitation, verified
+                  server-side by register_open_rsvp at submit time */}
+              {openMode && (
+                <div className="rsvp-field">
+                  <label className="rsvp-label">{t("rsvp.pin.label")}</label>
+                  <input
+                    className="rsvp-input"
+                    placeholder={t("rsvp.pin.placeholder")}
+                    value={pin}
+                    maxLength={MAX_PIN}
+                    autoComplete="off"
+                    onChange={(e) => { setPin(e.target.value); setError(""); }}
+                  />
+                </div>
+              )}
 
               {/* Email — used to send confirmation + reminder emails */}
               <div className="rsvp-field">

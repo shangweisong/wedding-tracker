@@ -370,6 +370,9 @@ export default function RsvpTab({
                       {g.primary_guest_id
                         ? `↳ additional guest of ${nameById[g.primary_guest_id] || "a guest"}`
                         : [
+                            // Open-RSVP self-registration (#126): surface it so the
+                            // couple can cross-check names they didn't pre-populate.
+                            g.self_registered ? "🆕 self-registered" : null,
                             g.party ? `${g.party} side` : null,
                             g.relationship_group
                               ? (g.relationship_group === "friends" && g.friend_subgroup

@@ -1055,7 +1055,14 @@ export default function WeddingTracker() {
         const crows = await sb.rpc("get_checklist_config", {});
         checklist = Array.isArray(crows) && crows.length ? crows[0] : null;
       } catch { /* RPC absent on un-migrated DBs, or caller is a helper — skip */ }
-      setWedding(base ? { ...base, ...(budget || {}), ...(checklist || {}) } : base);
+      // The open-RSVP pin is couple-only too (0009): get_wedding_config never
+      // returns it, so merge it from its own RPC for the Wedding Setup form.
+      let openRsvp = null;
+      try {
+        const orows = await sb.rpc("get_open_rsvp_admin_config", {});
+        openRsvp = Array.isArray(orows) && orows.length ? orows[0] : null;
+      } catch { /* RPC absent on un-migrated DBs, or caller is a helper — skip */ }
+      setWedding(base ? { ...base, ...(budget || {}), ...(checklist || {}), ...(openRsvp || {}) } : base);
     } catch {
       showToast("Failed to load wedding details");
     }
@@ -1112,6 +1119,8 @@ export default function WeddingTracker() {
         p_tea_ceremony_time: form.tea_ceremony_time || null,
         p_enable_smart_rsvp: !!form.enable_smart_rsvp,
         p_primary_meal_event_id: form.primary_meal_event_id || null,
+        p_enable_open_rsvp: !!form.enable_open_rsvp,
+        p_rsvp_pin: form.rsvp_pin || "",
       });
       await loadWedding();
       showToast("Wedding details saved");

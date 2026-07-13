@@ -71,6 +71,10 @@ export default {
   "rsvp.searching": "検索中…",
   "rsvp.noMatch": "一致する名前が見つかりません — スペルをご確認いただくか、新郎新婦にご連絡ください",
 
+  // Open RSVP self-registration (#126)
+  "rsvp.pin.label": "RSVP 暗証番号（PIN）",
+  "rsvp.pin.placeholder": "招待状に記載のPIN",
+
   "rsvp.email.label": "メールアドレス",
   "rsvp.email.placeholder": "確認メールをお送りします",
 
@@ -145,6 +149,9 @@ export default {
   "rsvp.err.attendingSelect": "ご出席かどうかを選択してください。",
   "rsvp.err.answerAllEvents": "各行事について出欠をお選びください。",
   "rsvp.err.emailInvalid": "有効なメールアドレスを入力してください。",
+  "rsvp.err.pinRequired": "招待状に記載のPINを入力してください。",
+  "rsvp.err.pinInvalid": "PINが一致しません — 招待状をご確認ください。",
+  "rsvp.err.tooManyAttempts": "PINの入力回数が多すぎます — しばらくしてからもう一度お試しください。",
   "rsvp.err.notSetup": "出欠登録はまだ設定されていません — データベースの移行が実行されていません。新郎新婦にご連絡ください。",
   "rsvp.err.linkExpired": "出欠登録リンクの有効期限が切れました。新しいリンクについては新郎新婦にご連絡ください。",
   "rsvp.err.generic": "エラーが発生しました — もう一度お試しいただくか、新郎新婦にご連絡ください。",

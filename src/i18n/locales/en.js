@@ -72,6 +72,10 @@ export default {
   "rsvp.searching": "Searching…",
   "rsvp.noMatch": "No match found — check spelling or contact the couple",
 
+  // Open RSVP self-registration (#126)
+  "rsvp.pin.label": "RSVP PIN",
+  "rsvp.pin.placeholder": "The PIN from your invitation",
+
   "rsvp.email.label": "Your Email",
   "rsvp.email.placeholder": "So we can send your confirmation",
 
@@ -150,6 +154,9 @@ export default {
   "rsvp.err.attendingSelect": "Please select whether you'll be attending.",
   "rsvp.err.answerAllEvents": "Please answer yes or no for each event.",
   "rsvp.err.emailInvalid": "Please enter a valid email address.",
+  "rsvp.err.pinRequired": "Please enter the RSVP PIN from your invitation.",
+  "rsvp.err.pinInvalid": "That PIN doesn't match — please check your invitation.",
+  "rsvp.err.tooManyAttempts": "Too many PIN attempts — please try again in a little while.",
   "rsvp.err.notSetup": "RSVP is not set up yet — the database migration hasn't been run. Contact the couple.",
   "rsvp.err.linkExpired": "Your RSVP link has expired. Please contact the couple for a new link.",
   "rsvp.err.generic": "Something went wrong — please try again or contact the couple.",

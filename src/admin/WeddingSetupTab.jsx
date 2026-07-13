@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { cleanName, cleanVenueName, cleanVenueAddress } from "../lib/validation.js";
+import { MAX_PIN, cleanPin } from "../lib/openRsvp.js";
 import { blankEvent } from "../lib/eventDiff.js";
 import { LOCALES } from "../i18n/index.jsx";
 
@@ -112,6 +113,8 @@ const blankForm = {
   tea_ceremony_time: "",
   enable_smart_rsvp: false,
   primary_meal_event_id: "",
+  enable_open_rsvp: false,
+  rsvp_pin: "",
 };
 
 // Map a persisted wedding_events row into the local editable draft shape.
@@ -149,6 +152,8 @@ export default function WeddingSetupTab({ wedding, events = [], onSave, onSaveEv
         tea_ceremony_time: wedding.tea_ceremony_time || "",
         enable_smart_rsvp: !!wedding.enable_smart_rsvp,
         primary_meal_event_id: wedding.primary_meal_event_id || "",
+        enable_open_rsvp: !!wedding.enable_open_rsvp,
+        rsvp_pin: wedding.rsvp_pin || "",
       });
     }
   }, [wedding]);
@@ -213,6 +218,12 @@ export default function WeddingSetupTab({ wedding, events = [], onSave, onSaveEv
       showToast("Please add a wedding date — it's needed for the confirmation email and calendar invite");
       return;
     }
+    // Open RSVP without a PIN would leave the form open to anyone who finds
+    // the URL — the server (upsert_wedding_config) enforces the same rule.
+    if (form.enable_open_rsvp && !cleanPin(form.rsvp_pin)) {
+      showToast("Please set an RSVP PIN before enabling Open RSVP");
+      return;
+    }
     // Flush any event edits first so the meal-event designation references saved ids.
     if (form.enable_smart_rsvp && onSaveEvents) {
       const ok = await onSaveEvents(draftEvents);
@@ -229,6 +240,8 @@ export default function WeddingSetupTab({ wedding, events = [], onSave, onSaveEv
       tea_ceremony_time: form.tea_ceremony_time || null,
       enable_smart_rsvp: form.enable_smart_rsvp,
       primary_meal_event_id: form.enable_smart_rsvp ? (form.primary_meal_event_id || null) : null,
+      enable_open_rsvp: form.enable_open_rsvp,
+      rsvp_pin: cleanPin(form.rsvp_pin),
     });
   };
 
@@ -430,6 +443,48 @@ export default function WeddingSetupTab({ wedding, events = [], onSave, onSaveEv
                 <button type="button" className="btn btn-outline" onClick={saveEventsOnly} disabled={!wedding?.id}>
                   Save events
                 </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── OPEN RSVP (self-registration, #126) ── */}
+        <div className="setup-card">
+          <div className="setup-card-hd">
+            <div>
+              <div className="setup-card-title">Open RSVP</div>
+              <div className="setup-card-sub">
+                Let guests register themselves: names are not checked against your guest list —
+                anyone with the RSVP link and the PIN can RSVP. Self-registered guests are
+                flagged 🆕 in the RSVP tab so you can cross-check the list before the big day.
+              </div>
+            </div>
+            <label className="setup-switch">
+              <input
+                type="checkbox"
+                checked={form.enable_open_rsvp}
+                onChange={(e) => setForm((f) => ({ ...f, enable_open_rsvp: e.target.checked }))}
+              />
+              <span className="setup-switch-track" />
+            </label>
+          </div>
+
+          {form.enable_open_rsvp && (
+            <div className="smart-body">
+              <div className="setup-form-group" style={{ maxWidth: 260 }}>
+                <label className="setup-form-label">RSVP PIN (required)</label>
+                <input
+                  className="setup-form-input"
+                  value={form.rsvp_pin}
+                  maxLength={MAX_PIN}
+                  onChange={set("rsvp_pin")}
+                  placeholder="e.g. jamie-alex-2026"
+                />
+              </div>
+              <div className="smart-warn">
+                Share this PIN on your invitation — it keeps strangers who find the link from
+                filling your guest list. A word or phrase is harder to guess than a short
+                number. Guests opening a personal RSVP link never need it.
               </div>
             </div>
           )}
