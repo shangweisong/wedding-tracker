@@ -153,4 +153,15 @@ export default {
   "rsvp.err.notSetup": "RSVP is not set up yet — the database migration hasn't been run. Contact the couple.",
   "rsvp.err.linkExpired": "Your RSVP link has expired. Please contact the couple for a new link.",
   "rsvp.err.generic": "Something went wrong — please try again or contact the couple.",
+
+  // Public runsheet page (#121)
+  "runsheet.subtitle": "Wedding Day Runsheet",
+  "runsheet.loading": "Loading…",
+  "runsheet.notAvailable": "This runsheet is not available.",
+  "runsheet.empty": "No runsheet items yet",
+  "runsheet.view.list": "List",
+  "runsheet.view.gantt": "Timeline",
+  "runsheet.unscheduled": "Unscheduled",
+  "runsheet.ganttEmpty": "Nothing scheduled yet.",
+  "runsheet.durationMins": "{n} min",
 };

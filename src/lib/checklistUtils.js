@@ -7,6 +7,9 @@
 //   assignee: 'both' | 'bride' | 'groom'.
 //   reminders: [{ id, offsetDays }] — offsetDays ≤ 0, relative to the task's DUE date
 //     (not the wedding date). Absent on pre-existing checklists ⇒ no reminders.
+//   notes: string — free-text remarks (#124), capped at 500 chars via cleanNotes.
+//     Absent on pre-existing checklists ⇒ no remarks. Exported in the CSV; not
+//     included in reminder emails.
 import { localDateISO } from "./budgetUtils.js";
 import { cleanDueDate } from "./validation.js";
 
@@ -86,6 +89,17 @@ export function computeDueDate(weddingDateISO, dueOffsetDays) {
  */
 export function resolveDueDate(weddingDateISO, task) {
   return cleanDueDate(task?.dueDate) ?? computeDueDate(weddingDateISO, task?.dueOffsetDays);
+}
+
+/**
+ * Patch to apply when an exact-date edit is committed (#120). A valid date pins
+ * it (reminders keep their anchor); clearing or an invalid value means "no
+ * deadline", so reminders are cleared in the same patch — one save round-trip
+ * keeps them consistent.
+ */
+export function dueDateCommitPatch(rawValue) {
+  const v = cleanDueDate(rawValue);
+  return v ? { dueDate: v } : { dueDate: null, reminders: [] };
 }
 
 /** A task is overdue only if it has a resolvable due date, isn't done, and that date has passed. */

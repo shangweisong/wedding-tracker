@@ -15,7 +15,7 @@ createRoot(document.getElementById('root')).render(
           <Route path="/rsvp" element={<LocaleProvider><RsvpPage /></LocaleProvider>} />
           <Route path="/wedding/:slug" element={<LocaleProvider><WeddingPage /></LocaleProvider>} />
           <Route path="/wishes-wrapped" element={<WishesWrappedPage />} />
-          <Route path="/runsheet/:slug" element={<RunsheetPage />} />
+          <Route path="/runsheet/:slug" element={<LocaleProvider><RunsheetPage /></LocaleProvider>} />
         </Routes>
       </Suspense>
     </BrowserRouter>

@@ -3,6 +3,10 @@ import { useParams } from "react-router-dom";
 import { sb } from "../lib/supabase.js";
 import { theme } from "../shared/theme.js";
 import { ClipboardText } from "@phosphor-icons/react";
+import { useLocale } from "../i18n/index.jsx";
+import LanguageSwitcher from "../i18n/LanguageSwitcher.jsx";
+import { upgradeRunsheet, formatTimeLabel } from "../lib/runsheetTime.js";
+import RunsheetGantt from "../shared/RunsheetGantt.jsx";
 
 const styles = theme + `
   .rs-page {
@@ -12,11 +16,25 @@ const styles = theme + `
   }
 
   .rs-page-header {
+    position: relative;
     background: var(--charcoal);
     padding: 32px 24px;
     text-align: center;
     box-shadow: 0 2px 20px rgba(0,0,0,0.25);
   }
+
+  /* ── View toggle (List | Timeline) ── */
+  .rs-view-row { display: flex; justify-content: center; margin-bottom: 18px; }
+  .rs-view-toggle {
+    display: inline-flex; gap: 2px; background: rgba(201,168,76,0.15);
+    border-radius: 999px; padding: 3px;
+  }
+  .rs-view-btn {
+    padding: 6px 18px; border-radius: 999px; border: none; background: transparent;
+    color: var(--brown); font-size: 13px; font-weight: 500; cursor: pointer;
+    font-family: inherit; transition: background 0.15s, color 0.15s;
+  }
+  .rs-view-btn.active { background: var(--gold); color: var(--charcoal); }
   .rs-page-couple {
     font-family: 'Cormorant Garamond', serif;
     font-size: 32px;
@@ -185,9 +203,11 @@ function formatDate(dateStr) {
 
 export default function RunsheetPage() {
   const { slug } = useParams();
+  const { t } = useLocale();
   const [wedding, setWedding] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [view, setView] = useState("list"); // "list" | "gantt" (#121)
 
   useEffect(() => {
     async function load() {
@@ -211,7 +231,7 @@ export default function RunsheetPage() {
     return (
       <div className="rs-loading">
         <style>{styles}</style>
-        <div style={{ color: "var(--brown)", opacity: 0.4, fontSize: 14 }}>Loading…</div>
+        <div style={{ color: "var(--brown)", opacity: 0.4, fontSize: 14 }}>{t("runsheet.loading")}</div>
       </div>
     );
   }
@@ -221,19 +241,22 @@ export default function RunsheetPage() {
       <div className="rs-not-found">
         <style>{styles}</style>
         <ClipboardText size={36} color="var(--brown)" style={{ opacity: 0.3 }} />
-        <div className="rs-not-found-text">This runsheet is not available.</div>
+        <div className="rs-not-found-text">{t("runsheet.notAvailable")}</div>
       </div>
     );
   }
 
-  const items = Array.isArray(wedding.runsheet) ? wedding.runsheet : [];
+  // Published-but-never-re-edited runsheets may still carry legacy free-text
+  // time/duration — upgrade in memory forever (idempotent, see runsheetTime.js).
+  const items = upgradeRunsheet(wedding.runsheet);
 
   return (
     <div className="rs-page">
       <style>{styles}</style>
 
       <header className="rs-page-header">
-        <div className="rs-page-subtitle">Wedding Day Runsheet</div>
+        <LanguageSwitcher style={{ position: "absolute", top: 12, right: 12, color: "rgba(255,255,255,0.75)", background: "rgba(255,255,255,0.08)" }} />
+        <div className="rs-page-subtitle">{t("runsheet.subtitle")}</div>
         <div className="rs-page-couple">{wedding.bride_name} &amp; {wedding.groom_name}</div>
         <div className="rs-page-meta">
           {formatDate(wedding.wedding_date)}{wedding.venue_name ? ` · ${wedding.venue_name}` : ""}
@@ -244,31 +267,65 @@ export default function RunsheetPage() {
         {items.length === 0 ? (
           <div className="rs-page-empty">
             <ClipboardText size={36} color="var(--brown)" style={{ opacity: 0.3 }} />
-            <div className="rs-page-empty-text">No runsheet items yet</div>
+            <div className="rs-page-empty-text">{t("runsheet.empty")}</div>
           </div>
         ) : (
-          <div className="rs-timeline">
-            {items.map((item) => (
-              <div key={item.id} className="rs-tl-item">
-                <div className="rs-tl-time">{item.time}</div>
-                <div className="rs-tl-gutter">
-                  <div className="rs-tl-dot" />
-                  <div className="rs-tl-vline" />
-                </div>
-                <div className="rs-tl-body">
-                  <div className="rs-tl-event">{item.event}</div>
-                  {(item.duration || item.involved) && (
-                    <div className="rs-tl-meta">
-                      {[item.duration, item.involved].filter(Boolean).join(" · ")}
-                    </div>
-                  )}
-                  {item.comments?.trim() && (
-                    <div className="rs-tl-comments">{item.comments}</div>
-                  )}
-                </div>
+          <>
+            <div className="rs-view-row">
+              <div className="rs-view-toggle">
+                <button
+                  className={`rs-view-btn ${view === "list" ? "active" : ""}`}
+                  onClick={() => setView("list")}
+                >
+                  {t("runsheet.view.list")}
+                </button>
+                <button
+                  className={`rs-view-btn ${view === "gantt" ? "active" : ""}`}
+                  onClick={() => setView("gantt")}
+                >
+                  {t("runsheet.view.gantt")}
+                </button>
               </div>
-            ))}
-          </div>
+            </div>
+            {view === "gantt" ? (
+              <RunsheetGantt
+                items={items}
+                labels={{
+                  empty: t("runsheet.ganttEmpty"),
+                  unscheduled: t("runsheet.unscheduled"),
+                }}
+                formatDuration={(n) => t("runsheet.durationMins", { n })}
+              />
+            ) : (
+              <div className="rs-timeline">
+                {items.map((item) => (
+                  <div key={item.id} className="rs-tl-item">
+                    <div className="rs-tl-time">{formatTimeLabel(item.startTime) || item.timeText}</div>
+                    <div className="rs-tl-gutter">
+                      <div className="rs-tl-dot" />
+                      <div className="rs-tl-vline" />
+                    </div>
+                    <div className="rs-tl-body">
+                      <div className="rs-tl-event">{item.event}</div>
+                      {(item.durationMin != null || item.durationText || item.involved) && (
+                        <div className="rs-tl-meta">
+                          {[
+                            item.durationMin != null
+                              ? t("runsheet.durationMins", { n: item.durationMin })
+                              : item.durationText,
+                            item.involved,
+                          ].filter(Boolean).join(" · ")}
+                        </div>
+                      )}
+                      {item.comments?.trim() && (
+                        <div className="rs-tl-comments">{item.comments}</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
 

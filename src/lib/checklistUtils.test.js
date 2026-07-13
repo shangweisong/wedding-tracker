@@ -14,9 +14,32 @@ import {
   selectDueReminders,
   usedCategories,
   matchesCategoryFilter,
+  dueDateCommitPatch,
 } from "./checklistUtils.js";
 
 const TODAY = "2026-07-10";
+
+// ── dueDateCommitPatch ───────────────────────────────────────────────────────
+
+describe("dueDateCommitPatch", () => {
+  it("pins a valid date without touching reminders", () => {
+    expect(dueDateCommitPatch("2026-09-01")).toEqual({ dueDate: "2026-09-01" });
+  });
+
+  it("normalizes surrounding whitespace", () => {
+    expect(dueDateCommitPatch(" 2026-09-01 ")).toEqual({ dueDate: "2026-09-01" });
+  });
+
+  it("clears the deadline and reminders together when the input is emptied", () => {
+    expect(dueDateCommitPatch("")).toEqual({ dueDate: null, reminders: [] });
+  });
+
+  it("treats invalid values as a clear (impossible calendar date, garbage, null)", () => {
+    expect(dueDateCommitPatch("2026-02-30")).toEqual({ dueDate: null, reminders: [] });
+    expect(dueDateCommitPatch("not-a-date")).toEqual({ dueDate: null, reminders: [] });
+    expect(dueDateCommitPatch(null)).toEqual({ dueDate: null, reminders: [] });
+  });
+});
 
 // ── computeDueDate ───────────────────────────────────────────────────────────
 

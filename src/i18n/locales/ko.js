@@ -148,4 +148,15 @@ export default {
   "rsvp.err.notSetup": "참석 회신이 아직 설정되지 않았습니다 — 데이터베이스 마이그레이션이 실행되지 않았습니다. 신랑 신부에게 문의하세요.",
   "rsvp.err.linkExpired": "참석 회신 링크가 만료되었습니다. 새 링크는 신랑 신부에게 문의하세요.",
   "rsvp.err.generic": "오류가 발생했습니다 — 다시 시도하거나 신랑 신부에게 문의하세요.",
+
+  // Public runsheet page (#121)
+  "runsheet.subtitle": "결혼식 당일 일정표",
+  "runsheet.loading": "불러오는 중…",
+  "runsheet.notAvailable": "이 일정표는 볼 수 없습니다.",
+  "runsheet.empty": "아직 일정 항목이 없습니다",
+  "runsheet.view.list": "목록",
+  "runsheet.view.gantt": "타임라인",
+  "runsheet.unscheduled": "시간 미정",
+  "runsheet.ganttEmpty": "아직 예정된 항목이 없습니다.",
+  "runsheet.durationMins": "{n}분",
 };

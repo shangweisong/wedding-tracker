@@ -16,6 +16,7 @@ export const TRANSLATABLE_FIELDS = [
   "getting_there",
   "smoking_notice",
   "parking_notice",
+  "extra_notice",
 ];
 
 const nonEmpty = (v) => typeof v === "string" && v.trim() !== "";

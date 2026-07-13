@@ -148,4 +148,15 @@ export default {
   "rsvp.err.notSetup": "RSVP belum disediakan — migrasi pangkalan data belum dijalankan. Hubungi pasangan pengantin.",
   "rsvp.err.linkExpired": "Pautan RSVP anda telah tamat tempoh. Sila hubungi pasangan pengantin untuk pautan baharu.",
   "rsvp.err.generic": "Sesuatu tidak kena — sila cuba lagi atau hubungi pasangan pengantin.",
+
+  // Public runsheet page (#121)
+  "runsheet.subtitle": "Aturcara Hari Perkahwinan",
+  "runsheet.loading": "Memuatkan…",
+  "runsheet.notAvailable": "Aturcara ini tidak tersedia.",
+  "runsheet.empty": "Tiada item aturcara lagi",
+  "runsheet.view.list": "Senarai",
+  "runsheet.view.gantt": "Garis masa",
+  "runsheet.unscheduled": "Belum dijadualkan",
+  "runsheet.ganttEmpty": "Tiada apa-apa dijadualkan lagi.",
+  "runsheet.durationMins": "{n} minit",
 };

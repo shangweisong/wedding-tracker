@@ -148,4 +148,15 @@ export default {
   "rsvp.err.notSetup": "出欠登録はまだ設定されていません — データベースの移行が実行されていません。新郎新婦にご連絡ください。",
   "rsvp.err.linkExpired": "出欠登録リンクの有効期限が切れました。新しいリンクについては新郎新婦にご連絡ください。",
   "rsvp.err.generic": "エラーが発生しました — もう一度お試しいただくか、新郎新婦にご連絡ください。",
+
+  // Public runsheet page (#121)
+  "runsheet.subtitle": "結婚式当日のスケジュール",
+  "runsheet.loading": "読み込み中…",
+  "runsheet.notAvailable": "このスケジュールは閲覧できません。",
+  "runsheet.empty": "スケジュール項目はまだありません",
+  "runsheet.view.list": "リスト",
+  "runsheet.view.gantt": "タイムライン",
+  "runsheet.unscheduled": "時間未定",
+  "runsheet.ganttEmpty": "まだ時間が設定されていません。",
+  "runsheet.durationMins": "{n}分",
 };

@@ -14,8 +14,9 @@ import {
   taskReminders,
   usedCategories,
   matchesCategoryFilter,
+  dueDateCommitPatch,
 } from "../lib/checklistUtils.js";
-import { cleanDueDate } from "../lib/validation.js";
+import { cleanDueDate, cleanNotes } from "../lib/validation.js";
 import { localDateISO } from "../lib/budgetUtils.js";
 import { toChecklistCSV } from "../lib/csv.js";
 
@@ -139,6 +140,17 @@ const styles = `
     display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
     padding: 8px 10px; border-radius: 8px; background: rgba(201,168,76,0.07);
   }
+
+  .checklist-notes-panel {
+    padding: 8px 10px; border-radius: 8px; background: rgba(201,168,76,0.07);
+  }
+  .checklist-notes-input {
+    width: 100%; min-height: 48px; resize: vertical; outline: none;
+    border: 1.5px solid rgba(201,168,76,0.25); border-radius: 8px; background: white;
+    padding: 8px 10px; font-size: 12px; font-family: inherit;
+    color: var(--charcoal); line-height: 1.5;
+  }
+  .checklist-notes-input:focus { border-color: var(--gold); }
   .checklist-reminder-chip {
     display: inline-flex; align-items: center; gap: 6px;
     font-size: 11px; color: var(--gold-dark); background: rgba(201,168,76,0.15);
@@ -186,8 +198,14 @@ export default function ChecklistTab({ wedding, onSave, isCouple }) {
   const [items, setItems] = useState([]);
   const [saveStatus, setSaveStatus] = useState("");
   const [remindersOpenId, setRemindersOpenId] = useState(null);
+  const [notesOpenId, setNotesOpenId] = useState(null); // per-task remarks panel (#124)
   // null = All, "" = Uncategorized, otherwise a trimmed category name. Not persisted.
   const [categoryFilter, setCategoryFilter] = useState(null);
+  // { id, value } | null — in-progress exact-date edit (#120). Committing on
+  // every onChange re-sorted the list under the open native picker (moving the
+  // row force-committed big jumps) and re-rendered over small in-progress
+  // edits, so the value only lands in items on blur/Enter.
+  const [dueDateDraft, setDueDateDraft] = useState(null);
   const initialized = useRef(false);
   const saveTimer = useRef(null);
   const statusTimer = useRef(null);
@@ -236,6 +254,12 @@ export default function ChecklistTab({ wedding, onSave, isCouple }) {
     });
   }, [scheduleSave]);
 
+  const commitDueDateDraft = useCallback(() => {
+    if (!dueDateDraft) return;
+    updateTask(dueDateDraft.id, dueDateCommitPatch(dueDateDraft.value));
+    setDueDateDraft(null);
+  }, [dueDateDraft, updateTask]);
+
   const toggleDone = useCallback((id) => {
     setItems((prev) => {
       const next = prev.map((item) => (item.id === id ? { ...item, done: !item.done } : item));
@@ -266,6 +290,7 @@ export default function ChecklistTab({ wedding, onSave, isCouple }) {
       dueOffsetDays: null,
       assignee: "both",
       done: false,
+      notes: "",
     };
     setItems((prev) => {
       const next = [...prev, newItem];
@@ -464,12 +489,11 @@ export default function ChecklistTab({ wedding, onSave, isCouple }) {
                       <input
                         type="date"
                         className="checklist-due-date-input"
-                        value={item.dueDate}
-                        onChange={(e) => {
-                          const v = cleanDueDate(e.target.value);
-                          // Clearing (or an invalid value from) the input means "no
-                          // deadline" — same one-patch reminder clear as the select.
-                          updateTask(item.id, v ? { dueDate: v } : { dueDate: null, reminders: [] });
+                        value={dueDateDraft?.id === item.id ? dueDateDraft.value : item.dueDate}
+                        onChange={(e) => setDueDateDraft({ id: item.id, value: e.target.value })}
+                        onBlur={commitDueDateDraft}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") e.currentTarget.blur();
                         }}
                       />
                     )}
@@ -492,7 +516,32 @@ export default function ChecklistTab({ wedding, onSave, isCouple }) {
                         {taskReminders(item).length > 0 ? taskReminders(item).length : ""}
                       </button>
                     )}
+                    <button
+                      className={`checklist-reminder-toggle ${item.notes?.trim() ? "active" : ""}`}
+                      onClick={() => setNotesOpenId((prev) => (prev === item.id ? null : item.id))}
+                      title="Remarks for this task"
+                    >
+                      <Icon.Edit />
+                    </button>
                   </div>
+                  {notesOpenId === item.id && (
+                    <div className="checklist-notes-panel">
+                      <textarea
+                        className="checklist-notes-input"
+                        rows={2}
+                        maxLength={500}
+                        placeholder="Remarks — vendor contacts, decisions, things to remember…"
+                        value={item.notes ?? ""}
+                        onChange={(e) => updateTask(item.id, { notes: e.target.value })}
+                        onBlur={(e) => {
+                          // Trim on commit only (typing mid-sentence needs trailing spaces);
+                          // maxLength already enforces the 500 cap live.
+                          const cleaned = cleanNotes(e.target.value);
+                          if (cleaned !== (item.notes ?? "")) updateTask(item.id, { notes: cleaned });
+                        }}
+                      />
+                    </div>
+                  )}
                   {remindersOpenId === item.id && hasDueConfig && (
                     <div className="checklist-reminders-panel">
                       {taskReminders(item).map((r) => {

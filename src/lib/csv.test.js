@@ -154,7 +154,7 @@ describe("toChecklistCSV — planning-checklist export", () => {
   it("emits the documented header row plus one row per task", () => {
     const lines = toChecklistCSV([task(), task({ id: "t2", text: "Order suit" })], WEDDING).split("\n");
     expect(CHECKLIST_EXPORT_HEADERS).toEqual([
-      "Task", "Category", "Assignee", "Due date", "Due", "Reminders", "Done",
+      "Task", "Category", "Assignee", "Due date", "Due", "Reminders", "Notes", "Done",
     ]);
     expect(lines[0]).toBe(CHECKLIST_EXPORT_HEADERS.join(","));
     expect(lines).toHaveLength(3);
@@ -211,6 +211,18 @@ describe("toChecklistCSV — planning-checklist export", () => {
     expect(custom).toContain('"10 days before due"');
     const none = toChecklistCSV([task()], WEDDING).split("\n")[1];
     expect(none.split(",")[5]).toBe('""');
+  });
+
+  it("writes the task notes and leaves the cell empty when absent (#124)", () => {
+    const withNotes = toChecklistCSV([task({ notes: "Deposit paid, balance due May" })], WEDDING).split("\n")[1];
+    expect(withNotes).toContain('"Deposit paid, balance due May"');
+    const none = toChecklistCSV([task()], WEDDING).split("\n")[1];
+    expect(none.split(",")[6]).toBe('""');
+  });
+
+  it("neutralises formula injection in task notes", () => {
+    const csv = toChecklistCSV([task({ notes: "=HYPERLINK(evil)" })], WEDDING);
+    expect(csv).toContain("\"'=HYPERLINK");
   });
 
   it("neutralises formula injection in task text and category", () => {

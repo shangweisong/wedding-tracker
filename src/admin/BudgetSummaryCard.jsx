@@ -18,7 +18,12 @@ const styles = `
 
   /* ── Total budget cap ── */
   .budget-cap-row { margin-bottom: 16px; }
-  .budget-cap-display { display: flex; align-items: baseline; gap: 10px; }
+  .budget-cap-display { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .budget-spent-group {
+    display: flex; align-items: baseline; gap: 10px;
+    padding-left: 18px; border-left: 1px solid rgba(255,255,255,0.12);
+  }
+  .budget-big-num.spent-over { color: #f1948a; }
   .budget-big-num {
     font-family: 'Cormorant Garamond', serif; font-size: 34px;
     color: var(--gold-light); font-weight: 400; line-height: 1;
@@ -209,6 +214,15 @@ export default function BudgetSummaryCard({
                 {overallCap > 0 ? fmtMoney(overallCap) : "—"}
               </div>
               <div className="budget-big-label">total budget</div>
+              {/* Committed spend = sum of every category's contracted vendor totals (#123) */}
+              {totalCommitted > 0 && (
+                <div className="budget-spent-group">
+                  <div className={`budget-big-num ${isOverBudget ? "spent-over" : ""}`}>
+                    {fmtMoney(totalCommitted)}
+                  </div>
+                  <div className="budget-big-label">total spent{isOverBudget ? " ⚠" : ""}</div>
+                </div>
+              )}
               <button className="cap-hint-btn" onClick={startEditCap}>
                 {overallCap > 0 ? "edit" : "set budget"}
               </button>

@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { isDemoMode } from "../lib/supabase.js";
+import { upgradeRunsheet, formatTimeLabel } from "../lib/runsheetTime.js";
+import RunsheetGantt from "../shared/RunsheetGantt.jsx";
 
 const styles = `
   .runsheet-tab { display: flex; flex-direction: column; height: 100%; }
@@ -10,6 +12,28 @@ const styles = `
     border-bottom: 1.5px solid rgba(201,168,76,0.15);
   }
   .runsheet-toolbar-left { display: flex; align-items: center; gap: 10px; }
+
+  .rs-view-toggle {
+    display: flex; gap: 2px; background: rgba(201,168,76,0.12);
+    border-radius: 20px; padding: 3px;
+  }
+  .rs-view-btn {
+    padding: 4px 14px; border-radius: 20px; border: none; background: transparent;
+    color: var(--brown); font-size: 12px; font-weight: 500; cursor: pointer;
+    font-family: inherit; transition: background 0.15s, color 0.15s;
+  }
+  .rs-view-btn.active { background: var(--gold); color: var(--charcoal); }
+
+  .rs-gantt-wrap { padding: 16px 20px; flex: 1; overflow-y: auto; }
+
+  .rs-legacy-hint {
+    font-size: 10px; color: var(--gold-dark); opacity: 0.75;
+    font-style: italic; padding: 0 4px 4px; word-break: break-word;
+  }
+  .rs-ro-cell {
+    font-size: 13px; color: var(--charcoal); padding: 6px 4px;
+    display: block; line-height: 1.4;
+  }
   .runsheet-toolbar-right { display: flex; align-items: center; gap: 10px; }
   .runsheet-save-status { font-size: 12px; color: var(--brown); opacity: 0.5; }
   .runsheet-readonly-badge {
@@ -126,6 +150,7 @@ export default function RunsheetTab({ wedding, onSave, showToast, isReadOnly }) 
   const [items, setItems] = useState([]);
   const [published, setPublished] = useState(false);
   const [saveStatus, setSaveStatus] = useState("");
+  const [rsView, setRsView] = useState("list"); // "list" | "gantt" (#121)
   const [dragIdx, setDragIdx] = useState(null);
   const [overIdx, setOverIdx] = useState(null);
   const initialized = useRef(false);
@@ -140,7 +165,9 @@ export default function RunsheetTab({ wedding, onSave, showToast, isReadOnly }) 
   useEffect(() => {
     if (initialized.current || !wedding) return;
     initialized.current = true;
-    setItems(Array.isArray(wedding.runsheet) ? wedding.runsheet : []);
+    // Legacy free-text time/duration upgrade happens in memory on read (#121);
+    // the structured shape persists naturally on the couple's next edit.
+    setItems(upgradeRunsheet(wedding.runsheet));
     setPublished(wedding.is_runsheet_published ?? false);
   }, [wedding]);
 
@@ -163,16 +190,19 @@ export default function RunsheetTab({ wedding, onSave, showToast, isReadOnly }) 
     }, 800);
   }, [onSave]);
 
-  const updateField = useCallback((id, field, value) => {
+  const updateField = useCallback((id, patch) => {
     setItems((prev) => {
-      const next = prev.map((item) => item.id === id ? { ...item, [field]: value } : item);
+      const next = prev.map((item) => item.id === id ? { ...item, ...patch } : item);
       scheduleSave(next, published);
       return next;
     });
   }, [published, scheduleSave]);
 
   const addRow = useCallback(() => {
-    const newItem = { id: crypto.randomUUID(), time: "", event: "", duration: "", involved: "", comments: "" };
+    const newItem = {
+      id: crypto.randomUUID(), event: "", involved: "", comments: "",
+      startTime: "", durationMin: null, timeText: "", durationText: "",
+    };
     setItems((prev) => {
       const next = [...prev, newItem];
       scheduleSave(next, published);
@@ -245,6 +275,20 @@ export default function RunsheetTab({ wedding, onSave, showToast, isReadOnly }) 
 
       <div className="runsheet-toolbar">
         <div className="runsheet-toolbar-left">
+          <div className="rs-view-toggle">
+            <button
+              className={`rs-view-btn ${rsView === "list" ? "active" : ""}`}
+              onClick={() => setRsView("list")}
+            >
+              List
+            </button>
+            <button
+              className={`rs-view-btn ${rsView === "gantt" ? "active" : ""}`}
+              onClick={() => setRsView("gantt")}
+            >
+              Gantt
+            </button>
+          </div>
           {isReadOnly && <span className="runsheet-readonly-badge">View only</span>}
           {saveStatus === "saving" && <span className="runsheet-save-status">Saving…</span>}
           {saveStatus === "saved" && <span className="runsheet-save-status">Saved ✓</span>}
@@ -266,6 +310,11 @@ export default function RunsheetTab({ wedding, onSave, showToast, isReadOnly }) 
         )}
       </div>
 
+      {rsView === "gantt" ? (
+        <div className="rs-gantt-wrap">
+          <RunsheetGantt items={items} />
+        </div>
+      ) : (
       <div className="runsheet-table-wrap">
         <table className="runsheet-table">
           <colgroup>
@@ -282,7 +331,7 @@ export default function RunsheetTab({ wedding, onSave, showToast, isReadOnly }) 
               {!isReadOnly && <th className="rs-th-drag" />}
               <th>Time</th>
               <th>Event</th>
-              <th>Duration</th>
+              <th>Duration (min)</th>
               <th>Involved</th>
               <th>Comments</th>
               {!isReadOnly && <th className="rs-th-del" />}
@@ -314,13 +363,23 @@ export default function RunsheetTab({ wedding, onSave, showToast, isReadOnly }) 
                   </td>
                 )}
                 <td>
-                  <input
-                    className="rs-cell-input"
-                    value={item.time}
-                    placeholder="e.g. 7am, 3:30 PM"
-                    readOnly={isReadOnly}
-                    onChange={isReadOnly ? undefined : (e) => updateField(item.id, "time", e.target.value)}
-                  />
+                  {isReadOnly ? (
+                    <span className="rs-ro-cell">{formatTimeLabel(item.startTime) || item.timeText}</span>
+                  ) : (
+                    <>
+                      <input
+                        type="time"
+                        className="rs-cell-input"
+                        value={item.startTime}
+                        onChange={(e) => updateField(item.id, { startTime: e.target.value, timeText: "" })}
+                      />
+                      {!item.startTime && item.timeText?.trim() && (
+                        <div className="rs-legacy-hint" title="Couldn't auto-convert — pick the time above">
+                          was: “{item.timeText}”
+                        </div>
+                      )}
+                    </>
+                  )}
                 </td>
                 <td>
                   <textarea
@@ -329,17 +388,38 @@ export default function RunsheetTab({ wedding, onSave, showToast, isReadOnly }) 
                     value={item.event}
                     placeholder="Event description"
                     readOnly={isReadOnly}
-                    onChange={isReadOnly ? undefined : (e) => updateField(item.id, "event", e.target.value)}
+                    onChange={isReadOnly ? undefined : (e) => updateField(item.id, { event: e.target.value })}
                   />
                 </td>
                 <td>
-                  <input
-                    className="rs-cell-input"
-                    value={item.duration}
-                    placeholder="30 mins"
-                    readOnly={isReadOnly}
-                    onChange={isReadOnly ? undefined : (e) => updateField(item.id, "duration", e.target.value)}
-                  />
+                  {isReadOnly ? (
+                    <span className="rs-ro-cell">
+                      {item.durationMin != null ? `${item.durationMin} min` : item.durationText}
+                    </span>
+                  ) : (
+                    <>
+                      <input
+                        type="number"
+                        min="0"
+                        step="5"
+                        className="rs-cell-input"
+                        value={item.durationMin ?? ""}
+                        placeholder="mins"
+                        onChange={(e) => {
+                          const n = e.target.value === "" ? null : Number(e.target.value);
+                          updateField(item.id, {
+                            durationMin: Number.isFinite(n) && n > 0 ? Math.round(n) : null,
+                            durationText: "",
+                          });
+                        }}
+                      />
+                      {item.durationMin == null && item.durationText?.trim() && (
+                        <div className="rs-legacy-hint" title="Couldn't auto-convert — enter minutes above">
+                          was: “{item.durationText}”
+                        </div>
+                      )}
+                    </>
+                  )}
                 </td>
                 <td>
                   <textarea
@@ -348,7 +428,7 @@ export default function RunsheetTab({ wedding, onSave, showToast, isReadOnly }) 
                     value={item.involved}
                     placeholder="Bride, MUA"
                     readOnly={isReadOnly}
-                    onChange={isReadOnly ? undefined : (e) => updateField(item.id, "involved", e.target.value)}
+                    onChange={isReadOnly ? undefined : (e) => updateField(item.id, { involved: e.target.value })}
                   />
                 </td>
                 <td>
@@ -358,7 +438,7 @@ export default function RunsheetTab({ wedding, onSave, showToast, isReadOnly }) 
                     value={item.comments}
                     placeholder="Additional notes…"
                     readOnly={isReadOnly}
-                    onChange={isReadOnly ? undefined : (e) => updateField(item.id, "comments", e.target.value)}
+                    onChange={isReadOnly ? undefined : (e) => updateField(item.id, { comments: e.target.value })}
                   />
                 </td>
                 {!isReadOnly && (
@@ -378,6 +458,7 @@ export default function RunsheetTab({ wedding, onSave, showToast, isReadOnly }) 
           </button>
         )}
       </div>
+      )}
     </div>
   );
 }

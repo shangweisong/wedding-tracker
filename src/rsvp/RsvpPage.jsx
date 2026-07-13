@@ -903,7 +903,7 @@ export default function RsvpPage() {
                     </div>
                   </div>
 
-                  {(w?.parking_notice || w?.smoking_notice) && (
+                  {(w?.parking_notice || w?.smoking_notice || w?.extra_notice) && (
                     <div className="rsvp-field">
                       <span className="rsvp-label">{t("rsvp.notes.title")}</span>
                       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -915,6 +915,11 @@ export default function RsvpPage() {
                         {w?.smoking_notice && (
                           <div style={{ fontSize: 14, lineHeight: 1.5, padding: "10px 12px", borderRadius: 10, background: "rgba(0,0,0,0.04)" }}>
                             <strong>{t("rsvp.notes.smoking")}</strong> {w.smoking_notice}
+                          </div>
+                        )}
+                        {w?.extra_notice && (
+                          <div style={{ fontSize: 14, lineHeight: 1.5, padding: "10px 12px", borderRadius: 10, background: "rgba(0,0,0,0.04)" }}>
+                            {w.extra_notice}
                           </div>
                         )}
                       </div>
@@ -1014,7 +1019,7 @@ export default function RsvpPage() {
                   </div>
 
                   {/* Note to guests — display-only notices configured by the couple */}
-                  {(w?.parking_notice || w?.smoking_notice) && (
+                  {(w?.parking_notice || w?.smoking_notice || w?.extra_notice) && (
                     <div className="rsvp-field">
                       <span className="rsvp-label">{t("rsvp.notes.title")}</span>
                       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -1026,6 +1031,11 @@ export default function RsvpPage() {
                         {w?.smoking_notice && (
                           <div style={{ fontSize: 14, lineHeight: 1.5, padding: "10px 12px", borderRadius: 10, background: "rgba(0,0,0,0.04)" }}>
                             <strong>{t("rsvp.notes.smoking")}</strong> {w.smoking_notice}
+                          </div>
+                        )}
+                        {w?.extra_notice && (
+                          <div style={{ fontSize: 14, lineHeight: 1.5, padding: "10px 12px", borderRadius: 10, background: "rgba(0,0,0,0.04)" }}>
+                            {w.extra_notice}
                           </div>
                         )}
                       </div>

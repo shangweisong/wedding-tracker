@@ -147,4 +147,15 @@ export default {
   "rsvp.err.notSetup": "回覆功能尚未設定 — 資料庫尚未完成遷移，請聯絡新人。",
   "rsvp.err.linkExpired": "您的回覆連結已失效，請聯絡新人取得新連結。",
   "rsvp.err.generic": "發生錯誤，請再試一次或聯絡新人。",
+
+  // Public runsheet page (#121)
+  "runsheet.subtitle": "婚禮當日流程表",
+  "runsheet.loading": "載入中…",
+  "runsheet.notAvailable": "此流程表目前無法查看。",
+  "runsheet.empty": "尚無流程項目",
+  "runsheet.view.list": "列表",
+  "runsheet.view.gantt": "時間軸",
+  "runsheet.unscheduled": "未排定時間",
+  "runsheet.ganttEmpty": "尚未排定任何時間。",
+  "runsheet.durationMins": "{n} 分鐘",
 };
