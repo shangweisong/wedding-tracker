@@ -68,11 +68,11 @@ const styles = `
   .runsheet-table-wrap { overflow-x: auto; flex: 1; }
 
   .runsheet-table {
-    width: 100%; border-collapse: collapse; font-size: 13px; min-width: 760px;
+    width: 100%; border-collapse: collapse; font-size: 13px; min-width: 790px;
     table-layout: fixed;
   }
   .runsheet-table col.rs-col-drag { width: 28px; }
-  .runsheet-table col.rs-col-time { width: 90px; }
+  .runsheet-table col.rs-col-time { width: 120px; }
   .runsheet-table col.rs-col-event { width: 200px; }
   .runsheet-table col.rs-col-duration { width: 80px; }
   .runsheet-table col.rs-col-involved { width: 160px; }
@@ -105,6 +105,9 @@ const styles = `
   }
   .rs-cell-input:focus { background: rgba(201,168,76,0.08); }
   .rs-cell-input[readonly] { cursor: default; color: var(--charcoal); }
+  .rs-cell-input[type="time"]::-webkit-calendar-picker-indicator {
+    margin: 0; padding: 0; opacity: 0.5;
+  }
 
   .rs-drag {
     width: 28px; color: rgba(201,168,76,0.4); cursor: grab;
