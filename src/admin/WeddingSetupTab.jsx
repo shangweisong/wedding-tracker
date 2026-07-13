@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { cleanName, cleanVenueName, cleanVenueAddress } from "../lib/validation.js";
 import { MAX_PIN, cleanPin } from "../lib/openRsvp.js";
 import { blankEvent } from "../lib/eventDiff.js";
+import { EVENT_AUDIENCES } from "../lib/eventVisibility.js";
 import { LOCALES } from "../i18n/index.jsx";
 
 // Locales guests can switch to on the public page (English is the source).
@@ -130,6 +131,7 @@ function toDraft(e) {
     requires_headcount: e.requires_headcount !== false,
     is_active: e.is_active !== false,
     content_translations: e.content_translations && typeof e.content_translations === "object" ? e.content_translations : {},
+    audience_groups: Array.isArray(e.audience_groups) ? e.audience_groups : [],
   };
 }
 
@@ -187,6 +189,17 @@ export default function WeddingSetupTab({ wedding, events = [], onSave, onSaveEv
       const ct = { ...(ev.content_translations || {}) };
       ct[transLocale] = { ...(ct[transLocale] || {}), [field]: value };
       return { ...ev, content_translations: ct };
+    }));
+
+  // Toggle one relationship group in an event's audience (#131).
+  const toggleEventAudience = (i, group) =>
+    setDraftEvents((prev) => prev.map((ev, j) => {
+      if (j !== i) return ev;
+      const groups = Array.isArray(ev.audience_groups) ? ev.audience_groups : [];
+      return {
+        ...ev,
+        audience_groups: groups.includes(group) ? groups.filter((g) => g !== group) : [...groups, group],
+      };
     }));
 
   const addEvent = () =>
@@ -393,6 +406,24 @@ export default function WeddingSetupTab({ wedding, events = [], onSave, onSaveEv
                         <input type="checkbox" checked={ev.is_active} onChange={setEvent("is_active", i)} />
                         Active
                       </label>
+                    </div>
+
+                    <div className="setup-form-group full">
+                      <label className="setup-form-label">
+                        Show to <span style={{ fontWeight: 400 }}>(none checked = shown to everyone)</span>
+                      </label>
+                      <div className="smart-checks">
+                        {EVENT_AUDIENCES.map((group) => (
+                          <label key={group} className="smart-check" style={{ textTransform: "capitalize" }}>
+                            <input
+                              type="checkbox"
+                              checked={(ev.audience_groups || []).includes(group)}
+                              onChange={() => toggleEventAudience(i, group)}
+                            />
+                            {group}
+                          </label>
+                        ))}
+                      </div>
                     </div>
 
                     {transLocale && (

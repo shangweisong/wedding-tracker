@@ -3,7 +3,11 @@
 // Keeping this pure makes the batch-save logic testable without a DB and lets the
 // editor use a fun_qa-style local-draft UX for relational rows.
 
+import { normalizeAudienceGroups } from './eventVisibility.js';
+
 // Comparable fields (sort_order is derived from array position, not the input).
+// Array/object fields (audience_groups, content_translations) are compared
+// separately by JSON — `!==` is always-unequal for them.
 const FIELDS = [
   'name', 'event_date', 'start_time', 'location',
   'requires_meal', 'requires_headcount', 'is_active', 'sort_order',
@@ -19,6 +23,7 @@ export function blankEvent() {
     requires_meal: false,
     requires_headcount: true,
     is_active: true,
+    audience_groups: [],
   };
 }
 
@@ -59,6 +64,7 @@ function shape(ev, sortOrder) {
     is_active: ev.is_active !== false,
     sort_order: sortOrder,
     content_translations: cleanCT(ev.content_translations),
+    audience_groups: normalizeAudienceGroups(ev.audience_groups),
   };
 }
 
@@ -90,6 +96,9 @@ export function diffEvents(original, draft) {
     }
     if (JSON.stringify(next.content_translations) !== JSON.stringify(before.content_translations)) {
       patch.content_translations = next.content_translations;
+    }
+    if (JSON.stringify(next.audience_groups) !== JSON.stringify(before.audience_groups)) {
+      patch.audience_groups = next.audience_groups;
     }
     if (Object.keys(patch).length > 0) toUpdate.push({ id: ev.id, patch });
   });

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildEventResponses, hydrateEventState, primaryAnsweredAllEvents } from './rsvpFormPayload.js';
+import { buildEventResponses, declineAllResponses, hydrateEventState, primaryAnsweredAllEvents } from './rsvpFormPayload.js';
 
 const bodies = [
   { key: '__p', name: 'Alice', is_primary: true },
@@ -41,6 +41,27 @@ describe('buildEventResponses', () => {
     const out = buildEventResponses({ bodies, attendance, meals: {}, events, dietary: 'No shellfish' });
     expect(out.find((r) => r.is_primary).dietary_notes).toBe('No shellfish');
     expect(out.find((r) => !r.is_primary).dietary_notes).toBe('');
+  });
+});
+
+describe('declineAllResponses', () => {
+  it('emits one primary declined row per event, carrying the dietary note', () => {
+    const out = declineAllResponses(events, 'No nuts');
+    expect(out).toEqual([
+      { body_name: '', is_primary: true, event_id: 'tea', status: 'declined', meal_choice: '', dietary_notes: 'No nuts' },
+      { body_name: '', is_primary: true, event_id: 'banquet', status: 'declined', meal_choice: '', dietary_notes: 'No nuts' },
+    ]);
+  });
+
+  it('defaults dietary to blank and tolerates empty/non-array events', () => {
+    expect(declineAllResponses(events)[0].dietary_notes).toBe('');
+    expect(declineAllResponses([])).toEqual([]);
+    expect(declineAllResponses(null)).toEqual([]);
+  });
+
+  it('clamps dietary to 500 chars like buildEventResponses', () => {
+    const out = declineAllResponses(events, 'x'.repeat(600));
+    expect(out[0].dietary_notes).toHaveLength(500);
   });
 });
 

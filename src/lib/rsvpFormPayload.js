@@ -39,6 +39,23 @@ export function buildEventResponses({ bodies = [], attendance = {}, meals = {}, 
 }
 
 /**
+ * Decline-everything payload for the overall "Sorry, I can't make it" answer
+ * (#131): one primary declined row per event, so the rsvp-status mirror sees
+ * every invited event declined and lands the guest on 'declined'. Plus-one
+ * rows are unnecessary — the same submit clears p_plus_one_names.
+ */
+export function declineAllResponses(events, dietary = '') {
+  return (Array.isArray(events) ? events : []).map((ev) => ({
+    body_name: '',
+    is_primary: true,
+    event_id: ev.id,
+    status: 'declined',
+    meal_choice: '',
+    dietary_notes: String(dietary ?? '').slice(0, 500),
+  }));
+}
+
+/**
  * Map server `event_responses` back into { attendance, meals } keyed by body.
  * Children are matched by normalized name; the primary by its is_primary flag.
  */
