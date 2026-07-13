@@ -59,6 +59,15 @@ describe('visibleEventsFor', () => {
     expect(visibleEventsFor(all, null)).toEqual([unrestricted]);
   });
 
+  it('falls back to all events when the filter would hide everything', () => {
+    // A guest explicitly invited only to restricted events must never face an
+    // empty form — declutter, not a gate (see CodeRabbit review on PR #59).
+    const restrictedOnly = [familyOnly, friendsColleagues];
+    expect(visibleEventsFor(restrictedOnly, 'other')).toEqual(restrictedOnly);
+    expect(visibleEventsFor(restrictedOnly, '')).toEqual(restrictedOnly);
+    expect(visibleEventsFor([familyOnly], 'friends')).toEqual([familyOnly]);
+  });
+
   it('matches case/whitespace-insensitively on both sides', () => {
     const messy = ev('tea', [' Family ']);
     expect(visibleEventsFor([messy], 'family')).toEqual([messy]);

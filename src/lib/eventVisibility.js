@@ -20,13 +20,17 @@ export function normalizeAudienceGroups(v) {
 /**
  * Filter events by the guest's relationship group. Unrestricted events are
  * always visible; restricted events stay hidden until the relationship matches
- * (unknown/'' /'complicated' see only unrestricted ones).
+ * (unknown/'' /'complicated' see only unrestricted ones). If the filter would
+ * hide EVERY event, all of them are shown instead — the guest was explicitly
+ * invited to each (guest_event_rsvps.invited), and a declutter must never
+ * leave them an empty form that silently strands their RSVP on 'pending'.
  */
 export function visibleEventsFor(events, relationshipGroup) {
   if (!Array.isArray(events)) return [];
   const group = norm(relationshipGroup);
-  return events.filter((ev) => {
+  const visible = events.filter((ev) => {
     const audience = normalizeAudienceGroups(ev?.audience_groups);
     return audience.length === 0 || audience.includes(group);
   });
+  return visible.length > 0 ? visible : events;
 }
