@@ -22,9 +22,14 @@ A two-phase wedding management app — pre-wedding RSVP collection and seating p
 
 ### 📋 Planning Mode (pre-wedding)
 - **RSVP collection** — guests go to `/rsvp`, fill in their name + choices, submit. Fuzzy name matching verifies them against your guest list without exposing it.
+- **Smart per-event RSVP** — optionally define multiple events (tea ceremony, lunch, dinner…) and invite guests per event. The form opens with a single *"Will you be attending?"* — "No" declines everything in one tap, "Yes" collects a response per invited event. Each event can be shown only to selected relationship groups (family / friends / colleagues / other) to declutter the form.
+- **Open RSVP self-registration** — opt-in mode for guest lists that aren't finalised: guests type their name free-text (no cross-check) gated by a mandatory PIN you print on the invitation. Self-registered guests are flagged for review.
 - **RSVP dashboard** — see confirmed / declined / pending counts, headcount (including response rate), meal breakdown; filter by status or bride/groom side; edit any RSVP field inline
 - **Seating plan** — create tables with capacity limits, assign confirmed guests by dropdown or drag-and-drop, lock tables when done, export as CSV, print-ready layout
 - **Draft seating suggestion** — one click groups unassigned confirmed guests by side / relationship / friend group and packs them into open tables as a starting draft to rearrange by hand — no AI involved, just deterministic clustering
+- **Planning checklist** — auto-seeded task list with categories, assignees, due dates (relative to the wedding date or pinned exact dates), per-task remarks, email reminders, a category filter, and CSV export
+- **Budget & vendor tracking** — per-category budgets and vendor records with contract totals; the Budget Overview shows total committed spending against the overall budget
+- **Wedding-day runsheet** — build the day's programme with times and durations, view it as a list or a Gantt timeline, and publish it to a public `/runsheet/:slug` page for the bridal party
 - **Personalised wedding page** — publish a `/wedding/:slug` page with your love story, event schedule, and RSVP button
 - **Multi-language public pages** — the guest-facing wedding page and RSVP form switch between **English, 繁體中文, 简体中文, Bahasa Melayu, 日本語, and 한국어** (top-right selector, remembered per browser). The couple translate their own content once per language, with a one-click **auto-translate** draft (DeepL, with a MyMemory fallback for languages DeepL doesn't cover)
 - **AI theme from a photo** — upload a picture (your flowers, invite, venue…) and a vision LLM derives a matching color palette applied to the wedding page + RSVP form as a "Custom" theme, alongside the built-in Minimal / Garden / Traditional presets
@@ -67,6 +72,8 @@ https://your-app.vercel.app/rsvp
 Guests open it, fill in the form (name, attendance, meal choice, dietary needs, message), and submit. Their name is fuzzy-matched against your guest list on the server — typos and partial names still resolve correctly. If verification passes, their RSVP is saved and they receive a confirmation email with a personalised link to update their response later. The guest list is never sent to the browser.
 
 **Updating an RSVP:** the confirmation email contains a unique `?token=` link. Clicking it reopens the form pre-filled with their previous answers. Submitting again updates their record. If a guest changes from confirmed to declined (or vice versa), you receive a notification email.
+
+**Open RSVP (optional):** if your guest list isn't finalised, enable **Open RSVP** in Wedding Setup. Guests then enter their name free-text — no cross-check against the guest list — gated by a mandatory PIN you share on the invitation (verified server-side, with a brute-force lockout). Self-registered guests are flagged in the dashboard so you can vet them after the deadline.
 
 ---
 

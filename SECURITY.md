@@ -26,7 +26,7 @@ This project is configured so that:
 
 ### Required setup to be secure
 
-1. Run the migrations in `supabase/migrations/` (0001–0006; 0007 is the
+1. Run the migrations in `supabase/migrations/` (0001–0010; 0007 is the
    optional email automation) in your Supabase project.
 2. In **Authentication → Providers → Email**, create one helper user and
    **disable public sign-ups** so strangers can't self-register an account.
@@ -156,6 +156,33 @@ This project is configured so that:
   link (`/rsvp?token=…`) is the stricter path; if the enumeration tradeoff is
   unacceptable for your deployment, revoke the by-name RPCs from `anon` and send
   token links only.
+
+- **Open RSVP is a deliberate widening of the anonymous surface**
+  ([`0009_open_rsvp.sql`](supabase/migrations/0009_open_rsvp.sql), opt-in,
+  default off). When enabled, the anon-callable `register_open_rsvp` RPC
+  creates a guest row from a free-text name — gated by a **mandatory shared
+  PIN** verified server-side. The PIN is a low-entropy invitation-card secret
+  (≤ 20 chars), not an account credential: it is stored plainly, is **never**
+  returned by any anon-callable RPC (`get_wedding_config` exposes only the
+  `enable_open_rsvp` flag), and can be read back only through the couple-only
+  `get_open_rsvp_admin_config` RPC (helper excluded). Brute force is bounded by
+  a global sliding-window lockout — 20 wrong PINs in 15 minutes locks the open
+  form until attempts age out (logged in the RLS-sealed
+  `open_rsvp_pin_attempts` table) — so a determined attacker can at most
+  temporarily lock the form, not enumerate a PIN. Self-registered guests are
+  flagged (`guests.self_registered`) for the couple to vet; matching an
+  existing primary guest by name returns that guest's token, which is the same
+  surface `find_guest_by_name` already exposes *without* any PIN, so open mode
+  is strictly tighter than the by-name path above.
+
+- **Event audience targeting is cosmetic, not access control**
+  ([`0010_event_audiences.sql`](supabase/migrations/0010_event_audiences.sql)).
+  `wedding_events.audience_groups` filters which event cards the public RSVP
+  form *shows*, keyed off the guest-**selected** `relationship_group` — so a
+  guest can see any event by picking a different relationship. Do not treat it
+  as a secrecy mechanism: event names/times in `get_public_events` remain
+  readable to `anon` regardless. The authoritative per-guest gate is and
+  remains `guest_event_rsvps.invited`.
 
 - **Outbound email hardening.** Guest-controlled fields (name, meal choice,
   dietary notes) are HTML-escaped before interpolation into RSVP/reminder email

@@ -5,6 +5,90 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2026-07-14] — fix/131-smart-rsvp-attending-gate
+
+### Added
+
+- **Smart RSVP attending gate (#131)** — in smart (per-event) mode the public form now opens with a single **"Will you be attending?"** yes/no before any event cards. *Yes* reveals the per-event section as before; *No* hides it and submits a decline for every invited event in one go (new `declineAllResponses()` in `src/lib/rsvpFormPayload.js`), so a guest who can't come no longer has to decline each event individually.
+- **Audience-targeted events (#131)** — each smart-RSVP event can be restricted to relationship groups (family / friends / colleagues / other) via **Show to** checkboxes on the event editor in Wedding Setup (none checked = shown to everyone). The public form filters event cards by the guest's relationship (`visibleEventsFor()` in new `src/lib/eventVisibility.js`; `audience_groups` diffed in `eventDiff.js`). **This is presentational declutter, not a security boundary** — `relationship_group` is guest-selected on the form; the real per-guest gate remains `guest_event_rsvps.invited`.
+- **Migration `0010_event_audiences.sql`** — `wedding_events.audience_groups text[]` with a check constraint limiting values to the four groups; `get_public_events` and `get_guest_by_rsvp_token`'s `invited_events` objects grow an `audience_groups` field (append-only drop-and-recreate, same convention as 0009).
+
+### Fixed
+
+- The audience filter can never blank the form: if filtering would hide *every* invited event (e.g. a stale relationship on the guest row), the full invited list is shown instead.
+
+---
+
+## [2026-07-13] — fix/129-runsheet-time-ampm
+
+### Fixed
+
+- **Runsheet time column shows AM/PM (#129)** — the admin Runsheet tab's Time column was too narrow for the browser's 12-hour time input, clipping the AM/PM suffix. Column widened (90 → 120 px, table min-width adjusted) and the time picker indicator slimmed so the full `hh:mm AM/PM` value is visible. CSS-only.
+
+---
+
+## [2026-07-13] — feat/126-open-rsvp
+
+### Added
+
+- **Open RSVP self-registration (#126)** — an opt-in mode where guests are *not* cross-checked against the guest list: they type their name free-text on the public RSVP form and a guest row is created for them, flagged `self_registered` so the couple can cross-check sign-ups after the deadline. Enabled via a new **Open RSVP** card in Wedding Setup, which requires a **mandatory PIN** (≤ 20 chars, shared on the invitation like a Wi-Fi password) — saving with open mode on and a blank PIN is refused in both the UI and the RPC.
+- **Migration `0009_open_rsvp.sql`** — columns `weddings.enable_open_rsvp`, `weddings.rsvp_pin`, `guests.self_registered`; rate-limit table `open_rsvp_pin_attempts` (RLS on, no policies — only the security-definer RPC touches it); anon-callable `register_open_rsvp(p_name, p_pin)` returning `{token}` on success or `{error}` on PIN failure (returned, not raised, so the attempt log commits); couple-only `get_open_rsvp_admin_config()` for PIN readback; `upsert_wedding_config` grows two parameters and `get_wedding_config` exposes `enable_open_rsvp` (never the PIN).
+
+### Security
+
+- The PIN is verified **server-side** and never exposed to anon callers; readback is couple-only (helper excluded). Brute force is bounded by a global sliding window — 20 wrong PINs in 15 minutes locks the open form until attempts age out (an attacker can at most temporarily lock the form, not enumerate a PIN). Matching an existing primary guest by name hands back that guest's token — the same surface the long-standing anon `find_guest_by_name` already exposes *without* a PIN, so open mode is strictly tighter.
+
+---
+
+## [2026-07-13] — fix/122-vendor-modal-alignment
+
+### Fixed
+
+- **Add Vendor pop-up alignment (#122)** — the Status select could drift out of line with the Contract Total input when the contract-total label wrapped; the row is now bottom-aligned so the two fields stay level.
+
+---
+
+## [2026-07-13] — feat/125-rsvp-extra-notice
+
+### Added
+
+- **Extra Notice on the RSVP page (#125)** — the "Note to Guests" card in Wedding Setup gains a general free-text notice alongside the existing Parking and Smoking ones, with identical behaviour: 500-char cap, hidden on the RSVP form when blank, translatable via `content_translations`.
+- **Migration `0008_extra_notice.sql`** — `weddings.extra_notice` column; `upsert_wedding_page` grows an 18th parameter and `get_wedding_config` an append-only return column.
+
+---
+
+## [2026-07-13] — feat/124-checklist-notes
+
+### Added
+
+- **Per-task remarks on the planning checklist (#124)** — each checklist task can carry a free-text remark (vendor quotes, contact details, decisions) edited inline in the Checklist tab. Remarks ride along in the checklist CSV export as a new column.
+
+---
+
+## [2026-07-13] — feat/123-budget-total-spending
+
+### Added
+
+- **Total spending in Budget Overview (#123)** — the budget summary card now shows committed spend (the sum of every category's contracted vendor totals) beside the overall budget figure, highlighted in red with a ⚠ when it exceeds the budget.
+
+---
+
+## [2026-07-13] — feat/121-runsheet-gantt
+
+### Added
+
+- **Gantt timeline view for the runsheet (#121)** — the runsheet can be viewed as a horizontal Gantt-style timeline built from each item's start time and duration (new pure modules `src/lib/runsheetTime.js` + `src/lib/runsheetGantt.js`, shared `RunsheetGantt` component). Available in both the admin Runsheet tab and the public `/runsheet/:slug` page, with the view labels translated in all six locales.
+
+---
+
+## [2026-07-13] — fix/120-checklist-due-date-commit
+
+### Fixed
+
+- **Checklist exact-date edits commit on blur/Enter (#120)** — typing an exact due date no longer saves every keystroke (which could persist half-typed dates); the date input now holds a local draft and commits when the field loses focus or Enter is pressed.
+
+---
+
 ## [2026-07-12] — chore/consolidate-migrations
 
 ### Changed
