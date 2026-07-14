@@ -36,12 +36,16 @@ Open the **SQL Editor** in your Supabase dashboard and run the migrations **in o
 | [`0005_roles_security.sql`](../supabase/migrations/0005_roles_security.sql) | Couple/helper RLS split for `guests` / `tables` / `wedding_events` / `guest_event_rsvps` / `submissions` / `receipts`; `set_guest_checkin` + helper-safe `get_checkin_guests` projection |
 | [`0006_planning_features.sql`](../supabase/migrations/0006_planning_features.sql) | `vendors` table + RLS; budget / runsheet / checklist config RPCs (couple-gated); `checklist_reminder_log` table |
 | [`0007_email_automation.sql`](../supabase/migrations/0007_email_automation.sql) | `pg_net` extension; RSVP status-change webhook trigger (with `old_rsvp_status` for host change-of-mind notifications); `second_reminder_sent_at` column — **apply only after completing the email setup in step 5** |
+| [`0008_extra_notice.sql`](../supabase/migrations/0008_extra_notice.sql) | General **Extra Notice** for the RSVP page (`weddings.extra_notice`, 500-char cap, translatable) alongside the Parking/Smoking notices |
+| [`0009_open_rsvp.sql`](../supabase/migrations/0009_open_rsvp.sql) | **Open RSVP** self-registration: `enable_open_rsvp` + `rsvp_pin` on `weddings`, `guests.self_registered` flag, `register_open_rsvp` RPC (PIN-gated), `open_rsvp_pin_attempts` rate-limit log, couple-only PIN readback |
+| [`0010_event_audiences.sql`](../supabase/migrations/0010_event_audiences.sql) | Relationship-targeted smart-RSVP events: `wedding_events.audience_groups` (family/friends/colleagues/other) surfaced through `get_public_events` / `get_guest_by_rsvp_token` |
 
 All migrations are idempotent (`CREATE OR REPLACE`, `IF NOT EXISTS`) — safe to re-run,
 including against a database that already ran the pre-consolidation files.
 
 > **Supabase CLI users (existing deployments):** the migration folder was consolidated
-> from 19 files down to these 7 (each object now appears once, in its final form).
+> from 19 files down to 7 (each object now appears once, in its final form; features
+> shipped since then append as `0008`+).
 > If you applied the old files via `supabase db push`, the CLI's tracking table still
 > lists the old versions — and because the new files reuse versions `0001`–`0007`,
 > `db push` would wrongly treat them as already applied. Reset the tracking rows once,
@@ -372,7 +376,10 @@ Priya Nair,2,,false,bride
 
 1. Fill in your wedding details in the **Wedding Setup tab** (couple names, date, venue, ceremony/dinner time) — do this first, since the RSVP confirmation email and calendar invite read from it
    - Optional: under **Wedding Page**, flip **Fun RSVP options** on to add two playful choices to the guest RSVP form — *"It's complicated 😅"* (how they know you) and *"😏 It's a secret"* (friend type). Off by default.
-   - Optional: under **Wedding Page → Note to Guests**, add **Parking** and/or **Smoking** notices — these show on the RSVP form (to attending guests) only if filled. Attending guests are also asked *"Would you like to give a speech?"*; the RSVP tab flags volunteers with a 🎤.
+   - Optional: under **Wedding Page → Note to Guests**, add **Parking**, **Smoking**, and/or a general **Extra Notice** — each shows on the RSVP form (to attending guests) only if filled, and each is translatable. Attending guests are also asked *"Would you like to give a speech?"*; the RSVP tab flags volunteers with a 🎤.
+   - Optional: **Open RSVP** (Wedding Setup) lets guests who aren't on your list register themselves — they type their name free-text and enter the **RSVP PIN** you set (required; share it on the invitation). The PIN is checked server-side and the form locks temporarily after too many wrong attempts. Self-registered guests are flagged in the RSVP tab so you can vet them after the deadline.
+   - If you use **smart per-event RSVP**, the form starts with a single *"Will you be attending?"* — a "No" declines every invited event at once. Each event's editor has **Show to** checkboxes (family / friends / colleagues / other; none checked = everyone) to hide irrelevant events from the wrong crowd — note this only declutters the form, it is not access control (see `SECURITY.md`).
+   - The **Runsheet tab** builds the day's programme (times show AM/PM); a **Gantt timeline** view visualises each item's start time and duration, on both the admin tab and the published public `/runsheet/:slug` page.
    - Attending guests can bring up to **6 additional guests** — each becomes its own guest entry (seatable and checkable-in independently). In the **RSVP tab** these appear as rows labelled *"↳ additional guest of …"*; the confirmed **headcount** stat counts every body, while the confirmed/pending counts track invitations.
    - The public **Wedding page** and **RSVP form** offer a language selector (top-right) covering **English, 繁體中文 (Traditional Chinese), 简体中文 (Simplified Chinese), Bahasa Melayu, 日本語, and 한국어**. With more than three languages the toggle becomes a dropdown; the app's own labels are translated automatically, the guest's choice is remembered per browser, and the initial language is sniffed from the browser. The admin dashboard and emails stay in English.
    - To translate **your own text**, open **Wedding Setup → Wedding Page → Translations** and pick the target language: fill each field (or click **Auto-translate from English** to draft them, then edit). Blank fields fall back to English per-field on the public page. Auto-translate prefers **DeepL** for more natural output (set the server-only `DEEPL_API_KEY`; use `DEEPL_API_URL` for a Pro key) and falls back to **MyMemory** for languages DeepL doesn't cover (e.g. Malay) or when no DeepL key is set; the optional `MYMEMORY_EMAIL` raises MyMemory's daily limit.
@@ -440,7 +447,8 @@ See [`SECURITY.md`](../SECURITY.md) for the full threat model.
 
 | Problem | Fix |
 |---|---|
-| RSVP form says "name not found" | Run the `0003` and `0004` migrations in the Supabase SQL Editor |
+| RSVP form says "name not found" | Run the `0003` and `0004` migrations in the Supabase SQL Editor. Or, if your guest list isn't final, enable **Open RSVP** (requires the `0009` migration) so guests can self-register with the PIN. |
+| Open RSVP says the PIN is wrong / form is locked | PINs are checked server-side; after 20 wrong attempts in 15 minutes the form locks for everyone until attempts age out — wait a few minutes and re-share the exact PIN from Wedding Setup. |
 | Not syncing across devices | Use the live Vercel URL, not `localhost`. Check env vars are set in Vercel. Devices poll every 5 seconds; the **Refresh** button forces an immediate sync. |
 | Supabase project paused | Free tier pauses after ~1 week idle — restore in the dashboard. Open the app the day before the wedding. |
 | "Not saved — check connection" | A write failed (usually flaky WiFi). The optimistic change stays on screen and reconciles on next sync. Use JSON **Backup** as a safety net. |
