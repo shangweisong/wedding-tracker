@@ -5,6 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2026-07-15] — feat/138-guest-photowall
+
+### Added
+
+- **Guest photowall (#138)** — opt-in section on the public wedding page where guests upload their own photos, gated by a couple-chosen **Photowall PIN** (Wedding Setup, next to the Open RSVP PIN). Photos render live in the existing masonry style with an optional uploader name + caption, polling every 20 s (`src/wedding/PhotowallSection.jsx`). Every upload is canvas re-encoded client-side to ≤2560 px JPEG (`src/lib/photoPrep.js`) — stripping all EXIF/GPS metadata and cutting phone photos to ~1 MB.
+- **External photo storage** — files live **outside Supabase**, in Cloudflare R2 or Vercel Blob, switched by the server-only `PHOTO_STORAGE_PROVIDER=r2|vercel-blob` env var (`api/_lib/photoStorage/`, same pattern as `EMAIL_PROVIDER`). Browser uploads go **directly to storage** via short-lived grants (R2 presigned PUT with signed Content-Type *and* Content-Length; Blob client token with `maximumSizeInBytes`), so file bytes never pass through a Vercel function.
+- **`/api/photowall`** — the app's first anon-facing serverless endpoint (`grant` / `confirm` / `delete` actions). Grants are PIN-verified inside the service-role-only `begin_photowall_upload` RPC (durable 20-wrong-PINs/15-min lockout via `photowall_pin_attempts`, 50-concurrent-pending grant-flood guard, 1500-photo total cap, 4 MB per file); confirm HEAD-verifies the object server-side before the row flips live; delete is couple-JWT-gated and removes the storage object too.
+- **Migration `0011_photowall.sql`** — `weddings.enable_photowall` + `photowall_pin`; `photowall_photos` metadata table with couple-only RLS and **no anon policies** (`submissions` remains the app's only anon table write); anon `get_photowall_photos` read RPC (live rows only); append-only updates to `get_public_wedding` / `get_wedding_config` / `upsert_wedding_config`; couple-only `get_photowall_admin_config` PIN readback; explicit `service_role` table grant (newer Supabase grants no default DML).
+- **📸 Photowall admin tab** (couple-only) — thumbnail list with Hide/Unhide (direct RLS update) and two-click Delete (via the API so the file is removed from storage).
+- **i18n** — all `wedding.photowall.*` strings in all six locale catalogs.
+
+### Security
+
+- CSP `connect-src`/`img-src` widened for the R2/Blob hosts; new photowall trust-model section + residual risks in `SECURITY.md` (world-readable photo URLs, hide-vs-delete, PIN rotation, fail-open delete gate when `COUPLE_EMAIL` is unset). R2 deployers must set a bucket CORS rule (documented in `.env.example` / USER_GUIDE §2).
+
+---
+
 ## [2026-07-14] — fix/131-smart-rsvp-attending-gate
 
 ### Added

@@ -39,6 +39,7 @@ Open the **SQL Editor** in your Supabase dashboard and run the migrations **in o
 | [`0008_extra_notice.sql`](../supabase/migrations/0008_extra_notice.sql) | General **Extra Notice** for the RSVP page (`weddings.extra_notice`, 500-char cap, translatable) alongside the Parking/Smoking notices |
 | [`0009_open_rsvp.sql`](../supabase/migrations/0009_open_rsvp.sql) | **Open RSVP** self-registration: `enable_open_rsvp` + `rsvp_pin` on `weddings`, `guests.self_registered` flag, `register_open_rsvp` RPC (PIN-gated), `open_rsvp_pin_attempts` rate-limit log, couple-only PIN readback |
 | [`0010_event_audiences.sql`](../supabase/migrations/0010_event_audiences.sql) | Relationship-targeted smart-RSVP events: `wedding_events.audience_groups` (family/friends/colleagues/other) surfaced through `get_public_events` / `get_guest_by_rsvp_token` |
+| [`0011_photowall.sql`](../supabase/migrations/0011_photowall.sql) | **Guest photowall** (#138): `enable_photowall` + `photowall_pin` on `weddings`, `photowall_photos` metadata table (files live in Cloudflare R2 / Vercel Blob, not Supabase), `photowall_pin_attempts` rate-limit log, anon `get_photowall_photos` read RPC, service-role-only upload RPCs, couple-only PIN readback |
 
 All migrations are idempotent (`CREATE OR REPLACE`, `IF NOT EXISTS`) — safe to re-run,
 including against a database that already ran the pre-consolidation files.
@@ -119,6 +120,11 @@ VITE_PAYNOW_NAME=The Happy Couple         # name shown to guests
 
 # Optional — set to "false" to hide all ang-bao tracking. Default on.
 VITE_ENABLE_ANGBAO=true
+
+# Optional — set to "false" to hide the guest photowall everywhere. Default on;
+# the wall only appears once you also enable it (and set its PIN) in Wedding Setup
+# and configure a photo storage provider (see server vars below).
+VITE_ENABLE_PHOTOWALL=true
 ```
 
 > **Never set `VITE_COUPLE_PASSWORD` or `VITE_HELPER_PASSWORD`.** Any variable with a `VITE_` prefix is embedded in the JavaScript bundle and visible to anyone who inspects the page source. Setting an access code this way exposes it publicly, defeating the purpose of the lock screen entirely. Access codes are entered at the lock screen at runtime and verified server-side by Supabase — they never belong in any env file.
@@ -152,7 +158,23 @@ THEME_AI_MODEL=                          # optional, override the default vision
 NVIDIA_MODEL=                            # optional, nvidia only — pin the NIM model to route to
 COUPLE_EMAIL=                            # optional, server-side override of VITE_COUPLE_EMAIL for /api/generate-theme
 HELPER_EMAIL=                            # optional, server-side override of VITE_HELPER_EMAIL for /api/generate-theme
+
+# Optional — guest photowall file storage (#138). Photos guests upload are stored
+# OUTSIDE Supabase; pick "r2" (Cloudflare R2, 10 GB free, zero egress) or
+# "vercel-blob" (lowest setup effort). Unset = guest uploads disabled server-side.
+PHOTO_STORAGE_PROVIDER=                  # "r2" | "vercel-blob"
+R2_ACCOUNT_ID=                           # r2 only — Cloudflare account id
+R2_ACCESS_KEY_ID=                        # r2 only — API token (Object Read & Write)
+R2_SECRET_ACCESS_KEY=                    # r2 only
+R2_BUCKET=                               # r2 only — bucket name
+R2_PUBLIC_BASE_URL=                      # r2 only — e.g. https://pub-xxxx.r2.dev (no trailing slash)
+BLOB_READ_WRITE_TOKEN=                   # vercel-blob only — auto-set when you connect a Blob store
 ```
+
+> **R2 deployers:** the bucket needs a CORS rule allowing `PUT` from your site origin
+> with the `Content-Type` header, and a public read surface (the r2.dev dev URL or a
+> custom domain). A **custom** domain must also be added to the `img-src` CSP directive
+> in `vercel.json`. Vercel Blob needs neither — see `.env.example` and `SECURITY.md`.
 
 > See [`.env.example`](../.env.example) for the full annotated list, including when to set `DEEPL_API_URL` (Pro vs Free) and `NVIDIA_MODEL`.
 
@@ -384,6 +406,7 @@ Priya Nair,2,,false,bride
    - The public **Wedding page** and **RSVP form** offer a language selector (top-right) covering **English, 繁體中文 (Traditional Chinese), 简体中文 (Simplified Chinese), Bahasa Melayu, 日本語, and 한국어**. With more than three languages the toggle becomes a dropdown; the app's own labels are translated automatically, the guest's choice is remembered per browser, and the initial language is sniffed from the browser. The admin dashboard and emails stay in English.
    - To translate **your own text**, open **Wedding Setup → Wedding Page → Translations** and pick the target language: fill each field (or click **Auto-translate from English** to draft them, then edit). Blank fields fall back to English per-field on the public page. Auto-translate prefers **DeepL** for more natural output (set the server-only `DEEPL_API_KEY`; use `DEEPL_API_URL` for a Pro key) and falls back to **MyMemory** for languages DeepL doesn't cover (e.g. Malay) or when no DeepL key is set; the optional `MYMEMORY_EMAIL` raises MyMemory's daily limit.
    - Optional: under **Wedding Page**, add **section photo galleries** — photo bands inserted between the public page's sections (after the hero, Our Story, Fun Q&A, event details, or directions). Enable a slot, choose its column count (1–4), and paste the photo URLs (up to 12 per slot); they render as a masonry layout so tall and wide photos aren't cropped. (Schema support ships in `0003_weddings_page.sql`.)
+   - Optional: **Guest photowall** (Wedding Setup) adds a section to the wedding page where guests upload their own photos — each upload needs the **Photowall PIN** you set (required; share it on the invitation, or only on a sign at the venue so the wall starts on the day). Photos are downscaled and stripped of location metadata in the guest's browser, appear on the wall immediately, and you can hide or delete any of them from the **📸 Photowall tab**. Requires the `0011` migration and a photo storage provider (`PHOTO_STORAGE_PROVIDER` — see §2); files are stored in Cloudflare R2 or Vercel Blob, not Supabase.
 2. Import your guest list via CSV (or add guests one by one)
 3. Share `https://your-app.vercel.app/rsvp` in your wedding group chat
 4. Guests fill in the RSVP form — responses appear in the **RSVP tab** in real time
@@ -458,3 +481,7 @@ See [`SECURITY.md`](../SECURITY.md) for the full threat model.
 | Gmail — "Invalid login" error | Your regular Gmail password won't work. You must use a **Gmail App Password** (16-char code from [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)). Also requires 2-Step Verification to be on. |
 | Resend — emails only arrive to your own inbox | You're in Resend sandbox mode (no verified domain yet). Complete Option B above to send to real guests. |
 | RSVP triggers email but guest doesn't receive it | Check spam/junk folder. Gmail-to-Gmail or Gmail-to-Outlook may land there occasionally. Ask the guest to mark it not-spam. |
+| Photowall section missing from the wedding page | Enable **Guest Photowall** (and set its PIN) in Wedding Setup — requires the `0011` migration. Also confirm `VITE_ENABLE_PHOTOWALL` isn't `"false"`. |
+| Photowall upload fails right after picking a photo (R2) | Almost always the missing **bucket CORS rule**: allow `PUT` from your site origin with the `Content-Type` header (see `.env.example`). Also check `PHOTO_STORAGE_PROVIDER` and the `R2_*` vars are set in Vercel — a `500 photowall_disabled` in the function logs means they're missing. |
+| Photowall says the PIN is wrong / "too many attempts" | Same server-side lockout as Open RSVP: 20 wrong PINs in 15 minutes locks uploads for everyone until attempts age out. Wait a few minutes and re-share the exact PIN from Wedding Setup. |
+| Photowall photos upload but never appear | The confirm step is failing — check `vercel logs` for `/api/photowall`. For R2, verify `R2_PUBLIC_BASE_URL` points at the bucket's public r2.dev URL (or custom domain, which must also be in the CSP `img-src`). |

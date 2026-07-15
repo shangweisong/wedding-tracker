@@ -153,9 +153,10 @@ REQUIRED_VARS=(
   "SITE_URL"
 )
 
-# Optional server-only vars — only relevant if you use auto-translate or the AI
-# "Custom" theme. Unset ones are skipped quietly (not counted as "Missing"), so
-# configuring one AI provider (or none) doesn't produce spurious warnings.
+# Optional server-only vars — only relevant if you use auto-translate, the AI
+# "Custom" theme, or the guest photowall (#138). Unset ones are skipped quietly
+# (not counted as "Missing"), so configuring one provider (or none) doesn't
+# produce spurious warnings.
 OPTIONAL_VARS=(
   "DEEPL_API_KEY"
   "DEEPL_API_URL"
@@ -168,6 +169,13 @@ OPTIONAL_VARS=(
   "NVIDIA_MODEL"
   "COUPLE_EMAIL"
   "HELPER_EMAIL"
+  "PHOTO_STORAGE_PROVIDER"
+  "R2_ACCOUNT_ID"
+  "R2_ACCESS_KEY_ID"
+  "R2_SECRET_ACCESS_KEY"
+  "R2_BUCKET"
+  "R2_PUBLIC_BASE_URL"
+  "BLOB_READ_WRITE_TOKEN"
 )
 
 # Provider-specific vars
@@ -187,7 +195,7 @@ done
 
 # ── Push optional vars (skip-quietly when unset) ──────────────────────────────
 echo ""
-log "Pushing optional vars (auto-translate / AI theme)..."
+log "Pushing optional vars (auto-translate / AI theme / photowall storage)..."
 for var in "${OPTIONAL_VARS[@]}"; do
   value=$(env_get "$var")
   if [[ -z "$value" ]]; then
