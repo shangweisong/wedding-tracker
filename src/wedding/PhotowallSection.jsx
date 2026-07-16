@@ -12,6 +12,7 @@ import {
   MAX_UPLOADER_NAME,
   MAX_CAPTION,
   photowallErrorKey,
+  visiblePhotos,
 } from "../lib/photowall.js";
 import { uploadPhotowallPhoto } from "../lib/photowallUpload.js";
 
@@ -68,6 +69,9 @@ export default function PhotowallSection({ slug }) {
   const { t } = useLocale();
 
   const [photos, setPhotos] = useState(null); // null = not loaded yet
+  // Photo ids whose <img> 404'd — e.g. the file was deleted from the storage
+  // dashboard while its DB row stayed live. Hidden until the next page load.
+  const [failedIds, setFailedIds] = useState(() => new Set());
   const [open, setOpen] = useState(false);
   const [pin, setPin] = useState(() => {
     try {
@@ -135,6 +139,7 @@ export default function PhotowallSection({ slug }) {
   }
 
   const busy = phase === "preparing" || phase === "uploading";
+  const visible = photos === null ? null : visiblePhotos(photos, failedIds);
 
   return (
     <section className="wp-section">
@@ -142,11 +147,18 @@ export default function PhotowallSection({ slug }) {
       <div className="wp-section-eyebrow">{t("wedding.photowall.eyebrow")}</div>
       <div className="wp-section-title">{t("wedding.photowall.title")}</div>
 
-      {photos === null ? null : photos.length > 0 ? (
+      {visible === null ? null : visible.length > 0 ? (
         <div className="wp-gallery-grid" style={{ columnCount: 3, marginTop: 20 }}>
-          {photos.map((p) => (
+          {visible.map((p) => (
             <figure key={p.id} className="wp-pw-figure">
-              <img src={p.public_url} alt={p.caption || ""} loading="lazy" />
+              <img
+                src={p.public_url}
+                alt={p.caption || ""}
+                loading="lazy"
+                onError={() =>
+                  setFailedIds((prev) => (prev.has(p.id) ? prev : new Set(prev).add(p.id)))
+                }
+              />
               {(p.caption || p.uploader_name) && (
                 <figcaption className="wp-pw-caption">
                   {p.caption}

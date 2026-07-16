@@ -6,6 +6,7 @@ import {
   cleanUploaderName,
   cleanCaption,
   photowallErrorKey,
+  visiblePhotos,
 } from "./photowall.js";
 
 describe("cleanUploaderName / cleanCaption", () => {
@@ -36,6 +37,31 @@ describe("photowallErrorKey", () => {
   it("falls back to the generic key for unknown codes", () => {
     expect(photowallErrorKey("weird")).toBe("wedding.photowall.err.generic");
     expect(photowallErrorKey(undefined)).toBe("wedding.photowall.err.generic");
+  });
+});
+
+describe("visiblePhotos", () => {
+  const rows = [
+    { id: "a", public_url: "https://blob.example/a.jpg" },
+    { id: "b", public_url: "https://blob.example/b.jpg" },
+    { id: "c", public_url: "https://blob.example/c.jpg" },
+  ];
+
+  it("filters out rows whose id is in the failed set", () => {
+    expect(visiblePhotos(rows, new Set(["b"]))).toEqual([rows[0], rows[2]]);
+  });
+
+  it("returns all rows when nothing has failed", () => {
+    expect(visiblePhotos(rows, new Set())).toEqual(rows);
+  });
+
+  it("returns an empty list when every image has failed", () => {
+    expect(visiblePhotos(rows, new Set(["a", "b", "c"]))).toEqual([]);
+  });
+
+  it("returns [] for non-array input", () => {
+    expect(visiblePhotos(null, new Set())).toEqual([]);
+    expect(visiblePhotos(undefined, new Set())).toEqual([]);
   });
 });
 
