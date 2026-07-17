@@ -78,3 +78,58 @@ export async function deleteObject({ key, url }) {
   const mod = await providerModule();
   return mod.deleteObject({ key, url });
 }
+
+// ---------------------------------------------------------------------------
+// Originals archive (#142). Opt-in via PHOTO_ORIGINALS_PROVIDER=r2: the grant
+// response additionally carries a presigned PUT for the guest's UNTOUCHED
+// source file, uploaded best-effort to a SEPARATE, PRIVATE bucket
+// (R2_ORIGINALS_BUCKET — no r2.dev URL, no custom domain, since
+// R2_PUBLIC_BASE_URL would expose a whole bucket). R2-only, independent of
+// the downscaled provider above (which is typically vercel-blob here).
+
+export function photoOriginalsProvider(env = process.env) {
+  const value = (env.PHOTO_ORIGINALS_PROVIDER || "").trim().toLowerCase();
+  return value === "r2" ? "r2" : null;
+}
+
+// Unlike missingPhotoStorageEnvVars, an UNSET provider returns [] — the
+// archive is an optional add-on, so "off" is a valid state, not a
+// misconfiguration. Credentials are shared with the downscaled R2 path; only
+// the private bucket name is new.
+export function missingPhotoOriginalsEnvVars(env = process.env) {
+  if (!photoOriginalsProvider(env)) return [];
+  const missing = [];
+  for (const name of [
+    "R2_ACCOUNT_ID",
+    "R2_ACCESS_KEY_ID",
+    "R2_SECRET_ACCESS_KEY",
+    "R2_ORIGINALS_BUCKET",
+  ]) {
+    if (!env[name]) missing.push(name);
+  }
+  return missing;
+}
+
+// -> { mode: "put", url, headers } targeting the private originals bucket.
+export async function createOriginalUploadGrant({ key, contentType, sizeBytes }) {
+  const mod = await import("./r2.js");
+  return mod.createUploadGrant({
+    key,
+    contentType,
+    sizeBytes,
+    bucket: process.env.R2_ORIGINALS_BUCKET,
+  });
+}
+
+// Moderation cleanup: the original's extension isn't recorded anywhere, so
+// list by uuid prefix and delete whatever is there (≤1 object in practice).
+// No-op when the feature is off; callers treat every failure as best-effort.
+export async function deleteOriginalObjects({ uuid }) {
+  if (!photoOriginalsProvider() || !uuid) return;
+  const bucket = process.env.R2_ORIGINALS_BUCKET;
+  const mod = await import("./r2.js");
+  const keys = await mod.listKeys({ prefix: `photowall/originals/${uuid}.`, bucket });
+  for (const key of keys) {
+    await mod.deleteObject({ key, bucket });
+  }
+}

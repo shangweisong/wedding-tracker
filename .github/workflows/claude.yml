@@ -25,13 +25,30 @@ jobs:
       id-token: write
       actions: read # Required for Claude to read CI results on PRs
     steps:
+      # Graceful skip when the repo has no Claude credentials configured (e.g. a
+      # fresh fork/upstream adopting this workflow). The `secrets` context isn't
+      # allowed in a job-level `if`, so gate via a step output instead of failing red.
+      - name: Check Claude credentials
+        id: check-claude-secret
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          if [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::CLAUDE_CODE_OAUTH_TOKEN secret is not configured - skipping Claude Code."
+          fi
+
       - name: Checkout repository
+        if: steps.check-claude-secret.outputs.available == 'true'
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 1
           persist-credentials: false
 
       - name: Run Claude Code
+        if: steps.check-claude-secret.outputs.available == 'true'
         id: claude
         uses: anthropics/claude-code-action@v1
         with:

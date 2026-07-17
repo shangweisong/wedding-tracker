@@ -30,6 +30,28 @@ export const filterPhotosByUploader = (photos, query) => {
   return photos.filter((p) => (p.uploader_name || "Anonymous").toLowerCase().includes(q));
 };
 
+// Originals archive (#142): fields describing the guest's UNTOUCHED source
+// file, sent with every grant request. The server ignores them unless
+// PHOTO_ORIGINALS_PROVIDER is configured, so sending them is always safe.
+export const originalGrantFields = (file) => {
+  const type = file?.type;
+  const size = file?.size;
+  if (typeof type !== "string" || !type) return {};
+  if (!Number.isInteger(size) || size < 1) return {};
+  return { originalContentType: type, originalSizeBytes: size };
+};
+
+// Shape-validates the optional `original` field of a grant response so a
+// malformed server payload can never throw inside the guest upload path.
+// Only presigned-PUT grants are ever minted for originals.
+export const plannedOriginalUpload = (grantResponse) => {
+  const original = grantResponse?.original;
+  if (!original || typeof original.key !== "string" || !original.key) return null;
+  const grant = original.grant;
+  if (!grant || grant.mode !== "put" || typeof grant.url !== "string" || !grant.url) return null;
+  return { key: original.key, grant };
+};
+
 // Maps an /api/photowall (or photoPrep) error code to an i18n key — same
 // contract as registerResultErrorKey in openRsvp.js.
 export const photowallErrorKey = (error) => {

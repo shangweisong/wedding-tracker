@@ -28,25 +28,48 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: read
+      pull-requests: write # needed to post the review comments
       issues: read
       id-token: write
 
     steps:
+      # Graceful skip when the repo has no Claude credentials configured (e.g. a
+      # fresh fork/upstream adopting this workflow). The `secrets` context isn't
+      # allowed in a job-level `if`, so gate via a step output instead of failing red.
+      - name: Check Claude credentials
+        id: check-claude-secret
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          if [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::CLAUDE_CODE_OAUTH_TOKEN secret is not configured - skipping Claude Code Review."
+          fi
+
       - name: Checkout repository
+        if: steps.check-claude-secret.outputs.available == 'true'
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 1
           persist-credentials: false
 
       - name: Run Claude Code Review
+        if: steps.check-claude-secret.outputs.available == 'true'
         id: claude-review
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
           plugins: 'code-review@claude-code-plugins'
-          prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
+          # `--comment` is required: without it the code-review plugin only logs its
+          # findings to the (hidden) action output and never posts to the PR (#143).
+          prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }} --comment'
+          # Allowlist mirrors the plugin command's `allowed-tools` frontmatter so the
+          # review subagents' gh/MCP calls aren't denied in headless mode.
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh search:*)"
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
 
