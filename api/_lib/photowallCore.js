@@ -27,6 +27,58 @@ export function makeObjectKey(uuid, contentType) {
   return `photowall/${uuid}.${ext}`;
 }
 
+// Originals archive (#142): the untouched source file is uploaded best-effort
+// to a private R2 bucket when PHOTO_ORIGINALS_PROVIDER=r2. Sources may be HEIC
+// straight off an iPhone, so the allowlist is wider than the downscaled one;
+// the 40 MB cap mirrors the client's pre-decode reject in src/lib/photoPrep.js.
+export const ORIGINAL_ALLOWED_CONTENT_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+];
+export const MAX_ORIGINAL_UPLOAD_BYTES = 40 * 1024 * 1024;
+
+const ORIGINAL_EXT_BY_TYPE = {
+  ...EXT_BY_TYPE,
+  "image/heic": "heic",
+  "image/heif": "heif",
+};
+
+export function makeOriginalObjectKey(uuid, contentType) {
+  const ext = ORIGINAL_EXT_BY_TYPE[contentType];
+  if (!ext) return null;
+  return `photowall/originals/${uuid}.${ext}`;
+}
+
+// Shape check for the optional original-file declaration on a grant request.
+// Unlike validateGrantRequest this never produces a guest-facing error: a bad
+// or absent declaration just means no original grant is minted ({ skip }).
+export function validateOriginalRequest({ originalContentType, originalSizeBytes } = {}) {
+  if (!ORIGINAL_ALLOWED_CONTENT_TYPES.includes(originalContentType)) return { skip: true };
+  if (
+    !Number.isInteger(originalSizeBytes) ||
+    originalSizeBytes < 1 ||
+    originalSizeBytes > MAX_ORIGINAL_UPLOAD_BYTES
+  ) {
+    return { skip: true };
+  }
+  return { ok: true };
+}
+
+// Recover the uuid from a stored downscaled object key so the matching
+// original (photowall/originals/<uuid>.*) can be deleted on moderation.
+// Strict on purpose: only the exact shape makeObjectKey produces.
+const DOWNSCALED_KEY_RE =
+  /^photowall\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.(?:jpg|png|webp)$/;
+
+export function uuidFromObjectKey(key) {
+  if (typeof key !== "string") return null;
+  const match = DOWNSCALED_KEY_RE.exec(key);
+  return match ? match[1] : null;
+}
+
 // eslint-disable-next-line no-control-regex
 const CONTROL_CHARS = /[\u0000-\u001f\u007f]/g;
 

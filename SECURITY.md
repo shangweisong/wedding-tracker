@@ -233,6 +233,19 @@ This project is configured so that:
     signed-in account (including the helper) can delete photos, even though
     RLS blocks the helper from the table itself. Set `COUPLE_EMAIL` to close
     that gap.
+  - **Originals archive (#142, opt-in via `PHOTO_ORIGINALS_PROVIDER=r2`):** the
+    grant response additionally carries a presigned PUT for the guest's
+    untouched source file (≤ 40 MB, HEIC allowed), uploaded best-effort to a
+    **separate private R2 bucket** (`R2_ORIGINALS_BUCKET`). Originals retain
+    full EXIF/GPS metadata, so that bucket must have **no public read surface**
+    — no r2.dev URL, no custom domain (`R2_PUBLIC_BASE_URL` would expose a
+    whole bucket, which is why a same-bucket prefix is not used). It needs its
+    own CORS `PUT` rule. Original grants are minted only after the PIN-gated
+    RPC succeeds, so they stay 1:1 with downscaled grants; nothing about
+    originals is stored in the DB or ever returned to `anon`. Moderation
+    delete best-effort removes the archived original too; abandoned grants can
+    leave orphan originals in the private archive (harmless, uncapped in bytes
+    only by photo-count × 40 MB).
 
 ## Reporting a vulnerability
 

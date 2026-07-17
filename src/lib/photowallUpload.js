@@ -2,7 +2,12 @@
 // upload → confirm. Thin network glue over the tested pure modules
 // (photoPrepCore/photowall); the server re-verifies everything at confirm.
 import { prepareImage } from "./photoPrep.js";
-import { cleanUploaderName, cleanCaption } from "./photowall.js";
+import {
+  cleanUploaderName,
+  cleanCaption,
+  originalGrantFields,
+  plannedOriginalUpload,
+} from "./photowall.js";
 import { cleanPin } from "./openRsvp.js";
 
 class PhotowallError extends Error {
@@ -81,7 +86,19 @@ export async function uploadPhotowallPhoto({ pin, file, uploaderName, caption, o
     sizeBytes: blob.size,
     uploaderName: cleanUploaderName(uploaderName),
     caption: cleanCaption(caption),
+    // Ignored by the server unless the originals archive (#142) is enabled.
+    ...originalGrantFields(file),
   });
+
+  // Originals archive (#142): best-effort, fire-and-forget PUT of the raw
+  // source file to the private bucket. Never awaited — the guest's success is
+  // owned entirely by the downscaled flow, and confirm must not wait on a
+  // 30 MB upload. Closing the tab mid-flight loses the original (accepted:
+  // keepalive/sendBeacon cap out at ~64 KB, so there is no mitigation).
+  const original = plannedOriginalUpload(granted);
+  if (original) {
+    uploadToStorage(original.grant, original.key, file, file.type).catch(() => {});
+  }
 
   const { url } = await uploadToStorage(granted.grant, granted.key, blob, contentType);
 

@@ -8,7 +8,68 @@ import {
   photowallErrorKey,
   visiblePhotos,
   filterPhotosByUploader,
+  originalGrantFields,
+  plannedOriginalUpload,
 } from "./photowall.js";
+
+describe("originalGrantFields", () => {
+  it("extracts the original's declared type and size from the source file", () => {
+    expect(originalGrantFields({ type: "image/heic", size: 8_000_000 })).toEqual({
+      originalContentType: "image/heic",
+      originalSizeBytes: 8_000_000,
+    });
+  });
+
+  it("returns {} when the file has no usable type or size", () => {
+    expect(originalGrantFields(null)).toEqual({});
+    expect(originalGrantFields(undefined)).toEqual({});
+    expect(originalGrantFields({ type: "", size: 1000 })).toEqual({});
+    expect(originalGrantFields({ type: "image/jpeg", size: 0 })).toEqual({});
+    expect(originalGrantFields({ type: "image/jpeg", size: -5 })).toEqual({});
+    expect(originalGrantFields({ type: "image/jpeg", size: 10.5 })).toEqual({});
+    expect(originalGrantFields({ type: "image/jpeg", size: NaN })).toEqual({});
+    expect(originalGrantFields({ type: "image/jpeg" })).toEqual({});
+  });
+});
+
+describe("plannedOriginalUpload", () => {
+  const good = {
+    photoId: "p1",
+    key: "photowall/abc.jpg",
+    grant: { mode: "vercel-blob", clientToken: "t" },
+    original: {
+      key: "photowall/originals/abc.heic",
+      grant: { mode: "put", url: "https://acct.r2.cloudflarestorage.com/x", headers: {} },
+    },
+  };
+
+  it("returns the original's key + grant when the server minted one", () => {
+    expect(plannedOriginalUpload(good)).toEqual({
+      key: "photowall/originals/abc.heic",
+      grant: good.original.grant,
+    });
+  });
+
+  it("returns null when the response carries no (or a malformed) original", () => {
+    expect(plannedOriginalUpload({ photoId: "p1", key: "k", grant: {} })).toBe(null);
+    expect(plannedOriginalUpload(null)).toBe(null);
+    expect(plannedOriginalUpload(undefined)).toBe(null);
+    expect(plannedOriginalUpload({ ...good, original: { ...good.original, key: 42 } })).toBe(null);
+    expect(plannedOriginalUpload({ ...good, original: { ...good.original, grant: null } })).toBe(null);
+    expect(
+      plannedOriginalUpload({
+        ...good,
+        original: { ...good.original, grant: { mode: "vercel-blob", clientToken: "t" } },
+      })
+    ).toBe(null);
+    expect(
+      plannedOriginalUpload({
+        ...good,
+        original: { ...good.original, grant: { mode: "put", url: 42 } },
+      })
+    ).toBe(null);
+  });
+});
 
 describe("cleanUploaderName / cleanCaption", () => {
   it("trims and clamps to the server limits", () => {

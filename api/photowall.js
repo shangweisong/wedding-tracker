@@ -22,7 +22,10 @@ import { supabaseAdmin } from "./_lib/supabaseAdmin.js";
 import { authorizedCoupleEmail, makeRateLimiter } from "./_lib/requireCoupleAuth.js";
 import {
   makeObjectKey,
+  makeOriginalObjectKey,
   validateGrantRequest,
+  validateOriginalRequest,
+  uuidFromObjectKey,
   clampUploaderName,
   clampCaption,
   clientIp,
@@ -34,6 +37,10 @@ import {
   publicUrlFor,
   deleteObject,
   missingPhotoStorageEnvVars,
+  photoOriginalsProvider,
+  missingPhotoOriginalsEnvVars,
+  createOriginalUploadGrant,
+  deleteOriginalObjects,
 } from "./_lib/photoStorage/index.js";
 
 // Per-IP cap on grant requests (best-effort, per warm instance — the durable
@@ -67,14 +74,16 @@ async function grant(req, res) {
     return res.status(429).json({ error: "too_many_attempts" });
   }
 
-  const { pin, contentType, sizeBytes, uploaderName, caption } = req.body ?? {};
+  const { pin, contentType, sizeBytes, uploaderName, caption, originalContentType, originalSizeBytes } =
+    req.body ?? {};
   const shape = validateGrantRequest({ pin, contentType, sizeBytes });
   if (shape.error) return res.status(400).json({ error: shape.error });
 
   const admin = supabaseAdmin();
   await pruneStalePending(admin);
 
-  const key = makeObjectKey(randomUUID(), contentType);
+  const uuid = randomUUID();
+  const key = makeObjectKey(uuid, contentType);
   const { data, error } = await admin.rpc("begin_photowall_upload", {
     p_pin: pin,
     p_uploader_name: clampUploaderName(uploaderName),
@@ -110,7 +119,39 @@ async function grant(req, res) {
     );
     return res.status(500).json({ error: "generic" });
   }
-  return res.status(200).json({ photoId: data.id, key, grant: uploadGrant });
+
+  // Originals archive (#142): opt-in side-channel. Minted only after the RPC
+  // succeeded, so the PIN gate + caps bound original grants 1:1 with
+  // downscaled ones. Everything here is log-and-omit — an archive misconfig
+  // or provider hiccup must never turn into a guest-facing error (which is
+  // also why missingPhotoOriginalsEnvVars is not in the handler-top gate).
+  let original = null;
+  if (photoOriginalsProvider()) {
+    const missingOriginals = missingPhotoOriginalsEnvVars();
+    if (missingOriginals.length) {
+      console.error(`photowall originals: missing env vars: ${missingOriginals.join(", ")}`);
+    } else if (validateOriginalRequest({ originalContentType, originalSizeBytes }).ok) {
+      const originalKey = makeOriginalObjectKey(uuid, originalContentType);
+      if (originalKey) {
+        try {
+          original = {
+            key: originalKey,
+            grant: await createOriginalUploadGrant({
+              key: originalKey,
+              contentType: originalContentType,
+              sizeBytes: originalSizeBytes,
+            }),
+          };
+        } catch (e) {
+          console.error("photowall original grant failed:", e?.message || e);
+        }
+      }
+    }
+  }
+
+  return res
+    .status(200)
+    .json({ photoId: data.id, key, grant: uploadGrant, ...(original ? { original } : {}) });
 }
 
 async function confirm(req, res) {
@@ -183,6 +224,12 @@ async function remove(req, res) {
     await deleteObject({ key: row.object_key, url: row.public_url }).catch((e) => {
       // Best-effort: an unreachable store must not leave the photo visible.
       console.error("photowall storage delete failed:", e?.message || e);
+    });
+    // A guest asking for removal expects the EXIF-laden original gone too —
+    // best-effort delete of the archived copy (#142); no-op when the archive
+    // is off. The original's ext isn't recorded, hence the uuid-prefix list.
+    await deleteOriginalObjects({ uuid: uuidFromObjectKey(row.object_key) }).catch((e) => {
+      console.error("photowall original delete failed:", e?.message || e);
     });
     const { error: delError } = await admin.from("photowall_photos").delete().eq("id", photoId);
     if (delError) {

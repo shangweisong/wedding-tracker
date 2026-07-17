@@ -11,6 +11,7 @@ import {
   PutObjectCommand,
   HeadObjectCommand,
   DeleteObjectCommand,
+  ListObjectsV2Command,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { r2PublicUrl } from "../photowallCore.js";
@@ -37,11 +38,11 @@ function client() {
 // attacker substitutes fails the signature at the storage layer, before any
 // bytes persist. (The confirm-time headObject check remains as the
 // authoritative backstop.)
-export async function createUploadGrant({ key, contentType, sizeBytes }) {
+export async function createUploadGrant({ key, contentType, sizeBytes, bucket = process.env.R2_BUCKET }) {
   const url = await getSignedUrl(
     client(),
     new PutObjectCommand({
-      Bucket: process.env.R2_BUCKET,
+      Bucket: bucket,
       Key: key,
       ContentType: contentType,
       ContentLength: sizeBytes,
@@ -57,10 +58,10 @@ export async function createUploadGrant({ key, contentType, sizeBytes }) {
   return { mode: "put", url, headers: { "Content-Type": contentType } };
 }
 
-export async function headObject({ key }) {
+export async function headObject({ key, bucket = process.env.R2_BUCKET }) {
   try {
     const out = await client().send(
-      new HeadObjectCommand({ Bucket: process.env.R2_BUCKET, Key: key })
+      new HeadObjectCommand({ Bucket: bucket, Key: key })
     );
     return { exists: true, size: out.ContentLength ?? 0, contentType: out.ContentType || "" };
   } catch (e) {
@@ -75,13 +76,23 @@ export async function publicUrlFor({ key }) {
   return r2PublicUrl(process.env.R2_PUBLIC_BASE_URL, key);
 }
 
-export async function deleteObject({ key }) {
+export async function deleteObject({ key, bucket = process.env.R2_BUCKET }) {
   try {
     await client().send(
-      new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET, Key: key })
+      new DeleteObjectCommand({ Bucket: bucket, Key: key })
     );
   } catch (e) {
     // Best-effort: a missing object must not block metadata deletion.
     if (e?.$metadata?.httpStatusCode !== 404 && e?.name !== "NotFound") throw e;
   }
+}
+
+// Keys under a prefix — used to find an archived original whose extension
+// isn't recorded anywhere (photowall/originals/<uuid>.*). MaxKeys is tiny:
+// a uuid prefix matches at most one object.
+export async function listKeys({ prefix, bucket = process.env.R2_BUCKET }) {
+  const out = await client().send(
+    new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix, MaxKeys: 10 })
+  );
+  return (out.Contents || []).map((o) => o.Key);
 }
