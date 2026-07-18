@@ -40,6 +40,7 @@ Open the **SQL Editor** in your Supabase dashboard and run the migrations **in o
 | [`0009_open_rsvp.sql`](../supabase/migrations/0009_open_rsvp.sql) | **Open RSVP** self-registration: `enable_open_rsvp` + `rsvp_pin` on `weddings`, `guests.self_registered` flag, `register_open_rsvp` RPC (PIN-gated), `open_rsvp_pin_attempts` rate-limit log, couple-only PIN readback |
 | [`0010_event_audiences.sql`](../supabase/migrations/0010_event_audiences.sql) | Relationship-targeted smart-RSVP events: `wedding_events.audience_groups` (family/friends/colleagues/other) surfaced through `get_public_events` / `get_guest_by_rsvp_token` |
 | [`0011_photowall.sql`](../supabase/migrations/0011_photowall.sql) | **Guest photowall** (#138): `enable_photowall` + `photowall_pin` on `weddings`, `photowall_photos` metadata table (files live in Cloudflare R2 / Vercel Blob, not Supabase), `photowall_pin_attempts` rate-limit log, anon `get_photowall_photos` read RPC, service-role-only upload RPCs, couple-only PIN readback |
+| [`0012_dday_helper_features.sql`](../supabase/migrations/0012_dday_helper_features.sql) | **D-Day helper features** (#150/#151/#149): reusable lucky-draw pool (lowest-free `assign_draw_number` + `release_draw_number`), helper-callable `set_guest_angbao_received` (boolean + auto-check-in + mint/release), `get_checkin_guests` gains `angbao_given`, read-only `get_wishes_guests` projection for the Wishes Wrapped presentation |
 
 All migrations are idempotent (`CREATE OR REPLACE`, `IF NOT EXISTS`) — safe to re-run,
 including against a database that already ran the pre-consolidation files.
@@ -428,8 +429,14 @@ Priya Nair,2,,false,bride
 1. Switch to **💒 D-Day** mode in the header
 2. Give helpers the URL — they check guests in as they arrive
    - The **search bar** filters guests by name or table number, and understands lucky-draw numbers: type `#123` to jump straight to a draw number, or a bare `#` to list everyone who has a draw number assigned.
-3. Track angbaos in the **Angbao Tracker tab**
-4. Export an attendance report afterwards
+3. Track angbaos directly on the **Guest List** — checking a guest in pops up a
+   "🧧 Angbao received?" prompt, and every guest card carries the received
+   toggle (helpers included; dollar amounts remain couple-only)
+4. Put filler content on the projector straight from the D-Day tabs (helpers
+   included, no couple login needed): **📸 Photowall** runs an auto-advancing
+   fullscreen slideshow of approved guest photos, and **✨ Wishes** generates
+   the Wishes Wrapped presentation from guests' RSVP messages
+5. Export an attendance report afterwards
 
 ---
 
@@ -454,7 +461,7 @@ Not every event collects ang-bao. Set `VITE_ENABLE_ANGBAO=false` (in `.env` for 
 When disabled, the app no longer shows:
 
 - the **🧧 Angbaos** stat pill in the header
-- the **Angbao Tracker** tab and the **Submissions** tab
+- the **Submissions** tab and the check-in "🧧 Angbao received?" prompt
 - the **🧧 Gave** search filter
 - the per-guest ang-bao toggle and amount field (on guest cards, in the table view, and in the quick-edit popup)
 - the public **#pay** PayNow gift page and its *"Send a gift · Ang-Bao →"* link
@@ -467,7 +474,7 @@ The toggle is **build-time** and read once at startup — changing it requires a
 
 No backend of its own — the database is the trust boundary.
 
-- **Role-based access** — two Supabase Auth accounts gate the dashboard. The couple account (`VITE_COUPLE_EMAIL`) gets full access. The bridal team account (`VITE_HELPER_EMAIL`) is locked to D-Day controls only: guest check-in, angbao recording, lucky draw, and a read-only seating chart. Planning tabs, guest add/delete/edit, exports, and financial totals are hidden. **The write side of this split is now enforced in the database, not just the browser.** RLS policies key off the signed-in email (via `is_helper()`): the helper account cannot insert, update, or delete guests, seating, events, or RSVPs, and has **no access to the financial `submissions` table at all** — check-in is the one write it can do, routed through the `set_guest_checkin` RPC. So a helper who bypasses the hidden buttons (DevTools/SDK) is refused by Postgres, not merely by the UI. **To activate this, the DB must know which email is the helper:** the `0001_core` migration seeds `public.app_config` with the default emails; a deployment using its own addresses overrides them with a service-role `update public.app_config …` (see `SECURITY.md`). Until configured, enforcement is fail-open (everyone keeps full access — the couple is never locked out). Direct guest *reads* are couple-only too (#99): the helper's D-Day views go through the `get_checkin_guests()` projection, which omits couple-only columns (private notes, ang-bao amounts, contact details, RSVP tokens).
+- **Role-based access** — two Supabase Auth accounts gate the dashboard. The couple account (`VITE_COUPLE_EMAIL`) gets full access. The bridal team account (`VITE_HELPER_EMAIL`) is locked to D-Day controls only: guest check-in, angbao recording, lucky draw, and a read-only seating chart. Planning tabs, guest add/delete/edit, exports, and financial totals are hidden. **The write side of this split is now enforced in the database, not just the browser.** RLS policies key off the signed-in email (via `is_helper()`): the helper account cannot insert, update, or delete guests, seating, events, or RSVPs, and has **no access to the financial `submissions` table at all** — its only guest writes are two narrow RPCs: check-in via `set_guest_checkin`, and the angbao-received **flag** via `set_guest_angbao_received` (which also assigns/releases the lucky-draw number and auto-checks-in; it can never set or reveal an amount). So a helper who bypasses the hidden buttons (DevTools/SDK) is refused by Postgres, not merely by the UI. **To activate this, the DB must know which email is the helper:** the `0001_core` migration seeds `public.app_config` with the default emails; a deployment using its own addresses overrides them with a service-role `update public.app_config …` (see `SECURITY.md`). Until configured, enforcement is fail-open (everyone keeps full access — the couple is never locked out). Direct guest *reads* are couple-only too (#99): the helper's D-Day views go through the `get_checkin_guests()` projection, which omits couple-only columns (private notes, ang-bao amounts, contact details, RSVP tokens; the angbao-received yes/no flag is included since the merged dashboard). The D-Day Wishes presentation reads through a second signed-in-only projection, `get_wishes_guests()` — guests' well-wish messages are shown on the projector but are never exposed to the anonymous public surface.
 - **Never set access codes as env vars** — any variable with a `VITE_` prefix is embedded in the JavaScript bundle and visible to anyone who opens DevTools. Access codes are entered at the lock screen at runtime and verified server-side by Supabase. If you ever find `VITE_COUPLE_PASSWORD` or `VITE_HELPER_PASSWORD` in your env files, delete them and rotate both Supabase passwords immediately.
 - **Public RSVP** — the `/rsvp` page has zero direct table access. It calls `security definer` RPC functions that expose only the minimum needed: name search and writing RSVP fields. The guest list is never returned to the browser.
 - **Residual risk** — each account is a shared credential (one password per role), so anyone who knows the bridal team password can use D-Day features. The couple password should be kept private; only the bridal team password is shared with helpers.

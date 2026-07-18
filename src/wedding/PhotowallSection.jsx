@@ -13,6 +13,7 @@ import {
   MAX_CAPTION,
   photowallErrorKey,
   visiblePhotos,
+  DEMO_PHOTOWALL,
 } from "../lib/photowall.js";
 import { uploadPhotowallPhoto } from "../lib/photowallUpload.js";
 
@@ -20,22 +21,8 @@ const POLL_MS = 20_000; // relaxed vs the admin 5s poll — anon RPC, many viewe
 
 const PIN_STORAGE_KEY = "wt_photowall_pin";
 
-// Tiny inline-SVG placeholders for demo mode (CSP allows data: in img-src).
-const demoSvg = (w, h, bg, label) =>
-  `data:image/svg+xml,${encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">` +
-      `<rect width="${w}" height="${h}" fill="${bg}"/>` +
-      `<text x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" fill="#ffffff" opacity="0.85" font-family="Georgia, serif" font-size="${Math.round(w / 12)}">${label}</text>` +
-    `</svg>`
-  )}`;
-
-const DEMO_PHOTOWALL = [
-  { id: "p1", public_url: demoSvg(400, 533, "#8a9a5b", "🥂"), uploader_name: "Aunty May", caption: "So proud of you two!", created_at: "2026-12-27T12:10:00Z" },
-  { id: "p2", public_url: demoSvg(400, 300, "#b08d57", "💐"), uploader_name: "Jon & Priya", caption: "Beautiful ceremony", created_at: "2026-12-27T12:05:00Z" },
-  { id: "p3", public_url: demoSvg(400, 400, "#7d6b91", "📸"), uploader_name: "", caption: "", created_at: "2026-12-27T11:58:00Z" },
-  { id: "p4", public_url: demoSvg(400, 533, "#a26769", "🎉"), uploader_name: "The Tans", caption: "Congratulations!", created_at: "2026-12-27T11:45:00Z" },
-  { id: "p5", public_url: demoSvg(400, 320, "#5b7c99", "💍"), uploader_name: "Wei Jie", caption: "", created_at: "2026-12-27T11:30:00Z" },
-];
+// Demo placeholders now live in ../lib/photowall.js (shared with the admin
+// D-Day slideshow, #149).
 
 const pwStyles = `
   .wp-pw-figure {

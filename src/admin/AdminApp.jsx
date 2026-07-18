@@ -3,6 +3,8 @@ import { QRCodeSVG } from "qrcode.react";
 import { buildPayNowPayload, normalizeMobile } from "../paynow";
 import { sb, isDemoMode, supabase, COUPLE_EMAIL, HELPER_EMAIL, getRole } from "../lib/supabase.js";
 import { applyCheckin } from "../lib/checkin.js";
+import { nextFreeDraw } from "../lib/draw.js";
+import { shouldPromptAngbao, applyAngbaoReceived } from "../lib/angbao.js";
 import { guestFetchPlan } from "../lib/guestSource.js";
 import { cleanName, cleanNotes, cleanTable, cleanParty, cleanAmount, MAX_ANGBAO } from "../lib/validation.js";
 import { parseCSV, toCSV, guestImportTemplateCSV } from "../lib/csv.js";
@@ -21,6 +23,7 @@ import BudgetTab from "./BudgetTab.jsx";
 import RunsheetTab from "./RunsheetTab.jsx";
 import ChecklistTab from "./ChecklistTab.jsx";
 import PhotowallTab from "./PhotowallTab.jsx";
+import PhotowallSlideshowTab from "./PhotowallSlideshowTab.jsx";
 
 // ─── PAYNOW CONFIG ────────────────────────────────────────────────────────────
 // The host's PayNow-linked mobile number and display name. These are NOT secret
@@ -35,6 +38,9 @@ const PAYNOW_NAME = import.meta.env.VITE_PAYNOW_NAME || "";
 // events where collecting ang-bao isn't applicable. Existing angbao data in the
 // DB is preserved and reappears if the feature is re-enabled. Default = enabled.
 const ANGBAO_ENABLED = import.meta.env.VITE_ENABLE_ANGBAO !== "false";
+// Same build-time flag the public page honors (#138); the D-Day slideshow tab
+// additionally needs the couple to have enabled the photowall in Wedding Setup.
+const PHOTOWALL_ENABLED = import.meta.env.VITE_ENABLE_PHOTOWALL !== "false";
 
 // ─── DEMO MODE (no Supabase) ──────────────────────────────────────────────────
 const DEMO_GUESTS = [
@@ -504,36 +510,6 @@ const styles = theme + `
   .status-dot.in { background: var(--green); }
   .status-dot.out { background: rgba(201,168,76,0.4); }
 
-  /* ANGBAO VIEW */
-  .angbao-header {
-    background: var(--charcoal);
-    border-radius: var(--radius);
-    padding: 24px 28px;
-    margin-bottom: 20px;
-    display: flex;
-    gap: 32px;
-    align-items: center;
-  }
-  .angbao-stat { display: flex; flex-direction: column; gap: 4px; }
-  .angbao-stat .big { font-family: 'Cormorant Garamond', serif; font-size: 32px; color: var(--gold-light); font-weight: 400; }
-  .angbao-stat .label { font-size: 11px; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.1em; }
-  .angbao-divider { width: 1px; height: 48px; background: rgba(255,255,255,0.1); }
-
-  .angbao-list { display: flex; flex-direction: column; gap: 8px; }
-  .angbao-row {
-    background: white; border-radius: var(--radius); padding: 14px 20px;
-    display: flex; align-items: center; gap: 14px;
-    box-shadow: var(--shadow); border: 1.5px solid transparent;
-  }
-  .angbao-row.gave { border-left: 3px solid var(--red); }
-  .envelope { font-size: 20px; }
-  .angbao-name { flex: 1; font-size: 14px; font-weight: 500; }
-  .angbao-amount-display {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 18px; font-weight: 500; color: var(--red);
-  }
-  .pending-tag { font-size: 11px; color: rgba(92,74,42,0.4); font-style: italic; }
-
   /* MODAL */
   .modal-overlay {
     position: fixed; inset: 0; background: rgba(44,36,22,0.6);
@@ -648,7 +624,6 @@ const styles = theme + `
     .content { padding: 16px; }
     .view-tabs { padding: 0 12px; }
     .view-tab { padding: 12px 14px; font-size: 12px; white-space: nowrap; }
-    .angbao-header { flex-wrap: wrap; gap: 16px; }
     /* Stack the guest card: check-in + name on top, actions wrap below,
        so controls never overflow a single cramped row on a phone. */
     .guest-card { flex-wrap: wrap; gap: 12px; }
@@ -860,6 +835,11 @@ export default function WeddingTracker() {
   const [csvText, setCsvText] = useState("");
   const [syncing, setSyncing] = useState(false);
   const [activePopup, setActivePopup] = useState(null); // guest id
+  const [angbaoPrompt, setAngbaoPrompt] = useState(null); // guest to ask "🧧 received?" for after check-in (#151)
+  // Helper-side wishes data (#149): the helper's guest rows carry no
+  // rsvp_message, so the D-Day Wishes tab lazily fetches the read-only
+  // get_wishes_guests projection on first open. null = not fetched yet.
+  const [wishesGuests, setWishesGuests] = useState(null);
   const [route, setRoute] = useState(() => window.location.hash.replace(/^#\/?/, ""));
   const [submissions, setSubmissions] = useState([]);
   const [approveSub, setApproveSub] = useState(null); // submission being reviewed
@@ -1427,25 +1407,32 @@ export default function WeddingTracker() {
     }
   };
 
-  // Toggle check-in (undoable)
+  // Toggle check-in (undoable). Checking a guest IN with angbao enabled opens
+  // the "🧧 received?" prompt so the receptionist never forgets to ask (#151).
   const toggleCheckIn = async (guest) => {
-    const ok = await persistCheckin(guest, !guest.checked_in);
+    const checkingIn = !guest.checked_in;
+    const ok = await persistCheckin(guest, checkingIn);
     if (ok) {
+      if (shouldPromptAngbao(guest, checkingIn, ANGBAO_ENABLED)) {
+        setAngbaoPrompt(guest);
+      }
       showToast(
-        !guest.checked_in ? `✓ ${guest.name} checked in` : `${guest.name} unchecked`,
+        checkingIn ? `✓ ${guest.name} checked in` : `${guest.name} unchecked`,
         () => { setToast(null); persistCheckin(guest, guest.checked_in); }
       );
     }
   };
 
   // Mint (or re-read) a guest's lucky-draw number once their angbao is
-  // confirmed. Assign-once: a guest who already has a number keeps it. Returns
-  // the number, or null if it could not be assigned.
+  // confirmed. A guest who already holds a number keeps it; since #150 the pool
+  // is reusable — unmarking releases the number (releaseDraw below) and a
+  // re-mark mints the lowest free number afresh. Returns the number, or null if
+  // it could not be assigned.
   const mintDraw = async (guest) => {
     if (guest.draw_number) return guest.draw_number;
     let n;
     if (isDemoMode) {
-      n = guests.reduce((m, g) => Math.max(m, g.draw_number || 0), 0) + 1;
+      n = nextFreeDraw(guests);
     } else {
       try { n = await sb.assignDraw(guest.id); }
       catch { syncFail("Lucky-draw number not assigned — check connection"); return null; }
@@ -1454,21 +1441,57 @@ export default function WeddingTracker() {
     return n;
   };
 
-  // Toggle angbao (undoable). Confirming an angbao also mints the guest's stable
-  // lucky-draw number; clearing it keeps the number (assign-once).
-  const toggleAngbao = async (guest) => {
-    const becomingGiven = !guest.angbao_given;
-    const updated = { ...guest, angbao_given: becomingGiven };
-    if (!becomingGiven) updated.angbao_amount = 0;
-    const ok = await persist(guest.id, { angbao_given: updated.angbao_given, angbao_amount: updated.angbao_amount }, updated);
-    if (!ok) return;
-    const undo = () => { setToast(null); persist(guest.id, { angbao_given: guest.angbao_given, angbao_amount: guest.angbao_amount }, guest); };
-    if (becomingGiven) {
-      const n = await mintDraw(updated);
-      showToast(n ? `🧧 ${guest.name} — angbao received · Draw #${n}` : `🧧 ${guest.name} — angbao received`, undo);
+  // Set a guest's angbao-received state (both roles, #151). Routes through the
+  // set_guest_angbao_received security-definer RPC — the helper's one sanctioned
+  // angbao write (boolean only; amounts never enter its projection). Receiving
+  // auto-checks the guest in and mints the lucky-draw number; clearing zeroes
+  // the amount and releases the number (#150 pool) but keeps the guest checked
+  // in. Undoable: undo flips the state back (a re-receive may mint a different
+  // number) and, for the couple, restores the previously entered amount (helper
+  // rows carry no amount, so their undo skips that naturally).
+  const setAngbao = async (guest, received) => {
+    const updated = applyAngbaoReceived(guest, received, new Date().toISOString());
+    setGuests((g) => g.map((x) => (x.id === guest.id ? updated : x)));
+    let drawN = updated.draw_number;
+    if (isDemoMode) {
+      if (received && !drawN) {
+        drawN = nextFreeDraw(guests);
+        setGuests((g) => g.map((x) => (x.id === guest.id ? { ...x, draw_number: drawN } : x)));
+      }
     } else {
-      showToast(`${guest.name} — angbao cleared`, undo);
+      pendingIds.current.add(guest.id);
+      try {
+        const row = await sb.setAngbaoReceived(guest.id, received);
+        drawN = row?.draw_number ?? null;
+        setGuests((g) => g.map((x) => (x.id === guest.id ? { ...x, draw_number: drawN, checked_in_at: row?.checked_in_at ?? x.checked_in_at } : x)));
+      } catch {
+        syncFail();
+        setGuests((g) => g.map((x) => (x.id === guest.id ? guest : x)));
+        pendingIds.current.delete(guest.id);
+        return;
+      } finally {
+        pendingIds.current.delete(guest.id);
+      }
     }
+    const undo = async () => {
+      setToast(null);
+      await setAngbao(updated, !received);
+      if (!received && guest.angbao_amount) {
+        // Clearing zeroed the amount server-side; put the couple's previously
+        // entered amount back after the undo re-receive.
+        setGuests((g) => g.map((x) => (x.id === guest.id ? { ...x, angbao_amount: guest.angbao_amount } : x)));
+        if (!isDemoMode) {
+          try { await sb.update("guests", guest.id, { angbao_amount: guest.angbao_amount }); }
+          catch { syncFail(); }
+        }
+      }
+    };
+    showToast(
+      received
+        ? (drawN ? `🧧 ${guest.name} — angbao received · Draw #${drawN}` : `🧧 ${guest.name} — angbao received`)
+        : `${guest.name} — angbao cleared`,
+      undo
+    );
   };
 
   const switchMode = (newMode) => {
@@ -1885,7 +1908,9 @@ export default function WeddingTracker() {
                 </div>
                 {ANGBAO_ENABLED && role !== "helper" && (
                   <div className="stat-pill">
-                    <span className="num">🧧 {angbaoCount}</span>
+                    {/* Count + running total — carries the headline figure from
+                        the retired Angbao Tracker view (#151). Couple-only. */}
+                    <span className="num">🧧 {angbaoCount} · ${angbaoTotal.toLocaleString()}</span>
                     <span className="lbl">Angbaos</span>
                   </div>
                 )}
@@ -1957,11 +1982,8 @@ export default function WeddingTracker() {
               <button className={`view-tab ${view === "tables" ? "active" : ""}`} onClick={() => setView("tables")}>
                 <Icon.Table /> Tables
               </button>
-              {ANGBAO_ENABLED && role !== "helper" && (
-                <button className={`view-tab ${view === "angbao" ? "active" : ""}`} onClick={() => setView("angbao")}>
-                  <Icon.Gift /> Angbao Tracker
-                </button>
-              )}
+              {/* The separate Angbao Tracker tab is gone (#151): the Guest List
+                  is the single merged D-Day dashboard for both roles. */}
               {ANGBAO_ENABLED && !isDemoMode && role !== "helper" && (
                 <button className={`view-tab ${view === "submissions" ? "active" : ""}`} onClick={() => setView("submissions")}>
                   <Icon.Upload /> Submissions
@@ -1971,13 +1993,34 @@ export default function WeddingTracker() {
               <button className={`view-tab ${view === "runsheet" ? "active" : ""}`} onClick={() => setView("runsheet")}>
                 📋 Runsheet
               </button>
+              {/* D-Day presentation tabs (#149) — view-only filler content for
+                  the projector, available to BOTH roles so helpers can run
+                  them without the couple logging in. */}
+              {PHOTOWALL_ENABLED && (
+                <button className={`view-tab ${view === "photowall-live" ? "active" : ""}`} onClick={() => setView("photowall-live")}>
+                  📸 Photowall
+                </button>
+              )}
+              <button
+                className={`view-tab ${view === "wishes-wrapped" ? "active" : ""}`}
+                onClick={() => {
+                  setView("wishes-wrapped");
+                  // Re-fetch on every open so late RSVPs still show up during
+                  // the event; stale data stays on screen while it refreshes.
+                  if (role === "helper" && !isDemoMode) {
+                    sb.getWishesGuests().then(setWishesGuests).catch(() => syncFail("Could not load wishes — check connection"));
+                  }
+                }}
+              >
+                ✨ Wishes
+              </button>
             </>
           )}
         </div>
 
         {/* TOOLBAR */}
         <div className="toolbar">
-          {mode === "dday" && (
+          {mode === "dday" && (view === "guests" || view === "tables") && (
             <>
               <div className="search-wrap">
                 <Icon.Search />
@@ -1988,7 +2031,7 @@ export default function WeddingTracker() {
                   ["all", "All", guests.length],
                   ["arrived", "Arrived", arrived],
                   ["pending", "Pending", guests.length - arrived],
-                  ...(ANGBAO_ENABLED && role !== "helper" ? [["angbao", "🧧 Gave", angbaoCount]] : []),
+                  ...(ANGBAO_ENABLED ? [["angbao", "🧧 Gave", angbaoCount]] : []),
                 ].map(([k, l, count]) => (
                   <button key={k} className={`filter-tab ${filter === k ? "active" : ""}`} onClick={() => setFilter(k)}>
                     {l} <span className="filter-tab-count">({count})</span>
@@ -2007,7 +2050,7 @@ export default function WeddingTracker() {
               </button>
             </>
           )}
-          {mode === "dday" && (
+          {mode === "dday" && view !== "photowall-live" && view !== "wishes-wrapped" && (
             <>
               {role !== "helper" && (
                 <>
@@ -2037,7 +2080,7 @@ export default function WeddingTracker() {
 
           {loading ? (
             <div className="empty"><div className="empty-icon">⏳</div><div className="empty-text">Loading guests…</div></div>
-          ) : guestLoadError && guests.length === 0 && view !== "wedding-page" && view !== "wishes-wrapped" && view !== "budget" && view !== "submissions" ? (
+          ) : guestLoadError && guests.length === 0 && view !== "wedding-page" && view !== "wishes-wrapped" && view !== "photowall-live" && view !== "budget" && view !== "submissions" ? (
             // Only block guest-dependent views. Wedding Page (renders from `wedding`),
             // Wishes Wrapped (own empty state), Budget (vendors/config) and Submissions
             // don't need the guest list, so a guest-load error shouldn't hide them.
@@ -2072,15 +2115,16 @@ export default function WeddingTracker() {
                   </div>
                   {ANGBAO_ENABLED && (
                   <div className="angbao-area">
-                    {/* Angbao controls are couple-only: since #99 the helper's
-                        guest rows carry no angbao fields at all (and helper
-                        angbao writes have been RLS-denied since #92). The
-                        lucky-draw badge stays for both roles. */}
+                    {/* Since #151 the received toggle is shown to BOTH roles —
+                        it routes through the helper-callable
+                        set_guest_angbao_received RPC. Amounts stay couple-only
+                        (#92/#99): the helper's projection carries no
+                        angbao_amount and the input never renders for them. */}
+                    <button className={`angbao-toggle ${g.angbao_given ? "given" : "not-given"}`} onClick={() => setAngbao(g, !g.angbao_given)}>
+                      🧧 {g.angbao_given ? "Gave" : "Pending"}
+                    </button>
                     {role !== "helper" && (
                       <>
-                        <button className={`angbao-toggle ${g.angbao_given ? "given" : "not-given"}`} onClick={() => toggleAngbao(g)}>
-                          🧧 {g.angbao_given ? "Gave" : "Pending"}
-                        </button>
                         {g.angbao_given && (
                           <input
                             className="amount-input"
@@ -2155,14 +2199,15 @@ export default function WeddingTracker() {
                                   {g.checked_in ? <Icon.Check /> : <Icon.Plus />}
                                 </button>
                               </div>
-                              {/* Angbao rows are couple-only (#99): helper rows
-                                  carry no angbao fields; the draw row stays. */}
-                              {ANGBAO_ENABLED && role !== "helper" && (
+                              {/* The received toggle is both-roles since #151
+                                  (set_guest_angbao_received RPC); the amount
+                                  row below stays couple-only (#92/#99). */}
+                              {ANGBAO_ENABLED && (
                                 <div className="popup-row">
                                   <span className="popup-label">Angbao</span>
                                   <button
                                     className={`angbao-toggle ${g.angbao_given ? "given" : "not-given"}`}
-                                    onClick={(e) => { e.stopPropagation(); toggleAngbao(g); }}
+                                    onClick={(e) => { e.stopPropagation(); setAngbao(g, !g.angbao_given); }}
                                   >
                                     🧧 {g.angbao_given ? "Received" : "Pending"}
                                   </button>
@@ -2220,7 +2265,11 @@ export default function WeddingTracker() {
           ) : view === "wedding-page" ? (
             <WeddingPageTab wedding={wedding} onSave={saveWeddingPage} showToast={showToast} />
           ) : view === "wishes-wrapped" ? (
-            <WishesWrappedTab guests={guests} wedding={wedding} />
+            /* Helpers pass the wishes projection (#149); the couple's own guest
+               rows already carry rsvp_message. */
+            <WishesWrappedTab guests={role === "helper" ? (wishesGuests || []) : guests} wedding={wedding} />
+          ) : view === "photowall-live" && PHOTOWALL_ENABLED ? (
+            <PhotowallSlideshowTab wedding={wedding} />
           ) : view === "budget" ? (
             <BudgetTab
               wedding={wedding}
@@ -2243,53 +2292,6 @@ export default function WeddingTracker() {
               showToast={showToast}
               isReadOnly={role === "helper"}
             />
-          ) : ANGBAO_ENABLED && view === "angbao" ? (
-            /* ANGBAO VIEW */
-            <>
-              <div className="angbao-header">
-                <div className="angbao-stat">
-                  <div className="big">🧧 {angbaoCount}</div>
-                  <div className="label">Red Packets Received</div>
-                </div>
-                <div className="angbao-divider" />
-                <div className="angbao-stat">
-                  <div className="big">${angbaoTotal.toLocaleString()}</div>
-                  <div className="label">Total Collected</div>
-                </div>
-                <div className="angbao-divider" />
-                <div className="angbao-stat">
-                  <div className="big">{total - angbaoCount}</div>
-                  <div className="label">Still Pending</div>
-                </div>
-                <div className="angbao-divider" />
-                <div className="angbao-stat">
-                  <div className="big">${angbaoCount ? Math.round(angbaoTotal / angbaoCount).toLocaleString() : 0}</div>
-                  <div className="label">Average Amount</div>
-                </div>
-              </div>
-              <div className="angbao-list">
-                {[...guests].sort((a,b) => (b.angbao_given ? 1 : 0) - (a.angbao_given ? 1 : 0)).map((g) => (
-                  <div key={g.id} className={`angbao-row ${g.angbao_given ? "gave" : ""}`}>
-                    <span className="envelope">{g.angbao_given ? "🧧" : "📭"}</span>
-                    <div style={{flex:1}}>
-                      <div className="angbao-name">{g.name}</div>
-                      <div style={{fontSize:"12px", color:"var(--brown)", opacity:0.6}}>Table {g.table_number} {g.checked_in ? "· Arrived" : "· Not arrived"}</div>
-                    </div>
-                    {g.angbao_given ? (
-                      <div className="angbao-amount-display">
-                        {g.angbao_amount ? `$${g.angbao_amount}` : "✓ Gave"}
-                      </div>
-                    ) : (
-                      <div className="pending-tag">pending</div>
-                    )}
-                    {g.draw_number ? <span className="draw-badge" style={{marginLeft:"8px"}}>🎟 #{g.draw_number}</span> : null}
-                    <button className={`angbao-toggle ${g.angbao_given ? "given" : "not-given"}`} onClick={() => toggleAngbao(g)} style={{marginLeft:"8px"}}>
-                      {g.angbao_given ? "✓ Received" : "Mark Received"}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </>
           ) : (
             /* SUBMISSIONS VIEW — guest-uploaded receipts awaiting confirmation */
             <div className="subs-list">
@@ -2322,6 +2324,35 @@ export default function WeddingTracker() {
             </div>
           )}
         </div>
+
+        {/* ANGBAO PROMPT — asked on every check-in while angbao is enabled, so
+            the receptionist never forgets (#151). "Yes" marks received via the
+            role-agnostic RPC (the guest is already checked in, so it just sets
+            the flag + mints the draw number); "Not yet" simply closes. */}
+        {angbaoPrompt && (
+          <div className="modal-overlay" onClick={() => setAngbaoPrompt(null)}>
+            <div className="modal" style={{ maxWidth: "360px" }} onClick={(e) => e.stopPropagation()}>
+              <div className="modal-title">🧧 Angbao received?</div>
+              <p style={{ margin: "4px 0 12px", color: "var(--brown)" }}>
+                Did <strong>{angbaoPrompt.name}</strong> hand over an angbao?
+              </p>
+              <div className="modal-actions">
+                <button className="btn btn-outline" onClick={() => setAngbaoPrompt(null)}>Not yet</button>
+                <button
+                  className="btn btn-gold"
+                  autoFocus
+                  onClick={() => {
+                    const g = guests.find((x) => x.id === angbaoPrompt.id) || angbaoPrompt;
+                    setAngbaoPrompt(null);
+                    setAngbao(g, true);
+                  }}
+                >
+                  Yes, received
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ADD/EDIT MODAL */}
         {(modal === "add" || modal === "edit") && (

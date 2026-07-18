@@ -39,7 +39,8 @@ A two-phase wedding management app — pre-wedding RSVP collection and seating p
 ### 💒 D-Day Mode (wedding day)
 - **Check-in** — tap to mark guests arrived, with timestamp
 - **Table view** — all tables at a glance with arrival progress; tap a guest to update inline
-- **Angbao tracker** — log red packets and amounts per guest, with a running total
+- **Angbao tracking, merged into check-in** — checking a guest in prompts "🧧 Angbao received?"; marking received auto-checks the guest in and assigns their lucky-draw number (unmarking releases the number back into the pool for reuse). Helpers mark the received flag; amounts and the running total stay couple-only
+- **Projector filler content** — a **📸 Photowall** tab runs an auto-advancing fullscreen slideshow of approved guest photos, and a **✨ Wishes** tab generates the "Wishes Wrapped" presentation from guests' RSVP messages — both runnable from the helper login, view-only
 - **PayNow ang-bao QR** — public page where guests scan a pre-filled, amount-locked PayNow QR (Singapore only)
 - **VIP & bride/groom tagging** — starred VIPs; pink/blue colour coding by side
 - **Guest search** — the D-Day search bar filters by name or table, and understands lucky-draw numbers: type `#123` to jump to a draw number, or a bare `#` to list everyone with a number assigned
