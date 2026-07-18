@@ -428,7 +428,9 @@ Priya Nair,2,,false,bride
 1. Switch to **💒 D-Day** mode in the header
 2. Give helpers the URL — they check guests in as they arrive
    - The **search bar** filters guests by name or table number, and understands lucky-draw numbers: type `#123` to jump straight to a draw number, or a bare `#` to list everyone who has a draw number assigned.
-3. Track angbaos in the **Angbao Tracker tab**
+3. Track angbaos directly on the **Guest List** — checking a guest in pops up a
+   "🧧 Angbao received?" prompt, and every guest card carries the received
+   toggle (helpers included; dollar amounts remain couple-only)
 4. Export an attendance report afterwards
 
 ---
@@ -454,7 +456,7 @@ Not every event collects ang-bao. Set `VITE_ENABLE_ANGBAO=false` (in `.env` for 
 When disabled, the app no longer shows:
 
 - the **🧧 Angbaos** stat pill in the header
-- the **Angbao Tracker** tab and the **Submissions** tab
+- the **Submissions** tab and the check-in "🧧 Angbao received?" prompt
 - the **🧧 Gave** search filter
 - the per-guest ang-bao toggle and amount field (on guest cards, in the table view, and in the quick-edit popup)
 - the public **#pay** PayNow gift page and its *"Send a gift · Ang-Bao →"* link

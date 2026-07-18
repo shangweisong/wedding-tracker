@@ -1,9 +1,10 @@
 // D-Day check-in helpers (pure).
 //
-// Check-in is the one guest write the bridal-team (helper) account is allowed to
-// perform. Since #92 the helper no longer has direct UPDATE on `guests` — the
-// write is routed through the `set_guest_checkin` security-definer RPC, which can
-// only touch the two check-in columns. These pure helpers shape the RPC payload
+// Check-in is one of the two guest writes the bridal-team (helper) account is
+// allowed to perform (the other is the angbao-received boolean, #151 — see
+// `src/lib/angbao.js`). Since #92 the helper no longer has direct UPDATE on
+// `guests` — the write is routed through the `set_guest_checkin`
+// security-definer RPC, which can only touch the two check-in columns. These pure helpers shape the RPC payload
 // and the optimistic client-side guest update; the network call lives in
 // `src/lib/supabase.js` (`sb.setCheckin`).
 

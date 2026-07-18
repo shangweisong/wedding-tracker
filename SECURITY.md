@@ -70,10 +70,13 @@ This project is configured so that:
   `0005_roles_security.sql`): the
   helper account has **no insert/update/delete** on `guests`, `tables`,
   `wedding_events`, or `guest_event_rsvps`, and **no access to the financial
-  `submissions` table**. Its one permitted guest write — check-in — goes through
-  the `set_guest_checkin` security-definer RPC, which can only touch the
-  `checked_in` / `checked_in_at` columns. So a helper who bypasses the UI gates is
-  refused by Postgres, not just by the browser.
+  `submissions` table**. Its permitted guest writes go through narrow
+  security-definer RPCs: check-in via `set_guest_checkin` (only the
+  `checked_in` / `checked_in_at` columns) and, since #151, the angbao-received
+  boolean via `set_guest_angbao_received` (flag + auto-check-in + lucky-draw
+  mint/release; it can zero the amount of an unmarked angbao but can never set
+  or reveal an amount). So a helper who bypasses the UI gates is refused by
+  Postgres, not just by the browser.
   - **Configuration.** Enforcement keys on the helper email stored in the
     locked-down `public.app_config` table (RLS-on, no policy → only the SQL editor
     / `service_role` can write it — a helper cannot re-designate themselves). The
@@ -92,8 +95,9 @@ This project is configured so that:
   - **Read side (#99).** RLS filters rows, not columns, so direct guest selects
     are couple-only and the helper's D-Day reads go through the
     `get_checkin_guests()` security-definer projection
-    (`0005_roles_security.sql`), which omits couple-only columns (private
-    `notes`, `angbao_*`, `rsvp_token`, contact details).
+    (`0005_roles_security.sql`, extended in `0013`), which omits couple-only
+    columns (private `notes`, `angbao_amount`, `rsvp_token`, contact details —
+    the `angbao_given` boolean is included since #151).
 - **Google Fonts** is loaded from an external origin (allow-listed in the CSP).
   Self-hosting the fonts would remove this dependency.
 - **`VITE_ENABLE_ANGBAO=false` is a UI toggle, not a security control.** Disabling

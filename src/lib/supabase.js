@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { checkinArgs } from "./checkin.js";
 import { releaseDrawArgs } from "./draw.js";
+import { angbaoReceivedArgs } from "./angbao.js";
 
 // ─── SUPABASE CONFIG ──────────────────────────────────────────────────────────
 // Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file
@@ -80,6 +81,14 @@ export const sb = {
   async releaseDraw(guestId) {
     const { error } = await supabase.rpc("release_draw_number", releaseDrawArgs(guestId));
     if (error) throw error;
+  },
+  // Merged check-in + angbao toggle (#151), callable by both roles. Receiving
+  // auto-checks-in and mints the draw number; clearing releases it. Returns
+  // { draw_number, checked_in_at } for optimistic reconciliation.
+  async setAngbaoReceived(guestId, received) {
+    const { data, error } = await supabase.rpc("set_guest_angbao_received", angbaoReceivedArgs(guestId, received));
+    if (error) throw error;
+    return Array.isArray(data) ? data[0] : data;
   },
   // D-Day check-in. Routes through the `set_guest_checkin` security-definer RPC so
   // the bridal-team (helper) account — which since #92 has no direct UPDATE on

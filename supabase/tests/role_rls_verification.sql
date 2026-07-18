@@ -37,9 +37,10 @@ begin;
   -- Per-event meal/dietary rows are couple-only too (0005_roles_security §4) — they join back
   -- to guests by id and would otherwise rebuild the hidden columns:
   select count(*) as event_rsvps_direct_select from public.guest_event_rsvps;  -- expect: 0
-  -- (Sanity: the projection's row type has no notes/angbao_*/rsvp_token/
+  -- (Sanity: the projection's row type has no notes/angbao_amount/rsvp_token/
   -- email/phone columns at all — `select * from public.get_checkin_guests()`
-  -- to eyeball the shape.)
+  -- to eyeball the shape. Since #151 it DOES include the angbao_given boolean;
+  -- the amount and every other financial column stay excluded.)
 
   -- Writes must all be refused (0 rows changed, or an RLS error):
   update public.guests set notes = 'hack' where true;              -- expect: 0 rows
@@ -52,9 +53,12 @@ begin;
   -- Helper cannot re-designate who the helper is (app_config is default-deny):
   update public.app_config set value = 'attacker@evil.com' where key = 'helper_email';  -- expect: 0 rows
 
-  -- The ONE allowed helper write, via the security-definer RPC (returns a ts):
+  -- The sanctioned helper writes, via security-definer RPCs — check-in (#92)
+  -- and the angbao-received boolean (#151, returns draw_number + checked_in_at):
   select public.set_guest_checkin(
     (select id from public.guests order by created_at limit 1), true) as checked_in_at;
+  select * from public.set_guest_angbao_received(
+    (select id from public.guests order by created_at limit 1), true);
 
   -- Config-write RPCs are security definer (bypass RLS) but internally gated
   -- (#101) — each must raise `insufficient_privilege` (42501).
