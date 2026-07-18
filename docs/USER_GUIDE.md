@@ -180,10 +180,13 @@ PHOTO_ORIGINALS_PROVIDER=                # "r2" | unset = off
 R2_ORIGINALS_BUCKET=                     # separate PRIVATE bucket — never the public R2_BUCKET
 ```
 
-> **R2 deployers:** the bucket needs a CORS rule allowing `PUT` from your site origin
+> **R2 deployers:** full click-by-click walkthrough (Cloudflare account → buckets →
+> API token → CORS → Vercel) in [`docs/R2_SETUP.md`](R2_SETUP.md). In short: the
+> bucket needs a CORS rule allowing `PUT` from your site origin
 > with the `Content-Type` header, and a public read surface (the r2.dev dev URL or a
 > custom domain). A **custom** domain must also be added to the `img-src` CSP directive
-> in `vercel.json`. Vercel Blob needs neither — see `.env.example` and `SECURITY.md`.
+> in `vercel.json`. Vercel Blob needs neither (walkthrough in
+> [`docs/BLOB_SETUP.md`](BLOB_SETUP.md)) — see `.env.example` and `SECURITY.md`.
 > The **originals bucket** (`R2_ORIGINALS_BUCKET`) needs the same CORS `PUT` rule but
 > the **opposite** read setup: no r2.dev URL, no custom domain — keep it fully private.
 
@@ -499,7 +502,7 @@ See [`SECURITY.md`](../SECURITY.md) for the full threat model.
 | Resend — emails only arrive to your own inbox | You're in Resend sandbox mode (no verified domain yet). Complete Option B above to send to real guests. |
 | RSVP triggers email but guest doesn't receive it | Check spam/junk folder. Gmail-to-Gmail or Gmail-to-Outlook may land there occasionally. Ask the guest to mark it not-spam. |
 | Photowall section missing from the wedding page | Enable **Guest Photowall** (and set its PIN) in Wedding Setup — requires the `0011` migration. Also confirm `VITE_ENABLE_PHOTOWALL` isn't `"false"`. |
-| Photowall upload fails right after picking a photo (R2) | Almost always the missing **bucket CORS rule**: allow `PUT` from your site origin with the `Content-Type` header (see `.env.example`). Also check `PHOTO_STORAGE_PROVIDER` and the `R2_*` vars are set in Vercel — a `500 photowall_disabled` in the function logs means they're missing. |
+| Photowall upload fails right after picking a photo (R2) | Almost always the missing **bucket CORS rule**: allow `PUT` from your site origin with the `Content-Type` header ([`R2_SETUP.md` Step 5](R2_SETUP.md#step-5--add-the-cors-rule-dont-skip) has the paste-ready JSON). Also check `PHOTO_STORAGE_PROVIDER` and the `R2_*` vars are set in Vercel — a `500 photowall_disabled` in the function logs means they're missing. |
 | Photowall says the PIN is wrong / "too many attempts" | Same server-side lockout as Open RSVP: 20 wrong PINs in 15 minutes locks uploads for everyone until attempts age out. Wait a few minutes and re-share the exact PIN from Wedding Setup. |
 | Photowall photos upload but never appear | The confirm step is failing — check `vercel logs` for `/api/photowall`. For R2, verify `R2_PUBLIC_BASE_URL` points at the bucket's public r2.dev URL (or custom domain, which must also be in the CSP `img-src`). |
 | Photo deleted in the Vercel Blob / R2 dashboard still shows on the wall | Deleting the file in the storage dashboard doesn't delete its database entry — the wall hides the broken image automatically once it fails to load, but the entry lingers. Delete photos from the admin **Photowall** tab instead: that removes both the file and the entry. |
