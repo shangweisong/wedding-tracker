@@ -19,19 +19,28 @@ at the reception desk.
 - [ ] Share the **live URL** and the **access code** with helpers.
       (The access code is the helper-account password — see the README.)
 - [ ] Each helper opens the URL and enters the access code once.
-- [ ] Decide **one person owns the angbao amounts.** Two people editing the same
-      red-packet amount can overwrite each other — keep it to one.
+- [ ] Know the angbao split: **helpers mark received, the couple enters amounts.**
+      Any helper can tap 🧧 received/not-received on a guest, but dollar amounts
+      are visible and editable only on the couple's login — decide who on the
+      couple's side owns typing them in.
       *(Skip this if ang-bao tracking is turned off — `VITE_ENABLE_ANGBAO=false`;
-      the 🧧 buttons and Angbao tab won't appear. See the README.)*
+      the 🧧 buttons and prompts won't appear. See the README.)*
 
 ## During the event
 
 - **Check-in:** tap the round button next to a guest's name. It turns green and
-  records the arrival time.
-- **Angbao** *(if enabled):* tap **🧧 Pending → Gave**, then type the amount. Wait
-  a second after typing so it saves.
+  records the arrival time. With ang-bao tracking on, a **"🧧 Angbao received?"**
+  prompt follows every check-in — answer it, don't dismiss it out of habit.
+- **Angbao** *(if enabled):* tap **🧧 Pending → Gave** (or answer the check-in
+  prompt). That alone assigns the guest's lucky-draw number and marks them
+  arrived. Amounts are typed in by the couple, not helpers — if you're on the
+  couple's login, wait a second after typing so it saves.
+- **Filler content for the projector:** the **📸 Photowall** tab runs a
+  fullscreen slideshow of guest photos, and the **✨ Wishes** tab presents the
+  guests' well-wishes — both work from a helper login.
 - **Made a mistake?** A toast with an **Undo** button appears after check-ins,
-  angbao changes, and deletes — tap it to revert.
+  angbao changes, and deletes — tap it to revert. (Un-marking an angbao frees
+  the lucky-draw number for reuse; re-marking assigns a fresh one.)
 - **Hit Backup** once mid-event (e.g. after the bulk of guests arrive).
 
 ## If something looks wrong

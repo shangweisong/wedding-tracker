@@ -5,6 +5,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2026-07-18] — D-Day helper features (#150 / #151 / #149)
+
+### Fixed
+
+- **Lucky-draw numbers are released on angbao unmark (#150)** — previously assign-once: accidentally marking a guest "Received" consumed a raffle number forever. `assign_draw_number` now allocates the **lowest free** number (advisory-lock serialised, the `unique` constraint as backstop; numbers stay dense 1..N to match physical ticket stubs), a new `release_draw_number` RPC returns a guest's number to the pool when their angbao is unmarked, and a re-mark mints afresh (possibly the same number). One-time backfill clears stale numbers held by unmarked guests; the old `draw_number_seq` is retired. New pure module `src/lib/draw.js`.
+
+### Changed
+
+- **Angbao Tracker merged into the Guest List (#151)** — the separate D-Day tracker tab/view is gone; the Guest List is the single dashboard for both roles. Checking a guest **in** (with angbao enabled) opens an in-app **"🧧 Angbao received?"** prompt so the receptionist never forgets to ask; marking received auto-checks the guest in and mints their draw number, un-marking zeroes the amount and releases the number but keeps the guest checked in. The couple's headline figure moved into the header stat pill (`🧧 count · $total`); the 🧧 Gave filter and per-card received toggle now show for helpers, amount inputs remain couple-only. New pure module `src/lib/angbao.js`.
+- **Migrations consolidated** — the three feature migrations (`0012_draw_number_release`, `0013_merged_checkin_angbao`, `0014_wishes_projection`) collapsed into a single `0012_dday_helper_features.sql` before any deployment executed them (same precedent as `0001_core.sql`); migrations now number 0001–0012. The two matching manual test scripts merged into `supabase/tests/dday_angbao_verification.sql`.
+
+### Added
+
+- **Helper-runnable projector content (#149)** — two new D-Day tabs, visible to both roles, so filler content no longer requires the couple to log in at the event: **📸 Photowall** (new `PhotowallSlideshowTab`: auto-advancing fullscreen slideshow of live guest photos via the same anon-safe `get_photowall_photos` RPC as the public page — no moderation surface; a 20s poll folds newly approved photos into the rotation) and **✨ Wishes** (reuses the existing Wishes Wrapped generate + present flow; helpers fetch data through the new `get_wishes_guests` projection). New pure module `src/lib/slideshow.js`.
+
+### Security
+
+- The #92/#99 financial boundary is deliberately **narrowed, not removed**: helpers gain exactly two new server surfaces — `set_guest_angbao_received` (security-definer RPC in the `set_guest_checkin` mould: toggles the received **boolean**, can zero but never set or reveal an amount) and the read-only `get_wishes_guests` projection (name / side / relationship group / RSVP status / well-wish message; granted to `authenticated` only, not `anon`). `get_checkin_guests` now includes the `angbao_given` flag; `angbao_amount`, notes, contact details, tokens, submissions and receipts remain couple-only. `release_draw_number` is granted to `authenticated` like `assign_draw_number` (the lucky draw is a helper-run activity; it writes no financial data).
+
+---
+
 ## [2026-07-17] — feat/photowall-originals-r2
 
 ### Added
