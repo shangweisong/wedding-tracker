@@ -20,8 +20,9 @@ Guest photowall files live **outside Supabase** (#138). With R2 you create:
 2. *(Optional, #142)* A second, fully **private bucket** that archives each
    guest's untouched original file (≤40 MB, iPhone HEIC included).
 
-Why R2: 10 GB free storage and **zero egress fees** — guests scrolling the wall
-all night costs nothing. Uploads are safe by design: the browser uploads
+Why R2: 10 GB free storage and **no egress charge** — guests scrolling the wall
+all night adds no bandwidth cost (reads still count as R2 Class B operations,
+but the 10M/month free allowance is far beyond a wedding). Uploads are safe by design: the browser uploads
 directly to R2 using short-lived presigned URLs minted by `/api/photowall`, so
 your storage credentials never reach anyone's browser.
 
@@ -47,8 +48,8 @@ R2_ORIGINALS_BUCKET=
 1. Sign up (free plan is fine) at [dash.cloudflare.com](https://dash.cloudflare.com)
    and open **R2 Object Storage** in the left sidebar.
 2. The first visit asks you to add a payment card — required by Cloudflare even
-   though the free tier (10 GB storage, 1M writes/month) covers a wedding
-   comfortably.
+   though the free tier (10 GB storage, 1M Class A write operations/month)
+   covers a wedding comfortably.
 3. Copy your **Account ID** — it's shown on the R2 overview page (right-hand
    side) and also appears in the dashboard URL
    (`dash.cloudflare.com/<account-id>/r2`).
@@ -73,6 +74,11 @@ public URL. Pick one:
 1. Open the bucket → **Settings** → **Public access** → **R2.dev subdomain**
 2. Click **Allow Access** and type `allow` to confirm
 3. Copy the URL it gives you, e.g. `https://pub-a1b2c3d4.r2.dev`
+
+> ⚠️ Cloudflare **rate-limits r2.dev subdomains** and positions them as a
+> development convenience, not a production surface. Fine while setting up and
+> testing, but for the wedding day itself — hundreds of guests loading the wall
+> at once — the custom domain below is the safer choice.
 
 ### Option 2 — Custom domain (e.g. `photos.yourdomain.com`)
 
@@ -161,8 +167,10 @@ resolution, ≤40 MB, HEIC ok):
 
 Notes:
 
-- Works even if the wall itself uses Vercel Blob — set the three `R2_*`
-  credential vars anyway; only `R2_BUCKET`/`R2_PUBLIC_BASE_URL` are Blob-specific.
+- Works even if the wall itself uses Vercel Blob — the archive needs
+  `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and
+  `R2_ORIGINALS_BUCKET`; the wall-only vars (`R2_BUCKET`,
+  `R2_PUBLIC_BASE_URL`) stay unset in that split.
 - Uploads are **best-effort**: a failed original never blocks the guest's photo.
 - Deleting a photo from the admin **Photowall** tab also deletes its archived
   original (best-effort; requires the archive env vars to still be set). A

@@ -29,6 +29,9 @@ Blob-backed wall (see the last section).
 1. Open your project in the [Vercel dashboard](https://vercel.com/dashboard)
 2. Go to the **Storage** tab → **Create Database** → pick **Blob**
 3. Name it (e.g. `wedding-photowall`) and click **Create**
+4. If the dialog asks for an access level, choose **Public** — the app only
+   accepts and serves photo URLs on `*.public.blob.vercel-storage.com`, so a
+   private store breaks the wall
 
 ## Step 2 — Connect it to the project
 
@@ -81,7 +84,8 @@ vercel --prod --yes                          # redeploy so functions pick it up
 If it doesn't, work through the photowall rows of the
 [User Guide troubleshooting table](USER_GUIDE.md#11-troubleshooting) — with
 Blob, a `500 photowall_disabled` in the `/api/photowall` function logs means
-`PHOTO_STORAGE_PROVIDER` or `BLOB_READ_WRITE_TOKEN` is missing in Vercel.
+`PHOTO_STORAGE_PROVIDER`, `BLOB_READ_WRITE_TOKEN`, or
+`SUPABASE_SERVICE_ROLE_KEY` (required for every provider) is missing in Vercel.
 
 ## Notes
 
