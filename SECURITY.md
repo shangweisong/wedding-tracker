@@ -95,10 +95,10 @@ This project is configured so that:
   - **Read side (#99).** RLS filters rows, not columns, so direct guest selects
     are couple-only and the helper's D-Day reads go through the
     `get_checkin_guests()` security-definer projection
-    (`0005_roles_security.sql`, extended in `0013`), which omits couple-only
+    (`0005_roles_security.sql`, extended in `0012`), which omits couple-only
     columns (private `notes`, `angbao_amount`, `rsvp_token`, contact details —
     the `angbao_given` boolean is included since #151). A second read-only
-    projection, `get_wishes_guests()` (`0014`, #149), exposes guests'
+    projection, `get_wishes_guests()` (`0012`, #149), exposes guests'
     RSVP well-wish messages (+ name/side/relationship group) to signed-in
     accounts only, so helpers can run the D-Day Wishes Wrapped presentation —
     it is not granted to `anon`.
