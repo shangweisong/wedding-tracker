@@ -2,6 +2,8 @@ import { useState } from "react";
 import EventTargeting from "./EventTargeting.jsx";
 import { buildInviteSet, inviteKey } from "../lib/eventTargeting.js";
 import { aggregateEventStats } from "../lib/eventStats.js";
+import { guestNameMatches } from "../lib/guestSearch.js";
+import { Icon } from "../shared/icons.jsx";
 
 const MEAL_OPTIONS = ["", "Halal", "Vegetarian", "Normal"];
 
@@ -34,6 +36,11 @@ const styles = `
   .rsvp-meal-chip { background: var(--warm-white); border: 1px solid rgba(201,168,76,0.2); border-radius: 20px; padding: 2px 9px; font-size: 11px; color: var(--brown); }
 
   .rsvp-filters { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .rsvp-search-wrap { flex: 1; min-width: 160px; max-width: 280px; position: relative; }
+  .rsvp-search-wrap svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 14px; color: var(--brown); opacity: 0.5; }
+  .rsvp-search-input { width: 100%; padding: 7px 12px 7px 32px; border: 1px solid rgba(201,168,76,0.25); border-radius: 8px; background: white; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--charcoal); outline: none; transition: border-color 0.2s; }
+  .rsvp-search-input:focus { border-color: var(--gold); }
+  .rsvp-search-input::placeholder { color: rgba(92,74,42,0.4); }
   .rsvp-filter-tabs { display: flex; border: 1px solid rgba(201,168,76,0.25); border-radius: 8px; overflow: hidden; }
   .rsvp-filter-tab { padding: 7px 14px; border: none; background: white; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--brown); opacity: 0.7; transition: all 0.15s; font-family: 'DM Sans', sans-serif; }
   .rsvp-filter-tab + .rsvp-filter-tab { border-left: 1px solid rgba(201,168,76,0.25); }
@@ -116,6 +123,7 @@ export default function RsvpTab({
   enableSmartRsvp = false, events = [], eventRsvps = [], primaryMealEventId = null,
   onSetInvited, onBulkInvite, onSetEventResponse,
 }) {
+  const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [partyFilter, setPartyFilter] = useState("all");
   const [editingId, setEditingId] = useState(null);
@@ -170,6 +178,7 @@ export default function RsvpTab({
   };
 
   const filtered = guests
+    .filter((g) => guestNameMatches(g, search))
     .filter((g) => statusFilter === "all" || g.rsvp_status === statusFilter)
     .filter((g) => partyFilter === "all" || (g.party || "") === partyFilter)
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -326,6 +335,17 @@ export default function RsvpTab({
 
         {/* Filters */}
         <div className="rsvp-filters">
+          <div className="rsvp-search-wrap">
+            <Icon.Search />
+            <input
+              className="rsvp-search-input"
+              type="search"
+              aria-label="Search guest names"
+              placeholder="Search names…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
           <div className="rsvp-filter-tabs">
             {[
               ["all", "All"],

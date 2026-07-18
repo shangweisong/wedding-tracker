@@ -17,6 +17,15 @@ export function parseGuestSearch(raw) {
   return { kind: "text", term: trimmed.toLowerCase() };
 }
 
+// Name-only variant for the RSVP dashboard filter (#147): case-insensitive
+// substring match on guest.name; blank query matches everyone. Unlike
+// guestMatchesSearch, "#" has no special meaning and table numbers don't match.
+export function guestNameMatches(guest, raw) {
+  const term = (raw ?? "").trim().toLowerCase();
+  if (term === "") return true;
+  return guest.name.toLowerCase().includes(term);
+}
+
 // Does a guest match the raw search string?
 export function guestMatchesSearch(guest, raw) {
   const { kind, term } = parseGuestSearch(raw);

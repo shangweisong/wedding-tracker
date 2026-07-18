@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseGuestSearch, guestMatchesSearch } from './guestSearch.js';
+import { parseGuestSearch, guestMatchesSearch, guestNameMatches } from './guestSearch.js';
 
 // Minimal guest fixture — only the fields the search touches.
 const g = (name, table_number, draw_number = null) => ({ name, table_number, draw_number });
@@ -85,5 +85,42 @@ describe('guestMatchesSearch — draw number ("#")', () => {
 
   it('bare "#" excludes guests without a draw number', () => {
     expect(guestMatchesSearch(g('Bob', '1', null), '#')).toBe(false);
+  });
+});
+
+describe('guestNameMatches — name-only RSVP filter (#147)', () => {
+  const guest = g('Tan Wei Ming', '3', 12);
+
+  it('matches everyone on a blank or whitespace-only query', () => {
+    expect(guestNameMatches(guest, '')).toBe(true);
+    expect(guestNameMatches(guest, '   ')).toBe(true);
+  });
+
+  it('tolerates null/undefined input', () => {
+    expect(guestNameMatches(guest, null)).toBe(true);
+    expect(guestNameMatches(guest, undefined)).toBe(true);
+  });
+
+  it('matches a name substring case-insensitively', () => {
+    expect(guestNameMatches(guest, 'wei')).toBe(true);
+    expect(guestNameMatches(guest, 'WEI')).toBe(true);
+    expect(guestNameMatches(guest, 'Tan Wei Ming')).toBe(true);
+  });
+
+  it('trims surrounding whitespace before matching', () => {
+    expect(guestNameMatches(guest, '  wei  ')).toBe(true);
+  });
+
+  it('does not match unrelated text', () => {
+    expect(guestNameMatches(guest, 'zzz')).toBe(false);
+  });
+
+  it('does not match table numbers, unlike guestMatchesSearch', () => {
+    expect(guestNameMatches(g('Bob', '13'), '13')).toBe(false);
+  });
+
+  it('treats "#" queries as literal text, not draw-number lookups', () => {
+    expect(guestNameMatches(g('Alice', '1', 12), '#12')).toBe(false);
+    expect(guestNameMatches(g('Alice #1 Fan', null), '#1')).toBe(true);
   });
 });
