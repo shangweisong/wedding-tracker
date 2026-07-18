@@ -339,6 +339,8 @@ export default function RsvpTab({
             <Icon.Search />
             <input
               className="rsvp-search-input"
+              type="search"
+              aria-label="Search guest names"
               placeholder="Search names…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
