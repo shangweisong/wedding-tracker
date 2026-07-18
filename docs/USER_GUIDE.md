@@ -169,12 +169,22 @@ R2_SECRET_ACCESS_KEY=                    # r2 only
 R2_BUCKET=                               # r2 only — bucket name
 R2_PUBLIC_BASE_URL=                      # r2 only — e.g. https://pub-xxxx.r2.dev (no trailing slash)
 BLOB_READ_WRITE_TOKEN=                   # vercel-blob only — auto-set when you connect a Blob store
+
+# Optional — photowall originals archive (#142). Wall photos are downscaled in
+# the guest's browser; set this to ALSO archive each guest's untouched original
+# (≤40 MB, iPhone HEIC ok) to a separate PRIVATE R2 bucket, best-effort — a
+# failed original never blocks the guest's upload. Originals keep full EXIF/GPS
+# metadata, so the bucket must have NO public access. Reuses the R2_* creds above.
+PHOTO_ORIGINALS_PROVIDER=                # "r2" | unset = off
+R2_ORIGINALS_BUCKET=                     # separate PRIVATE bucket — never the public R2_BUCKET
 ```
 
 > **R2 deployers:** the bucket needs a CORS rule allowing `PUT` from your site origin
 > with the `Content-Type` header, and a public read surface (the r2.dev dev URL or a
 > custom domain). A **custom** domain must also be added to the `img-src` CSP directive
 > in `vercel.json`. Vercel Blob needs neither — see `.env.example` and `SECURITY.md`.
+> The **originals bucket** (`R2_ORIGINALS_BUCKET`) needs the same CORS `PUT` rule but
+> the **opposite** read setup: no r2.dev URL, no custom domain — keep it fully private.
 
 > See [`.env.example`](../.env.example) for the full annotated list, including when to set `DEEPL_API_URL` (Pro vs Free) and `NVIDIA_MODEL`.
 
@@ -406,7 +416,7 @@ Priya Nair,2,,false,bride
    - The public **Wedding page** and **RSVP form** offer a language selector (top-right) covering **English, 繁體中文 (Traditional Chinese), 简体中文 (Simplified Chinese), Bahasa Melayu, 日本語, and 한국어**. With more than three languages the toggle becomes a dropdown; the app's own labels are translated automatically, the guest's choice is remembered per browser, and the initial language is sniffed from the browser. The admin dashboard and emails stay in English.
    - To translate **your own text**, open **Wedding Setup → Wedding Page → Translations** and pick the target language: fill each field (or click **Auto-translate from English** to draft them, then edit). Blank fields fall back to English per-field on the public page. Auto-translate prefers **DeepL** for more natural output (set the server-only `DEEPL_API_KEY`; use `DEEPL_API_URL` for a Pro key) and falls back to **MyMemory** for languages DeepL doesn't cover (e.g. Malay) or when no DeepL key is set; the optional `MYMEMORY_EMAIL` raises MyMemory's daily limit.
    - Optional: under **Wedding Page**, add **section photo galleries** — photo bands inserted between the public page's sections (after the hero, Our Story, Fun Q&A, event details, or directions). Enable a slot, choose its column count (1–4), and paste the photo URLs (up to 12 per slot); they render as a masonry layout so tall and wide photos aren't cropped. (Schema support ships in `0003_weddings_page.sql`.)
-   - Optional: **Guest photowall** (Wedding Setup) adds a section to the wedding page where guests upload their own photos — each upload needs the **Photowall PIN** you set (required; share it on the invitation, or only on a sign at the venue so the wall starts on the day). Photos are downscaled and stripped of location metadata in the guest's browser, appear on the wall immediately, and you can hide or delete any of them from the **📸 Photowall tab**. Requires the `0011` migration and a photo storage provider (`PHOTO_STORAGE_PROVIDER` — see §2); files are stored in Cloudflare R2 or Vercel Blob, not Supabase.
+   - Optional: **Guest photowall** (Wedding Setup) adds a section to the wedding page where guests upload their own photos — each upload needs the **Photowall PIN** you set (required; share it on the invitation, or only on a sign at the venue so the wall starts on the day). Photos are downscaled and stripped of location metadata in the guest's browser, appear on the wall immediately, and you can hide or delete any of them from the **📸 Photowall tab** (searchable by uploader name). Requires the `0011` migration and a photo storage provider (`PHOTO_STORAGE_PROVIDER` — see §2); files are stored in Cloudflare R2 or Vercel Blob, not Supabase. Optionally set `PHOTO_ORIGINALS_PROVIDER=r2` (see §2) to also archive each guest's **untouched original** to a private R2 bucket for after the wedding — note originals keep their location metadata (only the wall copy is stripped), which is why that bucket must stay private.
 2. Import your guest list via CSV (or add guests one by one)
 3. Share `https://your-app.vercel.app/rsvp` in your wedding group chat
 4. Guests fill in the RSVP form — responses appear in the **RSVP tab** in real time
@@ -486,3 +496,4 @@ See [`SECURITY.md`](../SECURITY.md) for the full threat model.
 | Photowall says the PIN is wrong / "too many attempts" | Same server-side lockout as Open RSVP: 20 wrong PINs in 15 minutes locks uploads for everyone until attempts age out. Wait a few minutes and re-share the exact PIN from Wedding Setup. |
 | Photowall photos upload but never appear | The confirm step is failing — check `vercel logs` for `/api/photowall`. For R2, verify `R2_PUBLIC_BASE_URL` points at the bucket's public r2.dev URL (or custom domain, which must also be in the CSP `img-src`). |
 | Photo deleted in the Vercel Blob / R2 dashboard still shows on the wall | Deleting the file in the storage dashboard doesn't delete its database entry — the wall hides the broken image automatically once it fails to load, but the entry lingers. Delete photos from the admin **Photowall** tab instead: that removes both the file and the entry. |
+| Photos appear on the wall but no originals land in the archive bucket | The originals upload is best-effort and silent by design. Check `PHOTO_ORIGINALS_PROVIDER=r2` and `R2_ORIGINALS_BUCKET` are set in Vercel (`bash scripts/setup-vercel-env.sh` pushes both), the `R2_*` API token covers the originals bucket too, and that bucket has its own CORS rule allowing `PUT` from your site origin with the `Content-Type` header. |

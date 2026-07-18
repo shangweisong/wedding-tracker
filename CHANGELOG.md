@@ -5,6 +5,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2026-07-17] — feat/photowall-originals-r2
+
+### Added
+
+- **Photowall originals archive (#142)** — opt-in add-on to the guest photowall. Wall uploads are downscaled to a ≤2560 px JPEG in the browser and the untouched source file was discarded; with `PHOTO_ORIGINALS_PROVIDER=r2` set, the upload grant also carries a presigned PUT for the guest's **original file** (≤40 MB, iPhone HEIC/HEIF accepted), which the browser uploads **best-effort in the background** — a failed original never blocks or fails the guest's wall upload. Originals land in a **separate private R2 bucket** (`R2_ORIGINALS_BUCKET`, no public read surface) and keep full EXIF/GPS metadata, so the couple gets the full-quality shots after the wedding (retrieve via the Cloudflare dashboard or rclone). Works with either downscaled-photo provider (typical: downscaled → Vercel Blob, originals → R2) and reuses the `R2_*` credentials. No DB migration — originals are write-only archive objects correlated to wall photos by uuid; moderation **Delete** removes the archived original too (best-effort). Env unset = feature off, zero behavior change.
+
+### Security
+
+- The originals bucket must be **private** (no r2.dev URL, no custom domain) — originals retain guest EXIF/GPS. New trust-model bullet + residual risks in `SECURITY.md` (orphaned originals from abandoned grants, uncapped archive bytes); setup + cost note in `.env.example` and USER_GUIDE §2.
+
+---
+
+## [2026-07-17] — photowall follow-ups (#138)
+
+### Added
+
+- **Guest-name search in the 📸 Photowall tab** — the admin moderation list gains a search box filtering photos by uploader name (case-insensitive substring; unnamed uploads match "Anonymous"), so a specific guest's photos can be found quickly on a large wall (`filterPhotosByUploader()` in `src/lib/photowall.js`).
+
+### Fixed
+
+- **Broken tiles self-hide on the wall** — a photo whose storage file was deleted out-of-band (e.g. in the R2/Blob dashboard) no longer renders as a broken image: the public wall hides entries whose image fails to load. The DB row still lingers — delete from the Photowall tab to remove both file and entry.
+- **Vercel Blob v2 uploads unblocked** — `@vercel/blob` v2's client upload flow calls `https://vercel.com/api/blob`; that host was added to the CSP `connect-src` in `vercel.json` (with a regression test in `api/_lib/photoStorage/csp.test.js`).
+
+---
+
 ## [2026-07-15] — feat/138-guest-photowall
 
 ### Added

@@ -154,7 +154,8 @@ REQUIRED_VARS=(
 )
 
 # Optional server-only vars — only relevant if you use auto-translate, the AI
-# "Custom" theme, or the guest photowall (#138). Unset ones are skipped quietly
+# "Custom" theme, the guest photowall (#138), or its opt-in originals archive
+# (#142, PHOTO_ORIGINALS_PROVIDER + R2_ORIGINALS_BUCKET). Unset ones are skipped quietly
 # (not counted as "Missing"), so configuring one provider (or none) doesn't
 # produce spurious warnings.
 OPTIONAL_VARS=(
@@ -176,6 +177,8 @@ OPTIONAL_VARS=(
   "R2_BUCKET"
   "R2_PUBLIC_BASE_URL"
   "BLOB_READ_WRITE_TOKEN"
+  "PHOTO_ORIGINALS_PROVIDER"
+  "R2_ORIGINALS_BUCKET"
 )
 
 # Provider-specific vars
