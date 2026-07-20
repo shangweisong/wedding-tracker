@@ -426,8 +426,8 @@ Priya Nair,2,,false,bride
 2. Import your guest list via CSV (or add guests one by one)
 3. Share the RSVP link with your guests — a few ways, all in the **RSVP tab**:
    - Paste `https://your-app.vercel.app/rsvp` in your wedding group chat, or click the toolbar **▦ RSVP QR** button to show that same generic link as a QR code (with a PNG download) for a slide or a sign
-   - Each guest row has a **🔗 Link** button that copies their *personalized* pre-filled RSVP link, and a **▦ QR** button that shows it as a QR code
-   - Sending physical invitations? Click **🖨️ Print QR sheet** for a printable grid with one personalized QR card per guest (plus a generic card for anyone else) — cut them out and slip one into each envelope
+   - Each guest row has a **🔗 Link** button that copies their *personalised* pre-filled RSVP link, and a **▦ QR** button that shows it as a QR code
+   - Sending physical invitations? Click **🖨️ Print QR sheet** for a printable grid with one personalised QR card per guest (plus a generic card for anyone else) — cut them out and slip one into each envelope
 4. Guests fill in the RSVP form — responses appear in the **RSVP tab** in real time
 5. Once RSVPs are in, open the **Seating Plan tab** to assign confirmed guests to tables
 6. Export the seating plan as CSV or print it
