@@ -54,6 +54,31 @@ export function parseCSV(text) {
     .filter((g) => g.name);
 }
 
+// ─── IMPORT DEDUPE ────────────────────────────────────────────────────────────
+// Cross-check parsed CSV rows against the current guest list (and against
+// earlier rows in the same batch) so re-importing a CSV never duplicates
+// guests (#154). Names compare case-insensitively after trimming, matching
+// the canonical comparison in nameMatch.js.
+export function dedupeGuestImports(parsed, existingGuests) {
+  const seen = new Set(
+    (existingGuests || [])
+      .map((g) => String(g?.name ?? "").trim().toLowerCase())
+      .filter(Boolean)
+  );
+  const unique = [];
+  const skipped = [];
+  for (const row of parsed) {
+    const key = String(row.name ?? "").trim().toLowerCase();
+    if (seen.has(key)) {
+      skipped.push(row.name);
+    } else {
+      seen.add(key);
+      unique.push(row);
+    }
+  }
+  return { unique, skipped };
+}
+
 // ─── CSV EXPORT ───────────────────────────────────────────────────────────────
 // Escape a single cell against CSV injection. A leading =, +, -, @, tab, or CR
 // makes spreadsheet apps (Excel/Sheets/Numbers) evaluate the cell as a formula

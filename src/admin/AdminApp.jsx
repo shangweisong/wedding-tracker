@@ -7,7 +7,7 @@ import { nextFreeDraw } from "../lib/draw.js";
 import { shouldPromptAngbao, applyAngbaoReceived } from "../lib/angbao.js";
 import { guestFetchPlan } from "../lib/guestSource.js";
 import { cleanName, cleanNotes, cleanTable, cleanParty, cleanAmount, MAX_ANGBAO } from "../lib/validation.js";
-import { parseCSV, toCSV, guestImportTemplateCSV } from "../lib/csv.js";
+import { parseCSV, dedupeGuestImports, toCSV, guestImportTemplateCSV } from "../lib/csv.js";
 import { formatTime } from "../lib/format.js";
 import { guestMatchesSearch } from "../lib/guestSearch.js";
 import { diffEvents } from "../lib/eventDiff.js";
@@ -1688,13 +1688,18 @@ export default function WeddingTracker() {
   const importCSV = async () => {
     const parsed = parseCSV(csvText);
     if (!parsed.length) { showToast("No valid guests found in CSV"); return; }
+    const { unique, skipped } = dedupeGuestImports(parsed, guests);
+    if (!unique.length) {
+      showToast(`All ${parsed.length} ${parsed.length === 1 ? "guest is" : "guests are"} already in the list — nothing imported`);
+      return;
+    }
     if (isDemoMode) {
-      const newGuests = parsed.map((g, i) => ({ ...g, id: Date.now() + i }));
+      const newGuests = unique.map((g, i) => ({ ...g, id: Date.now() + i }));
       setGuests((prev) => [...prev, ...newGuests]);
     } else {
       setSyncing(true);
       try {
-        for (const g of parsed) await sb.insert("guests", g);
+        for (const g of unique) await sb.insert("guests", g);
         await loadGuests();
       } catch {
         setSyncing(false);
@@ -1704,7 +1709,10 @@ export default function WeddingTracker() {
     }
     setModal(null);
     setCsvText("");
-    showToast(`${parsed.length} guests imported`);
+    showToast(
+      `${unique.length} ${unique.length === 1 ? "guest" : "guests"} imported` +
+        (skipped.length ? `, ${skipped.length} ${skipped.length === 1 ? "duplicate" : "duplicates"} skipped` : "")
+    );
   };
 
   // Trigger a browser download of `content` as `filename`.

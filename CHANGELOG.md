@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2026-07-21] — RSVP QR codes & CSV import dedupe (#155 / #154)
+
+### Added
+
+- **QR codes for RSVP links (#155)** — the RSVP tab can now surface RSVP links as scannable QR codes for physical invites: a per-guest **▦ QR** button (beside the existing 🔗 copy-link) shows that guest's personalised `?token=` link as a QR with a hi-res PNG download; a toolbar **▦ RSVP QR** button does the same for the generic `/rsvp` link; and **🖨️ Print QR sheet** lays out one personalised QR card per primary guest (plus a generic lead card) for printing via the browser's print dialog. Personalised actions render only when the row carries an `rsvp_token` (helper projections and demo guests have none — tokens stay couple-only). QRs are generated client-side with the already-present `qrcode.react` dependency because the CSP `img-src` allowlist blocks external QR image APIs; no new env var, flag, or dependency. New pure module `src/lib/rsvpLink.js` (`buildRsvpLink`) extracts the URL building shared with copy-link.
+
+### Fixed
+
+- **CSV import skips duplicate guest names (#154)** — importing a guest CSV no longer creates duplicate rows: names already in the guest list, or repeated within the same file, are skipped (case-insensitive, whitespace-trimmed comparison via `dedupeGuestImports()` in `src/lib/csv.js`). The success toast reports "N guests imported, M duplicates skipped"; an all-duplicates import shows a toast and keeps the import modal open instead of silently succeeding.
+
+---
+
 ## [2026-07-18] — D-Day helper features (#150 / #151 / #149)
 
 ### Fixed

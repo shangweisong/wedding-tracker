@@ -1,8 +1,11 @@
 import { useState } from "react";
 import EventTargeting from "./EventTargeting.jsx";
+import QrCodeModal from "./QrCodeModal.jsx";
+import QrPrintSheet from "./QrPrintSheet.jsx";
 import { buildInviteSet, inviteKey } from "../lib/eventTargeting.js";
 import { aggregateEventStats } from "../lib/eventStats.js";
 import { guestNameMatches } from "../lib/guestSearch.js";
+import { buildRsvpLink } from "../lib/rsvpLink.js";
 import { Icon } from "../shared/icons.jsx";
 
 const MEAL_OPTIONS = ["", "Halal", "Vegetarian", "Normal"];
@@ -129,6 +132,8 @@ export default function RsvpTab({
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [savingId, setSavingId] = useState(null);
+  const [qrTarget, setQrTarget] = useState(null); // { url, title, filename }
+  const [showQrSheet, setShowQrSheet] = useState(false);
 
   // Plus-ones (#38) are their own child guest rows. Responder stats count only
   // primaries (the invitations); headcount counts every confirmed body.
@@ -223,7 +228,7 @@ export default function RsvpTab({
   };
 
   const copyLink = async (g) => {
-    const url = `${window.location.origin}/rsvp?token=${g.rsvp_token}`;
+    const url = buildRsvpLink(window.location.origin, g.rsvp_token);
     try {
       await navigator.clipboard.writeText(url);
       showToast("RSVP link copied");
@@ -231,6 +236,25 @@ export default function RsvpTab({
       showToast("Copy failed — check browser clipboard permissions");
     }
   };
+
+  // QR codes for physical invites (#155). Tokens are couple-only data (helper
+  // projections and DEMO_GUESTS have none), so personalized QR actions simply
+  // don't render without one — the generic /rsvp QR is public and always safe.
+  const fileSlug = (name) =>
+    name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "guest";
+  const showGuestQr = (g) =>
+    setQrTarget({
+      url: buildRsvpLink(window.location.origin, g.rsvp_token),
+      title: g.name,
+      filename: `rsvp-qr-${fileSlug(g.name)}.png`,
+    });
+  const showGenericQr = () =>
+    setQrTarget({
+      url: buildRsvpLink(window.location.origin),
+      title: "Generic RSVP link",
+      filename: "rsvp-qr-generic.png",
+    });
+  const anyTokens = primaries.some((g) => g.rsvp_token);
 
   return (
     <>
@@ -371,6 +395,22 @@ export default function RsvpTab({
             <option value="bride">Bride side</option>
             <option value="groom">Groom side</option>
           </select>
+          <button
+            className="rsvp-btn rsvp-btn-link"
+            onClick={showGenericQr}
+            title="QR code for the generic RSVP link"
+          >
+            ▦ RSVP QR
+          </button>
+          {anyTokens && (
+            <button
+              className="rsvp-btn rsvp-btn-link"
+              onClick={() => setShowQrSheet(true)}
+              title="Printable sheet of every guest's personalized RSVP QR"
+            >
+              🖨️ Print QR sheet
+            </button>
+          )}
           <span className="rsvp-filter-count">
             {filtered.length} guest{filtered.length !== 1 ? "s" : ""}
           </span>
@@ -425,6 +465,15 @@ export default function RsvpTab({
                     >
                       🔗 Link
                     </button>
+                    {g.rsvp_token && (
+                      <button
+                        className="rsvp-btn rsvp-btn-link"
+                        onClick={() => showGuestQr(g)}
+                        title="Show RSVP QR code"
+                      >
+                        ▦ QR
+                      </button>
+                    )}
                     <button
                       className="rsvp-btn rsvp-btn-edit"
                       onClick={() =>
@@ -617,6 +666,15 @@ export default function RsvpTab({
           )}
         </div>
       </div>
+
+      {qrTarget && <QrCodeModal {...qrTarget} onClose={() => setQrTarget(null)} />}
+      {showQrSheet && (
+        <QrPrintSheet
+          guests={guests}
+          origin={window.location.origin}
+          onClose={() => setShowQrSheet(false)}
+        />
+      )}
     </>
   );
 }

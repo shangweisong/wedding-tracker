@@ -404,6 +404,8 @@ Priya Nair,2,,false,bride
 
 > **Partners and plus-ones:** add them as separate rows so they RSVP independently. Only add them if they are actually invited — not everyone needs a plus one.
 
+> **Duplicates are skipped:** re-importing a file is safe. Rows whose name already exists in your guest list — or repeats within the same file — are skipped (names are compared case-insensitively, ignoring surrounding spaces), and the import toast tells you how many duplicates were skipped.
+
 ---
 
 ## 7. Workflow
@@ -422,7 +424,10 @@ Priya Nair,2,,false,bride
    - Optional: under **Wedding Page**, add **section photo galleries** — photo bands inserted between the public page's sections (after the hero, Our Story, Fun Q&A, event details, or directions). Enable a slot, choose its column count (1–4), and paste the photo URLs (up to 12 per slot); they render as a masonry layout so tall and wide photos aren't cropped. (Schema support ships in `0003_weddings_page.sql`.)
    - Optional: **Guest photowall** (Wedding Setup) adds a section to the wedding page where guests upload their own photos — each upload needs the **Photowall PIN** you set (required; share it on the invitation, or only on a sign at the venue so the wall starts on the day). Photos are downscaled and stripped of location metadata in the guest's browser, appear on the wall immediately, and you can hide or delete any of them from the **📸 Photowall tab** (searchable by uploader name). Requires the `0011` migration and a photo storage provider (`PHOTO_STORAGE_PROVIDER` — see §2); files are stored in Cloudflare R2 or Vercel Blob, not Supabase. Optionally set `PHOTO_ORIGINALS_PROVIDER=r2` (see §2) to also archive each guest's **untouched original** to a private R2 bucket for after the wedding — note originals keep their location metadata (only the wall copy is stripped), which is why that bucket must stay private.
 2. Import your guest list via CSV (or add guests one by one)
-3. Share `https://your-app.vercel.app/rsvp` in your wedding group chat
+3. Share the RSVP link with your guests — a few ways, all in the **RSVP tab**:
+   - Paste `https://your-app.vercel.app/rsvp` in your wedding group chat, or click the toolbar **▦ RSVP QR** button to show that same generic link as a QR code (with a PNG download) for a slide or a sign
+   - Each guest row has a **🔗 Link** button that copies their *personalised* pre-filled RSVP link, and a **▦ QR** button that shows it as a QR code
+   - Sending physical invitations? Click **🖨️ Print QR sheet** for a printable grid with one personalised QR card per guest (plus a generic card for anyone else) — cut them out and slip one into each envelope
 4. Guests fill in the RSVP form — responses appear in the **RSVP tab** in real time
 5. Once RSVPs are in, open the **Seating Plan tab** to assign confirmed guests to tables
 6. Export the seating plan as CSV or print it

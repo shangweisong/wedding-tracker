@@ -35,6 +35,7 @@ A two-phase wedding management app — pre-wedding RSVP collection and seating p
 - **AI theme from a photo** — upload a picture (your flowers, invite, venue…) and a vision LLM derives a matching color palette applied to the wedding page + RSVP form as a "Custom" theme, alongside the built-in Minimal / Garden / Traditional presets
 - **Section photo galleries** — drop optional photo bands between the wedding-page sections (after the hero, Our Story, Fun Q&A, event details, or directions). Each slot picks its own column count and renders as a masonry layout so portrait and landscape shots aren't cropped
 - **Guest photowall** — opt-in section on the wedding page where guests upload their own photos (PIN-gated, downscaled and EXIF-stripped in the browser). Photos appear live in a masonry wall; hide or delete any of them from the admin **Photowall** tab (searchable by uploader name). Files are stored in Cloudflare R2 or Vercel Blob (`PHOTO_STORAGE_PROVIDER` — see `.env.example`), not in Supabase. Optionally archive each guest's untouched original to a private R2 bucket (`PHOTO_ORIGINALS_PROVIDER=r2`) for full-quality copies after the wedding
+- **RSVP QR codes** — show any RSVP link as a scannable QR code: a generic `/rsvp` QR for the group chat or a slide, a per-guest QR of their personalised pre-filled link, downloadable as PNG, and a printable **QR sheet** with one card per guest to slip into physical invitations
 
 ### 💒 D-Day Mode (wedding day)
 - **Check-in** — tap to mark guests arrived, with timestamp
@@ -74,6 +75,8 @@ https://your-app.vercel.app/rsvp
 Guests open it, fill in the form (name, attendance, meal choice, dietary needs, message), and submit. Their name is fuzzy-matched against your guest list on the server — typos and partial names still resolve correctly. If verification passes, their RSVP is saved and they receive a confirmation email with a personalised link to update their response later. The guest list is never sent to the browser.
 
 **Updating an RSVP:** the confirmation email contains a unique `?token=` link. Clicking it reopens the form pre-filled with their previous answers. Submitting again updates their record. If a guest changes from confirmed to declined (or vice versa), you receive a notification email.
+
+**Sharing on paper:** the RSVP tab can also render these links as QR codes — the generic link, a per-guest personalised `?token=` QR, or a printable sheet of every guest's QR card — for physical invitations (see the User Guide).
 
 **Open RSVP (optional):** if your guest list isn't finalised, enable **Open RSVP** in Wedding Setup. Guests then enter their name free-text — no cross-check against the guest list — gated by a mandatory PIN you share on the invitation (verified server-side, with a brute-force lockout). Self-registered guests are flagged in the dashboard so you can vet them after the deadline.
 

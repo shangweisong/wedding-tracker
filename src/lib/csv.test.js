@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   parseCSV,
+  dedupeGuestImports,
   csvCell,
   toCSV,
   guestImportTemplateCSV,
@@ -62,6 +63,61 @@ describe("parseCSV", () => {
   it("defaults a missing table to '1'", () => {
     const out = parseCSV("name\nChen Jing Wen");
     expect(out[0].table_number).toBe("1");
+  });
+});
+
+describe("dedupeGuestImports", () => {
+  const row = (name) => ({ name, table_number: "1" });
+
+  it("drops a row whose name already exists in the guest list", () => {
+    const { unique, skipped } = dedupeGuestImports(
+      [row("Tan Wei Ming"), row("Priya Nair")],
+      [{ id: 1, name: "Tan Wei Ming" }]
+    );
+    expect(unique).toHaveLength(1);
+    expect(unique[0].name).toBe("Priya Nair");
+    expect(skipped).toEqual(["Tan Wei Ming"]);
+  });
+
+  it("matches case- and whitespace-insensitively", () => {
+    const { unique, skipped } = dedupeGuestImports(
+      [row("  tan wei ming ")],
+      [{ id: 1, name: "Tan Wei Ming" }]
+    );
+    expect(unique).toEqual([]);
+    expect(skipped).toEqual(["  tan wei ming "]);
+  });
+
+  it("keeps non-colliding rows in original order", () => {
+    const { unique } = dedupeGuestImports(
+      [row("A"), row("B"), row("C")],
+      [{ id: 1, name: "B" }]
+    );
+    expect(unique.map((g) => g.name)).toEqual(["A", "C"]);
+  });
+
+  it("drops repeats within the CSV itself, keeping the first occurrence", () => {
+    const { unique, skipped } = dedupeGuestImports(
+      [row("Siti"), row("siti"), row("David Koh")],
+      []
+    );
+    expect(unique.map((g) => g.name)).toEqual(["Siti", "David Koh"]);
+    expect(skipped).toEqual(["siti"]);
+  });
+
+  it("keeps everything when the existing list is empty", () => {
+    const parsed = [row("A"), row("B")];
+    const { unique, skipped } = dedupeGuestImports(parsed, []);
+    expect(unique).toEqual(parsed);
+    expect(skipped).toEqual([]);
+  });
+
+  it("tolerates existing guests with null or empty names", () => {
+    const { unique } = dedupeGuestImports(
+      [row("A")],
+      [{ id: 1, name: null }, { id: 2, name: "" }]
+    );
+    expect(unique).toHaveLength(1);
   });
 });
 
