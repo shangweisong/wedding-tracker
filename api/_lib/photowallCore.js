@@ -1,6 +1,6 @@
 // Pure helpers for the guest photowall endpoint (api/photowall.js) — no SDK
 // or network imports so the whole module is unit-testable. Caps here must stay
-// in sync with the check constraints in supabase/migrations/0011_photowall.sql.
+// in sync with the check constraints in supabase/migrations/0009_photowall.sql.
 
 export const ALLOWED_CONTENT_TYPES = ["image/jpeg", "image/png", "image/webp"];
 // A downscaled 2560px JPEG is ~1 MB; 4 MB is generous headroom while keeping

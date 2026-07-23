@@ -29,25 +29,58 @@ Open the **SQL Editor** in your Supabase dashboard and run the migrations **in o
 
 | File | What it creates |
 |---|---|
-| [`0001_core.sql`](../supabase/migrations/0001_core.sql) | `guests` + `submissions` tables, `set_updated_at` trigger, lucky-draw number (`assign_draw_number`), private `receipts` storage bucket, role plumbing (`app_config` + `is_helper()`) |
+| [`0001_core.sql`](../supabase/migrations/0001_core.sql) | `guests` + `submissions` tables, `set_updated_at` trigger, reusable lucky-draw pool (lowest-free `assign_draw_number` + `release_draw_number`), private `receipts` storage bucket, role plumbing (`app_config` + `is_helper()`) |
 | [`0002_rsvp_seating.sql`](../supabase/migrations/0002_rsvp_seating.sql) | `tables` table; all RSVP columns on guests (`rsvp_status`, `meal_choice`, `email`, etc.); relationship taxonomy columns; RSVP RPCs (`submit_rsvp`, fuzzy `submit_rsvp_by_name`, `find_guest_by_name`); reminder-cron indexes |
-| [`0003_weddings_page.sql`](../supabase/migrations/0003_weddings_page.sql) | Singleton `weddings` table with **all** columns (page content, AI theme tokens, section photos, hero focal point, budget/runsheet/checklist storage); `wedding-photos` bucket with couple-only write policies; `upsert_wedding_page` / `get_public_wedding` RPCs |
-| [`0004_smart_rsvp.sql`](../supabase/migrations/0004_smart_rsvp.sql) | Smart RSVP: `wedding_events` + `guest_event_rsvps` tables, legacy-mirror trigger, `get_public_events` / `get_guest_by_rsvp_token` / `submit_rsvp_events`; final `get_wedding_config` / `upsert_wedding_config` |
-| [`0005_roles_security.sql`](../supabase/migrations/0005_roles_security.sql) | Couple/helper RLS split for `guests` / `tables` / `wedding_events` / `guest_event_rsvps` / `submissions` / `receipts`; `set_guest_checkin` + helper-safe `get_checkin_guests` projection |
-| [`0006_planning_features.sql`](../supabase/migrations/0006_planning_features.sql) | `vendors` table + RLS; budget / runsheet / checklist config RPCs (couple-gated); `checklist_reminder_log` table |
+| [`0003_weddings_page.sql`](../supabase/migrations/0003_weddings_page.sql) | Singleton `weddings` table with **all** columns (page content, AI theme tokens, section photos, hero focal point, budget/runsheet/checklist storage, extra notice, open-RSVP + photowall flags/pins, floorplans); `wedding-photos` bucket with couple-only write policies; `upsert_wedding_page` / `get_public_wedding` RPCs |
+| [`0004_smart_rsvp.sql`](../supabase/migrations/0004_smart_rsvp.sql) | Smart RSVP: `wedding_events` (incl. `audience_groups` targeting) + `guest_event_rsvps` tables, legacy-mirror trigger, `get_public_events` / `get_guest_by_rsvp_token` / `submit_rsvp_events`; final `get_wedding_config` / `upsert_wedding_config` |
+| [`0005_roles_security.sql`](../supabase/migrations/0005_roles_security.sql) | Couple/helper RLS split for `guests` / `tables` / `wedding_events` / `guest_event_rsvps` / `submissions` / `receipts`; `set_guest_checkin` + helper-safe `get_checkin_guests` projection (incl. `angbao_given`); helper-callable `set_guest_angbao_received`; read-only `get_wishes_guests` projection |
+| [`0006_planning_features.sql`](../supabase/migrations/0006_planning_features.sql) | `vendors` table + RLS; budget / runsheet / checklist / floorplans config RPCs (couple-gated); `checklist_reminder_log` table |
 | [`0007_email_automation.sql`](../supabase/migrations/0007_email_automation.sql) | `pg_net` extension; RSVP status-change webhook trigger (with `old_rsvp_status` for host change-of-mind notifications); `second_reminder_sent_at` column — **apply only after completing the email setup in step 5** |
-| [`0008_extra_notice.sql`](../supabase/migrations/0008_extra_notice.sql) | General **Extra Notice** for the RSVP page (`weddings.extra_notice`, 500-char cap, translatable) alongside the Parking/Smoking notices |
-| [`0009_open_rsvp.sql`](../supabase/migrations/0009_open_rsvp.sql) | **Open RSVP** self-registration: `enable_open_rsvp` + `rsvp_pin` on `weddings`, `guests.self_registered` flag, `register_open_rsvp` RPC (PIN-gated), `open_rsvp_pin_attempts` rate-limit log, couple-only PIN readback |
-| [`0010_event_audiences.sql`](../supabase/migrations/0010_event_audiences.sql) | Relationship-targeted smart-RSVP events: `wedding_events.audience_groups` (family/friends/colleagues/other) surfaced through `get_public_events` / `get_guest_by_rsvp_token` |
-| [`0011_photowall.sql`](../supabase/migrations/0011_photowall.sql) | **Guest photowall** (#138): `enable_photowall` + `photowall_pin` on `weddings`, `photowall_photos` metadata table (files live in Cloudflare R2 / Vercel Blob, not Supabase), `photowall_pin_attempts` rate-limit log, anon `get_photowall_photos` read RPC, service-role-only upload RPCs, couple-only PIN readback |
-| [`0012_dday_helper_features.sql`](../supabase/migrations/0012_dday_helper_features.sql) | **D-Day helper features** (#150/#151/#149): reusable lucky-draw pool (lowest-free `assign_draw_number` + `release_draw_number`), helper-callable `set_guest_angbao_received` (boolean + auto-check-in + mint/release), `get_checkin_guests` gains `angbao_given`, read-only `get_wishes_guests` projection for the Wishes Wrapped presentation |
+| [`0008_open_rsvp.sql`](../supabase/migrations/0008_open_rsvp.sql) | **Open RSVP** self-registration: `guests.self_registered` flag, `register_open_rsvp` RPC (PIN-gated), `open_rsvp_pin_attempts` rate-limit log, couple-only PIN readback (the `weddings` flag/pin columns live in `0003`) |
+| [`0009_photowall.sql`](../supabase/migrations/0009_photowall.sql) | **Guest photowall** (#138): `photowall_photos` metadata table (files live in Cloudflare R2 / Vercel Blob, not Supabase), `photowall_pin_attempts` rate-limit log, anon `get_photowall_photos` read RPC, service-role-only upload RPCs, couple-only PIN readback (the `weddings` flag/pin columns live in `0003`) |
 
 All migrations are idempotent (`CREATE OR REPLACE`, `IF NOT EXISTS`) — safe to re-run,
 including against a database that already ran the pre-consolidation files.
 
-> **Supabase CLI users (existing deployments):** the migration folder was consolidated
-> from 19 files down to 7 (each object now appears once, in its final form; features
-> shipped since then append as `0008`+).
+> **Supabase CLI users (existing deployments) — consolidation round 2 (July 2026):**
+> the six feature migrations `0008_extra_notice`, `0009_open_rsvp`,
+> `0010_event_audiences`, `0011_photowall`, `0012_dday_helper_features` and
+> `0013_floorplans` were folded back into the domain files. Every object they
+> created now appears exactly once, in its final form:
+>
+> | Removed files | Consolidated into |
+> |---|---|
+> | `0008_extra_notice` | `0003_weddings_page.sql` (column + final `upsert_wedding_page`); final `get_wedding_config` in `0004_smart_rsvp.sql` |
+> | `0009_open_rsvp` | `weddings` columns → `0003`; config RPCs → `0004`; feature objects → **`0008_open_rsvp.sql`** |
+> | `0010_event_audiences` | `0004_smart_rsvp.sql` |
+> | `0011_photowall` | `weddings` columns → `0003`; `get_public_wedding` → `0003`; config RPCs → `0004`; feature objects → **`0009_photowall.sql`** |
+> | `0012_dday_helper_features` | lucky-draw pool → `0001_core.sql`; helper RPCs/projections → `0005_roles_security.sql` |
+> | `0013_floorplans` | column → `0003`; `upsert_floorplans` → `0006_planning_features.sql` |
+>
+> If your deployment applied any of the old files via `supabase db push`, reset
+> **all** tracking rows once, then push. Deleting `0001`–`0007` too matters:
+> those files gained new content in this round (columns, RPCs) but kept their
+> version numbers, so a push that still lists them as applied would skip them —
+> leaving a partially-migrated database missing objects (and the new
+> `0008`/`0009` files would then fail on the missing `weddings` columns):
+>
+> ```sql
+> -- Verify what you have first:  select * from supabase_migrations.schema_migrations;
+> delete from supabase_migrations.schema_migrations
+>   where version in (
+>     '0001','0002','0003','0004','0005','0006','0007',
+>     '0008','0009','0010','0011','0012','0013'
+>   );
+> ```
+>
+> Then run `supabase db push` — it replays all 9 files, which are idempotent:
+> a fully up-to-date schema is unchanged, and a partially-migrated one (e.g. a
+> deployment that never ran `0013_floorplans`) gets exactly the missing pieces.
+
+Deployments that predate the *first* consolidation (the original 19-file layout) follow the round-1 note below instead — its cleanup list covers the old `0001`–`0019` versions.
+
+> **Supabase CLI users (pre-consolidation deployments, round 1):** the migration
+> folder was originally consolidated from 19 files down to 7.
 > If you applied the old files via `supabase db push`, the CLI's tracking table still
 > lists the old versions — and because the new files reuse versions `0001`–`0007`,
 > `db push` would wrongly treat them as already applied. Reset the tracking rows once,
@@ -73,7 +106,7 @@ including against a database that already ran the pre-consolidation files.
 >   );
 > ```
 >
-> Then run `supabase db push` — it re-applies the 7 new files, which change nothing
+> Then run `supabase db push` — it re-applies the new files, which change nothing
 > on an up-to-date schema (one exception: they close a small grant gap on the
 > checklist RPCs; see the changelog).
 
@@ -422,7 +455,7 @@ Priya Nair,2,,false,bride
    - The public **Wedding page** and **RSVP form** offer a language selector (top-right) covering **English, 繁體中文 (Traditional Chinese), 简体中文 (Simplified Chinese), Bahasa Melayu, 日本語, and 한국어**. With more than three languages the toggle becomes a dropdown; the app's own labels are translated automatically, the guest's choice is remembered per browser, and the initial language is sniffed from the browser. The admin dashboard and emails stay in English.
    - To translate **your own text**, open **Wedding Setup → Wedding Page → Translations** and pick the target language: fill each field (or click **Auto-translate from English** to draft them, then edit). Blank fields fall back to English per-field on the public page. Auto-translate prefers **DeepL** for more natural output (set the server-only `DEEPL_API_KEY`; use `DEEPL_API_URL` for a Pro key) and falls back to **MyMemory** for languages DeepL doesn't cover (e.g. Malay) or when no DeepL key is set; the optional `MYMEMORY_EMAIL` raises MyMemory's daily limit.
    - Optional: under **Wedding Page**, add **section photo galleries** — photo bands inserted between the public page's sections (after the hero, Our Story, Fun Q&A, event details, or directions). Enable a slot, choose its column count (1–4), and paste the photo URLs (up to 12 per slot); they render as a masonry layout so tall and wide photos aren't cropped. (Schema support ships in `0003_weddings_page.sql`.)
-   - Optional: **Guest photowall** (Wedding Setup) adds a section to the wedding page where guests upload their own photos — each upload needs the **Photowall PIN** you set (required; share it on the invitation, or only on a sign at the venue so the wall starts on the day). Photos are downscaled and stripped of location metadata in the guest's browser, appear on the wall immediately, and you can hide or delete any of them from the **📸 Photowall tab** (searchable by uploader name). Requires the `0011` migration and a photo storage provider (`PHOTO_STORAGE_PROVIDER` — see §2); files are stored in Cloudflare R2 or Vercel Blob, not Supabase. Optionally set `PHOTO_ORIGINALS_PROVIDER=r2` (see §2) to also archive each guest's **untouched original** to a private R2 bucket for after the wedding — note originals keep their location metadata (only the wall copy is stripped), which is why that bucket must stay private.
+   - Optional: **Guest photowall** (Wedding Setup) adds a section to the wedding page where guests upload their own photos — each upload needs the **Photowall PIN** you set (required; share it on the invitation, or only on a sign at the venue so the wall starts on the day). Photos are downscaled and stripped of location metadata in the guest's browser, appear on the wall immediately, and you can hide or delete any of them from the **📸 Photowall tab** (searchable by uploader name). Requires the `0009_photowall` migration and a photo storage provider (`PHOTO_STORAGE_PROVIDER` — see §2); files are stored in Cloudflare R2 or Vercel Blob, not Supabase. Optionally set `PHOTO_ORIGINALS_PROVIDER=r2` (see §2) to also archive each guest's **untouched original** to a private R2 bucket for after the wedding — note originals keep their location metadata (only the wall copy is stripped), which is why that bucket must stay private.
 2. Import your guest list via CSV (or add guests one by one)
 3. Share the RSVP link with your guests — a few ways, all in the **RSVP tab**:
    - Paste `https://your-app.vercel.app/rsvp` in your wedding group chat, or click the toolbar **▦ RSVP QR** button to show that same generic link as a QR code (with a PNG download) for a slide or a sign
@@ -495,7 +528,7 @@ See [`SECURITY.md`](../SECURITY.md) for the full threat model.
 
 | Problem | Fix |
 |---|---|
-| RSVP form says "name not found" | Run the `0003` and `0004` migrations in the Supabase SQL Editor. Or, if your guest list isn't final, enable **Open RSVP** (requires the `0009` migration) so guests can self-register with the PIN. |
+| RSVP form says "name not found" | Run the `0003` and `0004` migrations in the Supabase SQL Editor. Or, if your guest list isn't final, enable **Open RSVP** (requires the `0008_open_rsvp` migration) so guests can self-register with the PIN. |
 | Open RSVP says the PIN is wrong / form is locked | PINs are checked server-side; after 20 wrong attempts in 15 minutes the form locks for everyone until attempts age out — wait a few minutes and re-share the exact PIN from Wedding Setup. |
 | Not syncing across devices | Use the live Vercel URL, not `localhost`. Check env vars are set in Vercel. Devices poll every 5 seconds; the **Refresh** button forces an immediate sync. |
 | Supabase project paused | Free tier pauses after ~1 week idle — restore in the dashboard. Open the app the day before the wedding. |
@@ -506,7 +539,7 @@ See [`SECURITY.md`](../SECURITY.md) for the full threat model.
 | Gmail — "Invalid login" error | Your regular Gmail password won't work. You must use a **Gmail App Password** (16-char code from [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)). Also requires 2-Step Verification to be on. |
 | Resend — emails only arrive to your own inbox | You're in Resend sandbox mode (no verified domain yet). Complete Option B above to send to real guests. |
 | RSVP triggers email but guest doesn't receive it | Check spam/junk folder. Gmail-to-Gmail or Gmail-to-Outlook may land there occasionally. Ask the guest to mark it not-spam. |
-| Photowall section missing from the wedding page | Enable **Guest Photowall** (and set its PIN) in Wedding Setup — requires the `0011` migration. Also confirm `VITE_ENABLE_PHOTOWALL` isn't `"false"`. |
+| Photowall section missing from the wedding page | Enable **Guest Photowall** (and set its PIN) in Wedding Setup — requires the `0009_photowall` migration. Also confirm `VITE_ENABLE_PHOTOWALL` isn't `"false"`. |
 | Photowall upload fails right after picking a photo (R2) | Almost always the missing **bucket CORS rule**: allow `PUT` from your site origin with the `Content-Type` header ([`R2_SETUP.md` Step 5](R2_SETUP.md#step-5--add-the-cors-rule-dont-skip) has the paste-ready JSON). Also check `PHOTO_STORAGE_PROVIDER`, the `R2_*` vars, and `SUPABASE_SERVICE_ROLE_KEY` are set in Vercel — a `500 photowall_disabled` in the function logs means one is missing. |
 | Photowall says the PIN is wrong / "too many attempts" | Same server-side lockout as Open RSVP: 20 wrong PINs in 15 minutes locks uploads for everyone until attempts age out. Wait a few minutes and re-share the exact PIN from Wedding Setup. |
 | Photowall photos upload but never appear | The confirm step is failing — check `vercel logs` for `/api/photowall`. For R2, verify `R2_PUBLIC_BASE_URL` points at the bucket's public r2.dev URL (or custom domain, which must also be in the CSP `img-src`). |

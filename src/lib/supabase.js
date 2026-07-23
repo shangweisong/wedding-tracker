@@ -70,7 +70,7 @@ export const sb = {
     return data;
   },
   // Atomically mint (or re-read) a guest's lucky-draw number. Since #150 the
-  // allocator (migration 0012) hands out the lowest free number — distinct,
+  // allocator (0001_core.sql) hands out the lowest free number — distinct,
   // collision-free, and released numbers are reused.
   async assignDraw(guestId) {
     const { data, error } = await supabase.rpc("assign_draw_number", { p_guest_id: guestId });

@@ -1,7 +1,7 @@
 // Back-compat mirror: derive the legacy single-scalar RSVP fields
 // (`guests.rsvp_status` / `meal_choice` / `rsvp_at`) from a body's per-event
 // responses. This is the JS mirror of the Postgres trigger installed by
-// migration 0009 — the SQL trigger is the server-side source of truth; this
+// migration 0004_smart_rsvp — the SQL trigger is the server-side source of truth; this
 // module is used for optimistic UI and to unit-test the mapping rules.
 //
 // A "body" is a single guest row (a primary OR a plus-one child). Each body's

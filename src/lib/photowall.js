@@ -1,7 +1,7 @@
 // ─── GUEST PHOTOWALL (#138) ───────────────────────────────────────────────────
 // Pure helpers for the public photowall section. Uploads are PIN-gated (same
 // shared-invitation-secret model as open RSVP); client-side hygiene only — the
-// /api/photowall endpoint + supabase/migrations/0011_photowall.sql are the
+// /api/photowall endpoint + supabase/migrations/0009_photowall.sql are the
 // authoritative enforcement. Limits mirror api/_lib/photowallCore.js and the
 // photowall_photos check constraints.
 export const MAX_UPLOADER_NAME = 80;

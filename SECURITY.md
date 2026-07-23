@@ -26,7 +26,7 @@ This project is configured so that:
 
 ### Required setup to be secure
 
-1. Run the migrations in `supabase/migrations/` (0001–0010; 0007 is the
+1. Run the migrations in `supabase/migrations/` (0001–0009; 0007 is the
    optional email automation) in your Supabase project.
 2. In **Authentication → Providers → Email**, create one helper user and
    **disable public sign-ups** so strangers can't self-register an account.
@@ -63,7 +63,7 @@ This project is configured so that:
   floorplan/layout images live in the *public* `wedding-photos` bucket (under
   `floorplans/`, unguessable ids), so anyone who obtains a URL can view the
   image — don't upload anything secret. Metadata writes are couple-only via the
-  `upsert_floorplans` RPC (0013); the helper's read-only view relies on the
+  `upsert_floorplans` RPC (`0006_planning_features.sql`); the helper's read-only view relies on the
   authenticated `weddings_select` policy, and the column is deliberately kept
   out of the anon-granted `get_wedding_config()`.
 - **Shared credential.** Every helper uses the same bridal-team login, so anyone
@@ -102,10 +102,10 @@ This project is configured so that:
   - **Read side (#99).** RLS filters rows, not columns, so direct guest selects
     are couple-only and the helper's D-Day reads go through the
     `get_checkin_guests()` security-definer projection
-    (`0005_roles_security.sql`, extended in `0012`), which omits couple-only
+    (`0005_roles_security.sql`), which omits couple-only
     columns (private `notes`, `angbao_amount`, `rsvp_token`, contact details —
     the `angbao_given` boolean is included since #151). A second read-only
-    projection, `get_wishes_guests()` (`0012`, #149), exposes guests'
+    projection, `get_wishes_guests()` (`0005_roles_security.sql`, #149), exposes guests'
     RSVP well-wish messages (+ name/side/relationship group) to signed-in
     accounts only, so helpers can run the D-Day Wishes Wrapped presentation —
     it is not granted to `anon`.
@@ -173,7 +173,7 @@ This project is configured so that:
   token links only.
 
 - **Open RSVP is a deliberate widening of the anonymous surface**
-  ([`0009_open_rsvp.sql`](supabase/migrations/0009_open_rsvp.sql), opt-in,
+  ([`0008_open_rsvp.sql`](supabase/migrations/0008_open_rsvp.sql), opt-in,
   default off). When enabled, the anon-callable `register_open_rsvp` RPC
   creates a guest row from a free-text name — gated by a **mandatory shared
   PIN** verified server-side. The PIN is a low-entropy invitation-card secret
@@ -191,7 +191,7 @@ This project is configured so that:
   is strictly tighter than the by-name path above.
 
 - **Event audience targeting is cosmetic, not access control**
-  ([`0010_event_audiences.sql`](supabase/migrations/0010_event_audiences.sql)).
+  ([`0004_smart_rsvp.sql`](supabase/migrations/0004_smart_rsvp.sql)).
   `wedding_events.audience_groups` filters which event cards the public RSVP
   form *shows*, keyed off the guest-**selected** `relationship_group` — so a
   guest can see any event by picking a different relationship. Do not treat it
@@ -205,7 +205,7 @@ This project is configured so that:
   secrets are compared in constant time (`api/_lib/secureCompare.js`).
 
 - **Guest photowall is the app's second anonymous-write surface** (#138,
-  [`0011_photowall.sql`](supabase/migrations/0011_photowall.sql), opt-in,
+  [`0009_photowall.sql`](supabase/migrations/0009_photowall.sql), opt-in,
   default off). Photo **files never touch Supabase**: they live in external
   object storage (Cloudflare R2 or Vercel Blob, `PHOTO_STORAGE_PROVIDER`), and
   only metadata rows live in `photowall_photos`. The trust model:

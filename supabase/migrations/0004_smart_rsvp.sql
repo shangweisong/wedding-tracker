@@ -2,7 +2,11 @@
 --
 -- Consolidated from: 0009_smart_rsvp,
 --                    0015_guard_config_rpcs (§1 upsert_wedding_config),
---                    0017_guard_runsheet (§2 get_wedding_config)
+--                    0017_guard_runsheet (§2 get_wedding_config),
+--                    0010_event_audiences (audience_groups + final
+--                    get_public_events / get_guest_by_rsvp_token),
+--                    0008/0009/0011 config-RPC growth (final get_wedding_config /
+--                    upsert_wedding_config bodies from 0011_photowall)
 --
 -- Adds a couple-defined event list (`wedding_events`) and a per-body × per-event
 -- RSVP junction (`guest_event_rsvps`), so guests can RSVP to each event (tea
@@ -59,6 +63,20 @@ create trigger wedding_events_set_updated_at
 
 alter table public.wedding_events enable row level security;
 -- Policies: 0005_roles_security.sql.
+
+-- Relationship-targeted events (#131): restrict an event to relationship groups
+-- (family/friends/colleagues/other); an empty array means "everyone". The
+-- filter is applied client-side on the public RSVP form as a declutter — it is
+-- NOT a security boundary (relationship_group is guest-selected on the form);
+-- the real per-guest gate stays guest_event_rsvps.invited.
+alter table public.wedding_events
+  add column if not exists audience_groups text[] not null default '{}';
+
+alter table public.wedding_events
+  drop constraint if exists wedding_events_audience_groups_check;
+alter table public.wedding_events
+  add constraint wedding_events_audience_groups_check
+  check (audience_groups <@ array['family','friends','colleagues','other']::text[]);
 
 -- ── 2. `guest_event_rsvps` JUNCTION (per body × per event) ─────────────────────
 --
@@ -211,7 +229,8 @@ returns table (
   requires_meal      boolean,
   requires_headcount boolean,
   sort_order         int,
-  content_translations jsonb
+  content_translations jsonb,
+  audience_groups    text[]
 )
 language sql
 security definer
@@ -226,7 +245,8 @@ as $$
     e.requires_meal,
     e.requires_headcount,
     e.sort_order,
-    coalesce(e.content_translations, '{}'::jsonb)
+    coalesce(e.content_translations, '{}'::jsonb),
+    coalesce(e.audience_groups, '{}')
   from public.wedding_events e
   join public.weddings w on w.id = e.wedding_id
   where w.slug = p_slug and e.is_active and coalesce(w.enable_smart_rsvp, false)
@@ -279,7 +299,8 @@ as $$
                  'start_time', to_char(e.start_time, 'HH24:MI'), 'location', e.location,
                  'requires_meal', e.requires_meal, 'requires_headcount', e.requires_headcount,
                  'sort_order', e.sort_order,
-                 'content_translations', coalesce(e.content_translations, '{}'::jsonb)
+                 'content_translations', coalesce(e.content_translations, '{}'::jsonb),
+                 'audience_groups', to_jsonb(coalesce(e.audience_groups, '{}'))
                ) as ev,
                e.sort_order as ord, e.start_time as st
         from public.guest_event_rsvps ger
@@ -561,7 +582,10 @@ returns table (
   enable_smart_rsvp       boolean,
   primary_meal_event_id   uuid,
   runsheet                jsonb,
-  is_runsheet_published   boolean
+  is_runsheet_published   boolean,
+  extra_notice            text,
+  enable_open_rsvp        boolean,
+  enable_photowall        boolean
 )
 language sql
 security definer
@@ -606,14 +630,20 @@ as $$
       then coalesce(runsheet, '[]'::jsonb)
       else '[]'::jsonb
     end,
-    coalesce(is_runsheet_published, false)
+    coalesce(is_runsheet_published, false),
+    coalesce(extra_notice, ''),
+    coalesce(enable_open_rsvp, false),
+    coalesce(enable_photowall, false)
   from public.weddings
   limit 1;
 $$;
 
 -- Stays anon-callable: the PUBLIC RSVP form (RsvpPage.jsx) reads it to render the
 -- couple's names/venue/theme and the enable_* flags. It is a read of non-secret
--- display config only (no guest data), so anon read is intentional, not a leak.
+-- display config only (no guest data, and the rsvp/photowall pins are
+-- deliberately NOT selected — they are read back only through the couple-only
+-- get_open_rsvp_admin_config / get_photowall_admin_config RPCs), so anon read
+-- is intentional, not a leak.
 grant execute on function public.get_wedding_config() to anon, authenticated;
 
 -- ── 9. upsert_wedding_config — admin write (Wedding Setup), couple-only ───────
@@ -621,9 +651,16 @@ grant execute on function public.get_wedding_config() to anon, authenticated;
 -- lives inside the function (#101). is_helper() FAILS OPEN, so this guard can
 -- never block the couple.
 
--- Superseded historical signatures.
+-- Superseded historical signatures (each feature appended parameters — a
+-- lingering overload would make PostgREST RPC resolution ambiguous).
 drop function if exists public.upsert_wedding_config(text, text, date, text, text, text, text);
 drop function if exists public.upsert_wedding_config(text, text, date, text, text, text, text, text);
+drop function if exists public.upsert_wedding_config(
+  text, text, date, text, text, text, text, text, boolean, uuid
+);
+drop function if exists public.upsert_wedding_config(
+  text, text, date, text, text, text, text, text, boolean, uuid, boolean, text
+);
 
 create or replace function public.upsert_wedding_config(
   p_bride_name        text,
@@ -635,7 +672,11 @@ create or replace function public.upsert_wedding_config(
   p_dinner_time       text,
   p_tea_ceremony_time text default null,
   p_enable_smart_rsvp boolean default false,
-  p_primary_meal_event_id uuid default null
+  p_primary_meal_event_id uuid default null,
+  p_enable_open_rsvp  boolean default false,
+  p_rsvp_pin          text default '',
+  p_enable_photowall  boolean default false,
+  p_photowall_pin     text default ''
 )
 returns void
 language plpgsql
@@ -650,11 +691,27 @@ begin
     raise exception 'insufficient_privilege' using errcode = '42501';
   end if;
 
+  -- The PIN is mandatory whenever open mode is enabled (#126): a blank pin
+  -- would leave the form open to anyone who finds the URL.
+  if coalesce(p_enable_open_rsvp, false)
+     and trim(coalesce(p_rsvp_pin, '')) = '' then
+    raise exception 'rsvp pin required';
+  end if;
+
+  -- Same invariant for the photowall (#138): uploads must never be open to
+  -- anyone who finds the URL.
+  if coalesce(p_enable_photowall, false)
+     and trim(coalesce(p_photowall_pin, '')) = '' then
+    raise exception 'photowall pin required';
+  end if;
+
   insert into public.weddings (
     bride_name, groom_name, wedding_date,
     venue_name, venue_address,
     ceremony_time, dinner_time, tea_ceremony_time,
     enable_smart_rsvp, primary_meal_event_id,
+    enable_open_rsvp, rsvp_pin,
+    enable_photowall, photowall_pin,
     updated_at
   ) values (
     left(coalesce(p_bride_name, ''), 120),
@@ -667,6 +724,10 @@ begin
     case when p_tea_ceremony_time = '' then null else p_tea_ceremony_time::time end,
     coalesce(p_enable_smart_rsvp, false),
     p_primary_meal_event_id,
+    coalesce(p_enable_open_rsvp, false),
+    left(trim(coalesce(p_rsvp_pin, '')), 20),
+    coalesce(p_enable_photowall, false),
+    left(trim(coalesce(p_photowall_pin, '')), 20),
     now()
   )
   on conflict ((true)) do update set
@@ -680,11 +741,17 @@ begin
     tea_ceremony_time = excluded.tea_ceremony_time,
     enable_smart_rsvp = excluded.enable_smart_rsvp,
     primary_meal_event_id = excluded.primary_meal_event_id,
+    enable_open_rsvp  = excluded.enable_open_rsvp,
+    rsvp_pin          = excluded.rsvp_pin,
+    enable_photowall  = excluded.enable_photowall,
+    photowall_pin     = excluded.photowall_pin,
     updated_at        = now();
 end;
 $$;
 
-revoke all on function public.upsert_wedding_config(text, text, date, text, text, text, text, text, boolean, uuid)
-  from public, anon;
-grant execute on function public.upsert_wedding_config(text, text, date, text, text, text, text, text, boolean, uuid)
-  to authenticated;
+revoke all on function public.upsert_wedding_config(
+  text, text, date, text, text, text, text, text, boolean, uuid, boolean, text, boolean, text
+) from public, anon;
+grant execute on function public.upsert_wedding_config(
+  text, text, date, text, text, text, text, text, boolean, uuid, boolean, text, boolean, text
+) to authenticated;

@@ -3,7 +3,9 @@
 -- Consolidated from: 0011_vendors_budget, 0013_runsheet, 0014_planning_checklist,
 --                    0015_guard_config_rpcs (§3 budget grants),
 --                    0017_guard_runsheet (§1 upsert_runsheet + §3 comment),
---                    0018_checklist_reminders
+--                    0018_checklist_reminders,
+--                    0013_floorplans (§2 upsert_floorplans; the weddings
+--                    column lives in 0003_weddings_page.sql)
 --
 -- The weddings columns these features live on (overall_budget_cap,
 -- budget_categories, runsheet, is_runsheet_published, checklist) are created
@@ -333,3 +335,38 @@ alter table public.checklist_reminder_log enable row level security;
 -- come up with only TRUNCATE/REFERENCES/TRIGGER for service_role). Without
 -- this the cron's dedup reads/writes fail with 42501.
 grant select, insert on public.checklist_reminder_log to service_role;
+
+-- ── 10. upsert_floorplans — couple-only floorplans write (#162) ───────────────
+-- The couple uploads floorplan/layout snapshot images (venue floorplan, stage
+-- layout, …) for day-of verification; the helper views them read-only via the
+-- weddings_select policy (0003). Images live in the PUBLIC wedding-photos
+-- bucket under the floorplans/ prefix (couple-only writes per the 0003
+-- policies); this RPC persists the metadata array (weddings.floorplans, 0003).
+-- Security definer bypasses the weddings_write RLS policy, so the role gate
+-- lives inside the function; grants are authenticated-only (the anon key must
+-- not be able to overwrite the couple's floorplans). Same pattern as
+-- upsert_runsheet (§5).
+
+drop function if exists public.upsert_floorplans(jsonb);
+
+create or replace function public.upsert_floorplans(p_floorplans jsonb)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if (select public.is_helper()) then
+    raise exception 'insufficient_privilege' using errcode = '42501';
+  end if;
+
+  insert into public.weddings (bride_name, groom_name, floorplans, updated_at)
+  values ('', '', coalesce(p_floorplans, '[]'::jsonb), now())
+  on conflict ((true)) do update set
+    floorplans = coalesce(excluded.floorplans, '[]'::jsonb),
+    updated_at = now();
+end;
+$$;
+
+revoke all on function public.upsert_floorplans(jsonb) from public, anon;
+grant execute on function public.upsert_floorplans(jsonb) to authenticated;

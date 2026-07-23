@@ -5,7 +5,11 @@
 --                    columns + §8 weddings policies), 0013_runsheet (§1 columns),
 --                    0014_planning_checklist (§1 column),
 --                    0015_guard_config_rpcs (§2 upsert_wedding_page),
---                    0019_wedding_photos_policies
+--                    0019_wedding_photos_policies,
+--                    0008_extra_notice (column + final upsert_wedding_page),
+--                    0009_open_rsvp (§1 weddings columns),
+--                    0011_photowall (§1 weddings columns + final get_public_wedding),
+--                    0013_floorplans (§1 column + size guard)
 --
 -- Creates the `weddings` singleton table with all columns in their final form,
 -- the wedding-photos storage bucket, and the page RPCs at their final
@@ -68,6 +72,25 @@ create table if not exists public.weddings (
   is_runsheet_published boolean default false,
   -- Planning checklist (couple-only; served via get_checklist_config, 0006)
   checklist         jsonb       not null default '[]'::jsonb,
+  -- General extra notice shown to guests on the RSVP form (#125)
+  extra_notice      text        default '' check (char_length(extra_notice) <= 500),
+  -- Open RSVP self-registration (#126): master switch + mandatory PIN. The pin
+  -- is a shared low-entropy secret (like a wifi password on the invitation
+  -- card), not an account credential — stored plainly, but only ever read back
+  -- through the couple-only get_open_rsvp_admin_config (0008_open_rsvp.sql).
+  enable_open_rsvp  boolean     not null default false,
+  rsvp_pin          text        not null default '' check (char_length(rsvp_pin) <= 20),
+  -- Guest photowall (#138): master switch + dedicated pin (NOT rsvp_pin, so the
+  -- photowall can run while open RSVP is off and vice versa; same nature as
+  -- rsvp_pin, read back only through get_photowall_admin_config, 0009_photowall.sql)
+  enable_photowall  boolean     not null default false,
+  photowall_pin     text        not null default '' check (char_length(photowall_pin) <= 20),
+  -- Venue floorplan/layout snapshots (#162): [{ id, path, url, label, created_at }],
+  -- capped client-side at 6 entries / 80-char labels (src/lib/floorplan.js) and
+  -- bounded by weddings_floorplans_size below as the authoritative guard.
+  -- Deliberately NOT exposed via get_wedding_config (anon-callable — would leak
+  -- the floorplans to the public RSVP page); the admin app selects it directly.
+  floorplans        jsonb       not null default '[]'::jsonb,
   updated_at        timestamptz not null default now()
 );
 
@@ -93,6 +116,18 @@ alter table public.weddings
   add column if not exists runsheet              jsonb   default '[]'::jsonb,
   add column if not exists is_runsheet_published boolean default false;
 alter table public.weddings add column if not exists checklist jsonb not null default '[]'::jsonb;
+alter table public.weddings
+  add column if not exists extra_notice text default '' check (char_length(extra_notice) <= 500);
+alter table public.weddings add column if not exists enable_open_rsvp boolean not null default false;
+alter table public.weddings
+  add column if not exists rsvp_pin text not null default ''
+    check (char_length(rsvp_pin) <= 20);
+alter table public.weddings add column if not exists enable_photowall boolean not null default false;
+alter table public.weddings
+  add column if not exists photowall_pin text not null default ''
+    check (char_length(photowall_pin) <= 20);
+alter table public.weddings
+  add column if not exists floorplans jsonb not null default '[]'::jsonb;
 
 -- Server-side size/whitelist guards: upsert_wedding_page used to be granted to
 -- anon, so a caller could bypass the client-side normalizers. Bound the stored
@@ -144,6 +179,18 @@ begin
     alter table public.weddings
       add constraint weddings_checklist_size
       check (pg_column_size(checklist) < 100000);
+  end if;
+end $$;
+
+-- Floorplans size guard (#162): 6 entries × ~350 bytes ≈ 2 KB; 10 KB is headroom.
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'weddings_floorplans_size'
+  ) then
+    alter table public.weddings
+      add constraint weddings_floorplans_size
+      check (pg_column_size(floorplans) < 10000);
   end if;
 end $$;
 
@@ -219,6 +266,7 @@ drop function if exists public.upsert_wedding_page(text, text, text, text, jsonb
 drop function if exists public.upsert_wedding_page(text, text, text, text, jsonb, date, boolean, text, text, text, boolean, text, text, jsonb);
 drop function if exists public.upsert_wedding_page(text, text, text, text, jsonb, date, boolean, text, text, text, boolean, text, text, jsonb, jsonb);
 drop function if exists public.upsert_wedding_page(text, text, text, text, jsonb, date, boolean, text, text, text, boolean, text, text, jsonb, jsonb, jsonb);
+drop function if exists public.upsert_wedding_page(text, text, text, text, jsonb, date, boolean, text, text, text, boolean, text, text, jsonb, jsonb, jsonb, text);
 
 create or replace function public.upsert_wedding_page(
   p_slug            text,
@@ -237,7 +285,8 @@ create or replace function public.upsert_wedding_page(
   p_content_translations jsonb default '{}',
   p_theme_tokens    jsonb default '{}',
   p_section_photos  jsonb default '{}',
-  p_hero_focal_point text default 'center'
+  p_hero_focal_point text default 'center',
+  p_extra_notice    text default ''
 )
 returns void
 language plpgsql
@@ -257,7 +306,7 @@ begin
     slug, love_story, dress_code, hero_image_url, hero_focal_point,
     fun_qa, rsvp_deadline, is_published, meal_options,
     getting_there, theme, enable_fun_rsvp_options,
-    smoking_notice, parking_notice, content_translations, theme_tokens,
+    smoking_notice, parking_notice, extra_notice, content_translations, theme_tokens,
     section_photos, updated_at
   ) values (
     '', '',
@@ -275,6 +324,7 @@ begin
     coalesce(p_enable_fun_rsvp_options, false),
     left(coalesce(p_smoking_notice, ''), 500),
     left(coalesce(p_parking_notice, ''), 500),
+    left(coalesce(p_extra_notice, ''), 500),
     coalesce(p_content_translations, '{}'::jsonb),
     coalesce(p_theme_tokens, '{}'::jsonb),
     coalesce(p_section_photos, '{}'::jsonb),
@@ -295,6 +345,7 @@ begin
     enable_fun_rsvp_options = coalesce(p_enable_fun_rsvp_options, false),
     smoking_notice = left(coalesce(p_smoking_notice, ''), 500),
     parking_notice = left(coalesce(p_parking_notice, ''), 500),
+    extra_notice   = left(coalesce(p_extra_notice, ''), 500),
     content_translations = coalesce(p_content_translations, '{}'::jsonb),
     theme_tokens   = coalesce(p_theme_tokens, '{}'::jsonb),
     section_photos = coalesce(p_section_photos, '{}'::jsonb),
@@ -303,10 +354,10 @@ end;
 $$;
 
 revoke all on function public.upsert_wedding_page(
-  text, text, text, text, jsonb, date, boolean, text, text, text, boolean, text, text, jsonb, jsonb, jsonb, text
+  text, text, text, text, jsonb, date, boolean, text, text, text, boolean, text, text, jsonb, jsonb, jsonb, text, text
 ) from public, anon;
 grant execute on function public.upsert_wedding_page(
-  text, text, text, text, jsonb, date, boolean, text, text, text, boolean, text, text, jsonb, jsonb, jsonb, text
+  text, text, text, text, jsonb, date, boolean, text, text, text, boolean, text, text, jsonb, jsonb, jsonb, text, text
 ) to authenticated;
 
 -- ── 5. get_public_wedding — public page lookup by slug (/wedding/:slug) ───────
@@ -339,7 +390,8 @@ returns table (
   content_translations jsonb,
   theme_tokens      jsonb,
   section_photos    jsonb,
-  enable_smart_rsvp boolean
+  enable_smart_rsvp boolean,
+  enable_photowall  boolean
 )
 language sql
 security definer
@@ -364,7 +416,8 @@ as $$
     coalesce(content_translations, '{}'::jsonb),
     coalesce(theme_tokens, '{}'::jsonb),
     coalesce(section_photos, '{}'::jsonb),
-    coalesce(enable_smart_rsvp, false)
+    coalesce(enable_smart_rsvp, false),
+    coalesce(enable_photowall, false)
   from public.weddings
   where slug = p_slug
   limit 1;

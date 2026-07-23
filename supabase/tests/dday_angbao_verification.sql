@@ -1,4 +1,5 @@
--- Manual verification for the D-Day angbao features (migration 0012):
+-- Manual verification for the D-Day angbao features (lucky-draw pool in
+-- 0001_core.sql, helper angbao RPCs in 0005_roles_security.sql):
 -- reusable lucky-draw numbers (#150) and the merged check-in + angbao RPC
 -- semantics (#151).
 --
