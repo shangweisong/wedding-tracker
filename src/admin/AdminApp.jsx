@@ -24,6 +24,8 @@ import RunsheetTab from "./RunsheetTab.jsx";
 import ChecklistTab from "./ChecklistTab.jsx";
 import PhotowallTab from "./PhotowallTab.jsx";
 import PhotowallSlideshowTab from "./PhotowallSlideshowTab.jsx";
+import FloorplanPanel from "./FloorplanPanel.jsx";
+import { normalizeFloorplans } from "../lib/floorplan.js";
 
 // ─── PAYNOW CONFIG ────────────────────────────────────────────────────────────
 // The host's PayNow-linked mobile number and display name. These are NOT secret
@@ -63,6 +65,7 @@ const DEMO_WEDDING = {
   ceremony_time: "14:00",
   dinner_time: "18:30",
   tea_ceremony_time: "",
+  floorplans: [],
 };
 
 // ─── STYLES ───────────────────────────────────────────────────────────────────
@@ -1049,7 +1052,17 @@ export default function WeddingTracker() {
         const prows = await sb.rpc("get_photowall_admin_config", {});
         photowall = Array.isArray(prows) && prows.length ? prows[0] : null;
       } catch { /* RPC absent on un-migrated DBs, or caller is a helper — skip */ }
-      setWedding(base ? { ...base, ...(budget || {}), ...(checklist || {}), ...(openRsvp || {}), ...(photowall || {}) } : base);
+      // Floorplans (#162) are read straight off the weddings row: the
+      // weddings_select RLS policy covers both roles (helper included), while
+      // get_wedding_config stays floorplan-free so anon never sees them.
+      let floorplans = [];
+      try {
+        const { data: frows, error: ferr } = await supabase
+          .from("weddings").select("floorplans").limit(1);
+        if (ferr) throw ferr;
+        floorplans = normalizeFloorplans(frows?.[0]?.floorplans);
+      } catch { /* column absent on un-migrated DBs — feature stays hidden */ }
+      setWedding(base ? { ...base, ...(budget || {}), ...(checklist || {}), ...(openRsvp || {}), ...(photowall || {}), floorplans } : base);
     } catch {
       showToast("Failed to load wedding details");
     }
@@ -1313,6 +1326,23 @@ export default function WeddingTracker() {
       return true;
     } catch {
       showToast("Could not save runsheet — check connection");
+      return false;
+    }
+  };
+
+  // Floorplan snapshots (#162) — couple-only write via the upsert_floorplans
+  // RPC (helper calls fail with 42501; the UI never offers them the controls).
+  const saveFloorplans = async (floorplans) => {
+    if (isDemoMode) {
+      setWedding((w) => ({ ...(w || {}), floorplans }));
+      return true;
+    }
+    try {
+      await sb.rpc("upsert_floorplans", { p_floorplans: floorplans });
+      setWedding((w) => ({ ...(w || {}), floorplans }));
+      return true;
+    } catch {
+      showToast("Could not save floorplans — check connection");
       return false;
     }
   };
@@ -2162,7 +2192,16 @@ export default function WeddingTracker() {
               ))}
             </div>
           ) : view === "tables" ? (
-            <div className="tables-grid">
+            <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+              {/* Floorplan snapshots (#162): read-only for BOTH roles on D-Day —
+                  the couple manages them in Planning → Seating. */}
+              <FloorplanPanel
+                floorplans={wedding?.floorplans || []}
+                isReadOnly
+                onSave={saveFloorplans}
+                showToast={showToast}
+              />
+              <div className="tables-grid">
               {Object.keys(tables).sort((a,b) => Number(a)-Number(b)).map((tNum) => {
                 const tGuests = tables[tNum];
                 const tArrived = tGuests.filter((g) => g.checked_in).length;
@@ -2253,6 +2292,7 @@ export default function WeddingTracker() {
               {Object.keys(tables).length === 0 && (
                 <div className="empty"><div className="empty-icon">🪑</div><div className="empty-text">No tables yet</div><div className="empty-sub">Add guests with table numbers</div></div>
               )}
+              </div>
             </div>
           ) : view === "rsvp" ? (
             <RsvpTab
@@ -2269,7 +2309,14 @@ export default function WeddingTracker() {
               onSetEventResponse={setEventResponse}
             />
           ) : view === "seating" ? (
-            <SeatingTab guests={guests} onUpdate={updateGuest} onResetSeating={resetSeating} showToast={showToast} />
+            <SeatingTab
+              guests={guests}
+              onUpdate={updateGuest}
+              onResetSeating={resetSeating}
+              showToast={showToast}
+              floorplans={wedding?.floorplans || []}
+              onSaveFloorplans={saveFloorplans}
+            />
           ) : view === "wedding-page" ? (
             <WeddingPageTab wedding={wedding} onSave={saveWeddingPage} showToast={showToast} />
           ) : view === "wishes-wrapped" ? (

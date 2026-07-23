@@ -59,6 +59,13 @@ This project is configured so that:
 
 ## Residual risks (by design)
 
+- **Floorplan snapshots are world-readable by URL (#162).** The couple's
+  floorplan/layout images live in the *public* `wedding-photos` bucket (under
+  `floorplans/`, unguessable ids), so anyone who obtains a URL can view the
+  image — don't upload anything secret. Metadata writes are couple-only via the
+  `upsert_floorplans` RPC (0013); the helper's read-only view relies on the
+  authenticated `weddings_select` policy, and the column is deliberately kept
+  out of the anon-granted `get_wedding_config()`.
 - **Shared credential.** Every helper uses the same bridal-team login, so anyone
   who learns the bridal-team access code can use the D-Day features. This matches
   the operational model (a small group of trusted helpers on the day).

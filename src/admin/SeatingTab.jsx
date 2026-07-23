@@ -13,6 +13,7 @@ import {
 import { sb, supabase, isDemoMode } from "../lib/supabase.js";
 import { csvCell } from "../lib/csv.js";
 import { suggestSeating } from "./seatingSuggestion.js";
+import FloorplanPanel from "./FloorplanPanel.jsx";
 
 const DEMO_TABLES = [
   { id: "t1", table_number: "1", label: "Family", capacity: 10, is_locked: false },
@@ -235,7 +236,7 @@ function TableCard({ table, seated, onToggleLock, onEdit, onDelete, onRemoveGues
   );
 }
 
-export default function SeatingTab({ guests, onUpdate, onResetSeating, showToast }) {
+export default function SeatingTab({ guests, onUpdate, onResetSeating, showToast, floorplans = [], onSaveFloorplans }) {
   const [tables, setTables] = useState(() => (isDemoMode ? DEMO_TABLES : []));
   const [loading, setLoading] = useState(!isDemoMode);
   const [modal, setModal] = useState(null);
@@ -593,6 +594,20 @@ export default function SeatingTab({ guests, onUpdate, onResetSeating, showToast
                   onRemoveGuest={unassignGuest}
                 />
               ))}
+            </div>
+          )}
+
+          {/* Floorplan snapshots (#162) — couple uploads here; both roles view
+              them read-only in the D-Day Tables view. */}
+          {onSaveFloorplans && (
+            <div>
+              <div className="seat-section-title">Venue Floorplans</div>
+              <FloorplanPanel
+                floorplans={floorplans}
+                isReadOnly={false}
+                onSave={onSaveFloorplans}
+                showToast={showToast}
+              />
             </div>
           )}
         </div>

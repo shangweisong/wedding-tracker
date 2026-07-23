@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2026-07-23] — Floorplan snapshots for couple & helper views (#162)
+
+### Added
+
+- **Floorplan/layout snapshots (#162)** — the couple can upload up to 6 venue floorplan / layout snapshot images (with optional labels) in **Planning → Seating**; both couple and helper see them read-only atop the **D-Day → Tables** view for day-of layout verification, with a tap-to-enlarge fullscreen viewer. Images are re-encoded client-side (`prepareImage`, EXIF-stripped JPEG) and stored in the existing public `wedding-photos` bucket under `floorplans/` (couple-only writes, world-readable by unguessable URL — see SECURITY.md). Metadata lives in a new `weddings.floorplans` JSONB column written through the couple-gated `upsert_floorplans` RPC (migration `0013_floorplans.sql`); it is read via the authenticated `weddings` select so helpers can view it, and is deliberately kept out of the anon-granted `get_wedding_config()`. New pure module `src/lib/floorplan.js` (cap/label/normalize helpers) with colocated tests.
+
+---
+
 ## [2026-07-21] — RSVP QR codes & CSV import dedupe (#155 / #154)
 
 ### Added
