@@ -2,7 +2,7 @@
 // Pure helpers for the open-RSVP mode where guests are not cross-checked
 // against the guest list. The PIN is a shared invitation secret verified
 // server-side (register_open_rsvp RPC); client-side hygiene only, the database
-// is the authoritative enforcement (see supabase/migrations/0009_open_rsvp.sql).
+// is the authoritative enforcement (see supabase/migrations/0008_open_rsvp.sql).
 export const MAX_PIN = 20;
 
 export const cleanPin = (v) => String(v ?? "").trim().slice(0, MAX_PIN);

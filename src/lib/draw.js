@@ -4,7 +4,7 @@
 // the guest's number (set to null via the `release_draw_number` RPC) and
 // allocation always hands out the lowest free positive integer, keeping the
 // numbers dense (1..N) to match physical ticket stubs. The server-side
-// allocator lives in `assign_draw_number` (migration 0012); `nextFreeDraw`
+// allocator lives in `assign_draw_number` (0001_core.sql); `nextFreeDraw`
 // mirrors it for demo mode. Follows the `src/lib/checkin.js` pattern: pure
 // helpers here, the network calls in `src/lib/supabase.js`.
 

@@ -4,7 +4,9 @@
 --                    (submissions/receipts policies), 0003_rsvp_seating
 --                    (tables policies), 0009_smart_rsvp (event-table policies),
 --                    0010_role_enforcement, 0015_guard_config_rpcs (§4 comments),
---                    0016_helper_guest_projection
+--                    0016_helper_guest_projection,
+--                    0012_dday_helper_features (§2-4: set_guest_angbao_received,
+--                    final get_checkin_guests, get_wishes_guests)
 --
 -- Splits the single `authenticated` Postgres role into two EFFECTIVE roles by
 -- JWT email (`app_config` + `is_helper()`, defined in 0001_core.sql):
@@ -158,7 +160,11 @@ grant execute on function public.set_guest_checkin(uuid, boolean) to authenticat
 -- All rows are returned (not just confirmed) so the "Arrived x/y" stat keeps
 -- its meaning; filtering stays client-side. Ordered by name for parity with
 -- the couple's `sb.select("guests")`.
-create or replace function public.get_checkin_guests()
+-- The merged check-in + angbao dashboard (#151) shows the angbao-received
+-- BOOLEAN to helpers. angbao_amount and every other couple-only column
+-- (notes, rsvp_token, contact details, …) stay OUT of the projection.
+drop function if exists public.get_checkin_guests();
+create function public.get_checkin_guests()
 returns table (
   id               uuid,
   name             text,
@@ -169,7 +175,8 @@ returns table (
   is_vip           boolean,
   party            text,
   draw_number      int,
-  primary_guest_id uuid
+  primary_guest_id uuid,
+  angbao_given     boolean
 )
 language sql
 stable
@@ -179,7 +186,8 @@ as $$
   -- Columns are alias-qualified so they can never collide with the
   -- `returns table` output names.
   select g.id, g.name, g.table_number, g.rsvp_status, g.checked_in,
-         g.checked_in_at, g.is_vip, g.party, g.draw_number, g.primary_guest_id
+         g.checked_in_at, g.is_vip, g.party, g.draw_number, g.primary_guest_id,
+         g.angbao_given
   from public.guests g
   order by g.name asc;
 $$;
@@ -188,15 +196,100 @@ revoke all on function public.get_checkin_guests() from public, anon;
 grant execute on function public.get_checkin_guests() to authenticated;
 
 comment on function public.get_checkin_guests() is
-  'Helper-safe guest projection for D-Day (check-in list, tables, lucky draw). RLS cannot hide columns, so the helper''s guests reads route through this instead of a direct select (#99). Keep couple-only columns (notes, angbao_*, rsvp_token, contact details) OUT of this projection.';
+  'Helper-safe guest projection for D-Day (check-in list, tables, lucky draw, angbao-received flag since #151). RLS cannot hide columns, so the helper''s guests reads route through this instead of a direct select (#99). Keep couple-only columns (notes, angbao_amount, rsvp_token, contact details) OUT of this projection.';
+
+-- ── 8b. set_guest_angbao_received (#151) ──────────────────────────────────────
+-- The D-Day Guest List and Angbao Tracker merge into one dashboard, and
+-- helpers (reception desk) may mark whether a guest's angbao was received —
+-- the boolean ONLY. One atomic call:
+--   * received=true  → sets angbao_given, auto-checks the guest in (a guest
+--     handing over an angbao is by definition present; checked_in_at is only
+--     stamped if not already set), and mints the lowest free lucky-draw number
+--     (assign_draw_number, 0001_core.sql).
+--   * received=false → clears the flag, zeroes the amount (same semantic as the
+--     couple's old toggle — an unmarked angbao has no countable amount), and
+--     releases the draw number back to the pool (release_draw_number,
+--     0001_core.sql). The guest STAYS checked in: un-receiving says nothing
+--     about presence.
+-- Returns the resulting draw_number + checked_in_at so the client can reconcile
+-- its optimistic update with server truth.
+drop function if exists public.set_guest_angbao_received(uuid, boolean);
+create function public.set_guest_angbao_received(p_guest_id uuid, p_received boolean)
+returns table (draw_number int, checked_in_at timestamptz)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if p_received then
+    update public.guests g
+      set angbao_given  = true,
+          checked_in    = true,
+          checked_in_at = coalesce(g.checked_in_at, now())
+      where g.id = p_guest_id;
+    perform public.assign_draw_number(p_guest_id);
+  else
+    update public.guests g
+      set angbao_given  = false,
+          angbao_amount = 0
+      where g.id = p_guest_id;
+    perform public.release_draw_number(p_guest_id);
+  end if;
+  return query
+    select g.draw_number, g.checked_in_at
+    from public.guests g
+    where g.id = p_guest_id;
+end;
+$$;
+
+revoke all on function public.set_guest_angbao_received(uuid, boolean) from public, anon;
+grant execute on function public.set_guest_angbao_received(uuid, boolean) to authenticated;
+
+comment on function public.set_guest_angbao_received(uuid, boolean) is
+  'Intentionally helper-callable (#151): toggles the angbao-received boolean, auto-checks-in and mints/releases the lucky-draw number. Touches no financial data beyond zeroing the amount of an UNMARKED angbao — it can never set or reveal an amount. Do not add an is_helper() gate.';
+
+-- ── 8c. get_wishes_guests (#149) ──────────────────────────────────────────────
+-- Wishes Wrapped (and its /wishes-wrapped presentation) is driven by guests'
+-- RSVP well-wish messages — columns the helper deliberately cannot read via
+-- get_checkin_guests. This dedicated read-only projection exposes EXACTLY the
+-- fields the Wrapped charts consume and nothing else: no contact details,
+-- notes, tokens, or financial columns. Granted to authenticated only — the
+-- messages are shown on a projector at the event, but they are still not for
+-- the anonymous public RSVP surface.
+drop function if exists public.get_wishes_guests();
+create function public.get_wishes_guests()
+returns table (
+  id                 uuid,
+  name               text,
+  party              text,
+  relationship_group text,
+  rsvp_status        text,
+  rsvp_message       text
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  -- Alias-qualified so columns can never collide with the output names.
+  select g.id, g.name, g.party, g.relationship_group, g.rsvp_status, g.rsvp_message
+  from public.guests g
+  order by g.name asc;
+$$;
+
+revoke all on function public.get_wishes_guests() from public, anon;
+grant execute on function public.get_wishes_guests() to authenticated;
+
+comment on function public.get_wishes_guests() is
+  'Intentionally helper-callable (#149): read-only wishes projection for the D-Day Wishes Wrapped presentation. Exposes name/side/relationship-group/RSVP status/well-wish message only — keep contact details, notes, tokens and financial columns OUT.';
 
 -- ── 9. Audit trail: security-definer write RPCs that stay open to the helper ──
 -- Reviewed alongside #101. Every other client-callable security-definer write
 -- is either gated (upsert_wedding_config / upsert_wedding_page / upsert_runsheet
--- / upsert_budget_config / upsert_checklist_config) or part of the anon RSVP
--- surface by design (submit_rsvp*). These two are the helper's sanctioned D-Day
--- writes and intentionally carry NO is_helper() gate:
+-- / upsert_budget_config / upsert_checklist_config / upsert_floorplans) or part
+-- of the anon RSVP surface by design (submit_rsvp*). The helper's sanctioned
+-- D-Day writes intentionally carry NO is_helper() gate: set_guest_checkin
+-- (below), set_guest_angbao_received (§8b), and the lucky-draw pair
+-- assign_draw_number / release_draw_number (commented in 0001_core.sql).
 comment on function public.set_guest_checkin(uuid, boolean) is
   'Intentionally helper-callable: the helper''s one sanctioned guest write (D-Day check-in). Do not add an is_helper() gate.';
-comment on function public.assign_draw_number(uuid) is
-  'Intentionally helper-callable: mints the assign-once lucky-draw number during D-Day check-in (0001_core). Writes no financial data. Do not add an is_helper() gate.';

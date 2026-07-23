@@ -1,7 +1,8 @@
 -- 0001_core.sql — guests, submissions, receipts bucket, role config
 --
 -- Consolidated from: 0001_init, 0002_draw_and_submissions,
---                    0010_role_enforcement (§1 app_config + §2 is_helper only)
+--                    0010_role_enforcement (§1 app_config + §2 is_helper only),
+--                    0012_dday_helper_features (§1 reusable lucky-draw pool)
 --
 -- The headline security property: data access is granted ONLY to the
 -- `authenticated` role. The anonymous role (`anon`) has no policy, so the
@@ -53,14 +54,23 @@ alter table public.guests enable row level security;
 alter table public.guests
   add column if not exists draw_number int unique;
 
-create sequence if not exists public.draw_number_seq;
-
--- Atomic, assign-once allocation. Two helpers confirming at the same instant can
--- never collide (the sequence hands out distinct values) and a guest who is
--- toggled off then on again keeps the original number (the update only fires
--- while draw_number is null). SECURITY DEFINER so the sequence is reachable
--- regardless of the caller's grants.
-create or replace function public.assign_draw_number(p_guest_id uuid)
+-- Reusable pool allocation (#150, from 0012): draw numbers used to be
+-- assign-once off a sequence — unmarking an angbao kept the number forever, so
+-- an accidental "Received" permanently consumed a raffle ticket. Now:
+--   * assign_draw_number hands out the LOWEST free positive integer (numbers
+--     stay dense 1..N, matching physical ticket stubs) — still only while the
+--     guest's draw_number is null;
+--   * release_draw_number returns a guest's number to the pool (called when the
+--     angbao is unmarked); a re-mark simply mints again and may legitimately
+--     receive the same number back.
+--
+-- The advisory lock serialises concurrent mints so two helpers confirming at
+-- the same instant can't compute the same "lowest free" value; the unique
+-- constraint on guests.draw_number above remains as a backstop.
+-- SECURITY DEFINER so the update works regardless of the caller's grants
+-- (helpers have no direct UPDATE on guests since #92).
+drop function if exists public.assign_draw_number(uuid);
+create function public.assign_draw_number(p_guest_id uuid)
 returns int
 language plpgsql
 security definer
@@ -68,8 +78,18 @@ set search_path = public
 as $$
 declare n int;
 begin
+  perform pg_advisory_xact_lock(hashtext('assign_draw_number'));
   update public.guests
-    set draw_number = nextval('public.draw_number_seq')
+    set draw_number = (
+      select min(s.n)
+      from generate_series(
+        1,
+        (select count(*) from public.guests where draw_number is not null) + 1
+      ) as s(n)
+      where not exists (
+        select 1 from public.guests g where g.draw_number = s.n
+      )
+    )
     where id = p_guest_id and draw_number is null;
   select draw_number into n from public.guests where id = p_guest_id;
   return n;
@@ -78,6 +98,38 @@ $$;
 
 revoke all on function public.assign_draw_number(uuid) from public;
 grant execute on function public.assign_draw_number(uuid) to authenticated;
+
+comment on function public.assign_draw_number(uuid) is
+  'Intentionally helper-callable: mints the lowest free lucky-draw number during D-Day check-in (0012). Writes no financial data. Do not add an is_helper() gate.';
+
+-- Narrow security-definer write in the set_guest_checkin mould (0005): touches
+-- only draw_number, parameterised id, granted to both signed-in roles.
+drop function if exists public.release_draw_number(uuid);
+create function public.release_draw_number(p_guest_id uuid)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  update public.guests set draw_number = null where id = p_guest_id;
+$$;
+
+revoke all on function public.release_draw_number(uuid) from public;
+grant execute on function public.release_draw_number(uuid) to authenticated;
+
+comment on function public.release_draw_number(uuid) is
+  'Returns a guest''s lucky-draw number to the reusable pool when their angbao is unmarked (#150). Writes no financial data.';
+
+-- One-time backfill: clear the stale numbers the assign-once era left behind
+-- (guests unmarked while keeping their number). Idempotent: re-running matches
+-- nothing new.
+update public.guests
+  set draw_number = null
+  where angbao_given = false and draw_number is not null;
+
+-- Retired by the pool rewrite (#150) — allocation no longer uses a sequence.
+-- Kept as a drop (not just removed) because already-deployed DBs still carry it.
+drop sequence if exists public.draw_number_seq;
 
 -- ── 3. Guest-upload queue ─────────────────────────────────────────────────────
 -- A guest drops a *pending* ang-bao submission (name + claimed amount + uploaded

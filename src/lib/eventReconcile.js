@@ -1,6 +1,6 @@
 // Pure reconciliation of a party's per-event RSVP submission into the full set
 // of `guest_event_rsvps` rows that should exist. Mirrors the server-side logic
-// in submit_rsvp (migration 0009): eligibility is primary-authoritative and each
+// in submit_rsvp_events (0004_smart_rsvp.sql): eligibility is primary-authoritative and each
 // body (primary + plus-one children) is materialized against the invited events.
 //
 // Used for optimistic UI and to unit-test the reconciliation rules. The SQL
