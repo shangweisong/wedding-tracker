@@ -17,7 +17,7 @@
     "@phosphor-icons/react": "^2.1.10",
     "@supabase/supabase-js": "^2.111.0",
     "@vercel/blob": "^2.6.1",
-    "nodemailer": "^9.0.3",
+    "nodemailer": "^10.0.10",
     "qrcode.react": "^4.2.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
